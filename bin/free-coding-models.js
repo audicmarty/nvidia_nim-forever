@@ -2287,7 +2287,7 @@ async function ensureProxyRunning(fcmConfig, { forceRestart = false } = {}) {
   }
 
   const proxyToken = `fcm_${randomUUID().replace(/-/g, '')}`
-  const proxy = new ProxyServer({ accounts, proxyApiKey: proxyToken, upstreamTimeoutMs: 120_000 })
+  const proxy = new ProxyServer({ accounts, proxyApiKey: proxyToken })
   const { port } = await proxy.start()
   activeProxy = proxy
 

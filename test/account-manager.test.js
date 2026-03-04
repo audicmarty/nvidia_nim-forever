@@ -118,6 +118,26 @@ describe('AccountManager', () => {
     assert.notStrictEqual(fallback.id, first.id)
   })
 
+  it('sticky session falls back when sticky account has low health score due to high latency', () => {
+    // Use 3 accounts; make the sticky one very slow (high latency → low score)
+    // but NOT circuit-broken (circuit breaker stays closed).
+    const accounts = makeAccounts(3)
+    const am = new AccountManager(accounts, { circuitBreakerThreshold: 10 }) // high threshold — CB won't open
+    const first = am.selectAccount({ sessionFingerprint: 'fp-slow' })
+    // Record many successes with very high latency (4800ms avg ≈ latencyScore ≈ 0.04)
+    // Score ≈ 0.4*1.0 + 0.3*0.04 + 0.3*0.5 = 0.4 + 0.012 + 0.15 = 0.562 → below 0.65 threshold
+    for (let i = 0; i < 10; i++) {
+      am.recordSuccess(first.id, 4800)
+    }
+    // Verify the sticky account's score is actually below 0.65
+    const score = am.getHealth(first.id).score
+    assert.ok(score < 0.65, `Expected score < 0.65 but got ${score}`)
+    // Now sticky should be broken due to low score — should get a different account
+    const fallback = am.selectAccount({ sessionFingerprint: 'fp-slow' })
+    assert.ok(fallback, 'Should return a fallback account')
+    assert.notStrictEqual(fallback.id, first.id, 'Fallback should not be the slow sticky account')
+  })
+
   it('LRU evicts oldest sticky entries', () => {
     const am = new AccountManager(makeAccounts(10), { maxStickySessions: 5 })
     // Fill LRU with 5 entries

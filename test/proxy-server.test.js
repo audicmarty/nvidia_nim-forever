@@ -836,3 +836,119 @@ describe('ProxyServer – SSE downstream disconnect cleanup', () => {
       'upstream response should have been destroyed/closed when client disconnected')
   })
 })
+
+// ─── Suite: ProxyServer – provider-level 404 model-not-found rotation ─────────
+// These tests verify that when a provider returns 404 with a "model not found /
+// inaccessible / not deployed" body, the proxy rotates to the next available
+// account rather than immediately forwarding the error to the client.
+
+describe('ProxyServer – provider 404 model-not-found triggers rotation', () => {
+  const cleanups = []
+
+  after(async () => {
+    for (const fn of cleanups) await fn()
+  })
+
+  it('rotates to next account when first provider returns 404 model-not-found and second returns 200', async () => {
+    // First upstream: 404 with "Model not found, inaccessible, and/or not deployed"
+    const fireworksBad = await createMockUpstream(
+      { error: { message: 'Model not found, inaccessible, and/or not deployed', type: 'invalid_request_error' } },
+      404
+    )
+    // Second upstream: 200 success
+    const goodUpstream = await createMockUpstream(
+      { choices: [{ message: { content: 'hello' } }], usage: { prompt_tokens: 5, completion_tokens: 3 } },
+      200
+    )
+    cleanups.push(() => fireworksBad.server.close(), () => goodUpstream.server.close())
+
+    const accounts = [
+      { id: 'fireworks-acct', providerKey: 'fireworks', apiKey: 'k1', modelId: 'target-model', proxyModelId: 'target-model', url: fireworksBad.url + '/v1' },
+      { id: 'good-acct', providerKey: 'groq', apiKey: 'k2', modelId: 'target-model', proxyModelId: 'target-model', url: goodUpstream.url + '/v1' },
+    ]
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 2 })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, { model: 'target-model', messages: [{ role: 'user', content: 'hi' }] })
+    assert.strictEqual(res.statusCode, 200, `Expected 200 after rotation, got ${res.statusCode}: ${res.body}`)
+    const parsed = JSON.parse(res.body)
+    assert.ok(parsed.choices, 'response must have choices from second provider')
+  })
+
+  it('returns 503 when all providers return 404 model-not-found', async () => {
+    const bad1 = await createMockUpstream(
+      { error: { message: 'Model not found, inaccessible, and/or not deployed' } }, 404
+    )
+    const bad2 = await createMockUpstream(
+      { error: { message: 'model inaccessible' } }, 404
+    )
+    cleanups.push(() => bad1.server.close(), () => bad2.server.close())
+
+    const accounts = [
+      { id: 'bad1', providerKey: 'fireworks', apiKey: 'k1', modelId: 'no-model', proxyModelId: 'no-model', url: bad1.url + '/v1' },
+      { id: 'bad2', providerKey: 'together', apiKey: 'k2', modelId: 'no-model', proxyModelId: 'no-model', url: bad2.url + '/v1' },
+    ]
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 3 })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, { model: 'no-model', messages: [{ role: 'user', content: 'hi' }] })
+    assert.strictEqual(res.statusCode, 503, `Expected 503 when all providers fail with 404, got ${res.statusCode}`)
+  })
+
+  it('account is penalized (skipAccount=true) after MODEL_NOT_FOUND: recordFailure is called and circuitBreaker records the failure', async () => {
+    const bad = await createMockUpstream(
+      { error: { message: 'Model not found, inaccessible, and/or not deployed' } }, 404
+    )
+    const good = await createMockUpstream(
+      { choices: [{ message: { content: 'ok' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }, 200
+    )
+    cleanups.push(() => bad.server.close(), () => good.server.close())
+
+    const accounts = [
+      { id: 'bad-404', providerKey: 'fireworks', apiKey: 'k1', modelId: 'mm', proxyModelId: 'mm', url: bad.url + '/v1' },
+      { id: 'good-200', providerKey: 'groq', apiKey: 'k2', modelId: 'mm', proxyModelId: 'mm', url: good.url + '/v1' },
+    ]
+    // circuitBreakerThreshold=1: after 1 failure, circuit opens
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 2, accountManagerOpts: { circuitBreakerThreshold: 1 } })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    // Directly inject a MODEL_NOT_FOUND failure into bad-404 to simulate what the proxy does
+    const { classifyError: ce } = await import('../lib/error-classifier.js')
+    const classified = ce(404, 'Model not found, inaccessible, and/or not deployed', {})
+    proxy._accountManager.recordFailure('bad-404', classified, { providerKey: 'fireworks' })
+
+    // The circuit breaker should now be open (threshold=1 means 1 failure trips it)
+    const badHealth = proxy._accountManager._healthMap.get('bad-404')
+    assert.ok(badHealth.circuitBreaker.isOpen(), 'circuit breaker should be open after 1 MODEL_NOT_FOUND failure with threshold=1')
+    assert.strictEqual(badHealth.failureCount, 1, 'failureCount must be 1 after MODEL_NOT_FOUND')
+
+    // bad-404 should be unavailable for selection
+    const selected = proxy._accountManager.selectAccount({ requestedModel: 'mm' })
+    assert.ok(selected !== null, 'there should be an available account (good-200)')
+    assert.strictEqual(selected.id, 'good-200', 'should select good-200 because bad-404 is circuit-broken')
+  })
+
+  it('generic provider 404 (no model keywords) is NOT rotated — forwarded directly', async () => {
+    // A plain 404 "not found" (e.g. wrong endpoint URL, no model keywords) should NOT trigger rotation.
+    // It falls through as UNKNOWN (shouldRetry=false) and is forwarded to the client.
+    // Use a single account to make selection deterministic.
+    const genericBad = await createMockUpstream(
+      { error: { message: 'The requested URL was not found on the server.' } }, 404
+    )
+    cleanups.push(() => genericBad.server.close())
+
+    const accounts = [
+      { id: 'generic-404-acct', providerKey: 'someprov', apiKey: 'k1', modelId: 'mymodel', proxyModelId: 'mymodel', url: genericBad.url + '/v1' },
+    ]
+    const proxy = new ProxyServer({ port: 0, accounts, retries: 2 })
+    const { port } = await proxy.start()
+    cleanups.push(() => proxy.stop())
+
+    const res = await makeRequest(port, { model: 'mymodel', messages: [{ role: 'user', content: 'hi' }] })
+    // Generic 404 (no model keywords): UNKNOWN → shouldRetry=false → forwarded directly → client gets 404
+    assert.strictEqual(res.statusCode, 404, `generic 404 without model keywords should be forwarded as-is, got ${res.statusCode}`)
+  })
+})

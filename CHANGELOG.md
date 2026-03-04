@@ -1,23 +1,4 @@
 # Changelog
-
----
-
-## 0.1.83 (hardening patch)
-
-> Robustness fixes applied on top of 0.1.83: telemetry opt-out is now respected, the auto-updater relaunch uses an absolute path, SSE client disconnects clean up upstream connections, startup log pruning is deferred off the critical path, usage snapshots are cached to avoid per-render disk reads, and the TUI placeholder logic (`N/A` vs `--`) uses the canonical `isKnownQuotaTelemetry()` helper from `lib/quota-capabilities.js` instead of a duplicated set.
-
-### Fixed
-
-- **Telemetry opt-out respected** — `ensureTelemetryConfig` no longer forces `enabled: true` when the user has explicitly set `enabled: false`. First-run default (unset) still initialises to `true`.
-- **Auto-updater relaunch absolute path** — both normal and sudo-retry relaunch paths now use `process.argv[1]` (absolute) instead of the relative `bin/free-coding-models.js`, fixing relaunch failures when the tool is run from a different working directory.
-- **SSE client-disconnect cleanup** — `ProxyServer` now registers a `clientRes.on('close')` listener on SSE streams that destroys both the upstream request and response when the downstream client disconnects, preventing upstream connection leaks.
-
-### Changed
-
-- **Deferred startup log prune** — `TokenStats` constructor calls `_pruneOldLogs()` via `setImmediate` instead of synchronously, keeping constructor latency minimal.
-- **Usage snapshot cache** — `lib/usage-reader.js` maintains a module-level 750 ms parse cache keyed by stats-file path; repeated TUI renders within the same animation frame no longer each hit the disk. A new `clearUsageCache()` export allows tests to evict the cache deterministically.
-- **Canonical telemetry source in TUI** — removed the hardcoded `PROVIDERS_WITHOUT_QUOTA_TELEMETRY` set from `bin/free-coding-models.js`; `usagePlaceholderForProvider()` now delegates to `isKnownQuotaTelemetry()` from `lib/quota-capabilities.js` — single source of truth.
-
 ---
 
 ## 0.1.83
@@ -41,15 +22,25 @@
 - **Usage observability & Logs page** — structured NDJSON request log written by the proxy; new TUI Logs page shows recent proxy requests with status, model, tokens, and latency.
 - **Provider quota pollers** (`lib/provider-quota-fetchers.js`) — TTL-cached quota checks for OpenRouter and SiliconFlow; replaces inline fetch logic; injectable fetch for deterministic tests.
 - **Proxy log coherence** — `ProxyServer` now records every upstream attempt (success and failure) in `TokenStats` with consistent fields (`success`, `statusCode`, `tokens`, `latency`); no attempt goes unlogged.
-- **7 new tests** — upstream-timeout suite (3 tests) and unsupported-paths suite (4 tests) in `test/proxy-server.test.js`.
+- **`MODEL_NOT_FOUND` error type** — `lib/error-classifier.js` gains a new `MODEL_NOT_FOUND` classification for provider 404/410 responses whose body contains keywords like `"model not found"`, `"inaccessible"`, `"not deployed"`, or `"model unavailable"`. Classified as `shouldRetry: true, skipAccount: true` — rotates to the next provider rather than forwarding the 404 to the client.
+- **12 new tests** — upstream-timeout suite (3), unsupported-paths suite (4), SSE-disconnect suite (1), provider-404-rotation suite (4) in `test/proxy-server.test.js`; sticky-health-break (1) in `test/account-manager.test.js`; MODEL_NOT_FOUND classification (5) in `test/error-classifier.test.js`.
 
 ### Fixed
 
-- **Proxy upstream timeout** — `ProxyServer` now enforces a 120-second timeout on every upstream HTTP request (`upstreamTimeoutMs`, default 120 000 ms). Previously the proxy would hang for the full upstream timeout (up to 302 s for nvidia NIM 504s), making OpenCode appear to receive nothing. The timed-out attempt is now treated as a network error and retried against the next available account.
+- **Proxy upstream timeout** — `ProxyServer` now enforces a 45-second timeout on every upstream HTTP request (`upstreamTimeoutMs`, default 45 000 ms). Previously the proxy would hang for the full upstream timeout (up to 302 s for nvidia NIM 504s), making OpenCode appear to receive nothing. The timed-out attempt is now treated as a network error and retried against the next available account.
 - **501 for unsupported OpenAI paths** — `POST /v1/completions` and `POST /v1/responses` now return `501 Not Implemented` (with a clear error message pointing to `/v1/chat/completions`) instead of a silent `404 Not Found`.
-- **Alibaba Cloud URL** — updated from deprecated `dashscope.console.alibabacloud.com` to active `modelstudio.console.alibabacloud.com` (rebranded to Model Studio). *(upstream v0.1.82)*
-- **SambaNova URL** — updated from broken `sambanova.ai/developers` to active `cloud.sambanova.ai/apis` (SambaCloud portal). *(upstream v0.1.82)*
-- **OpenRouter key corruption** — added validation to detect and prevent saving OpenRouter keys that don't start with `sk-or-` prefix. *(upstream v0.1.82)*
+- **Telemetry opt-out respected** — `ensureTelemetryConfig` no longer forces `enabled: true` when the user has explicitly set `enabled: false`. First-run default (unset) still initialises to `true`.
+- **Auto-updater relaunch absolute path** — both normal and sudo-retry relaunch paths now use `process.argv[1]` (absolute) instead of the relative `bin/free-coding-models.js`, fixing relaunch failures when the tool is run from a different working directory.
+- **SSE client-disconnect cleanup** — `ProxyServer` now registers a `clientRes.on('close')` listener on SSE streams that destroys both the upstream request and response when the downstream client disconnects, preventing upstream connection leaks.
+- **Provider 404 model-not-found rotation** — generic 404 errors from an upstream whose body contains model-not-found keywords are classified as `MODEL_NOT_FOUND` and trigger provider rotation; a plain URL-routing 404 (no model keywords) is forwarded directly to the client as before.
+
+### Changed
+
+- **Deferred startup log prune** — `TokenStats` constructor calls `_pruneOldLogs()` via `setImmediate` instead of synchronously, keeping constructor latency minimal.
+- **Usage snapshot cache** — `lib/usage-reader.js` maintains a module-level 750 ms parse cache keyed by stats-file path; repeated TUI renders within the same animation frame no longer each hit the disk. A new `clearUsageCache()` export allows tests to evict the cache deterministically.
+- **Canonical telemetry source in TUI** — removed the hardcoded `PROVIDERS_WITHOUT_QUOTA_TELEMETRY` set from `bin/free-coding-models.js`; `usagePlaceholderForProvider()` now delegates to `isKnownQuotaTelemetry()` from `lib/quota-capabilities.js` — single source of truth.
+- **Sticky session breaks on low health score** — `AccountManager.selectAccount()` now breaks sticky routing if the sticky account's computed health score falls below `0.65` (slow/degraded provider), falling through to P2C re-selection rather than pinning the client to a sluggish key.
+- **Upstream timeout tightened to 45 s** — `upstreamTimeoutMs` default reduced from 120 s to 45 s; `ensureProxyRunning` no longer passes an explicit override (inherits the constructor default).
 
 ---
 

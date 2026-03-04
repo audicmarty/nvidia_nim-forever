@@ -1,11 +1,46 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyError, CircuitBreaker, rateLimitConfidence } from '../lib/error-classifier.js'
+import { classifyError, CircuitBreaker, rateLimitConfidence, ErrorType } from '../lib/error-classifier.js'
 
 describe('classifyError', () => {
   it('classifies 429 as RATE_LIMITED', () => {
     const r = classifyError(429, '', {})
     assert.strictEqual(r.type, 'RATE_LIMITED')
+  })
+
+  // ── Model-not-found (provider 404/410) tests ─────────────────────────────
+  it('classifies 404 with model-not-found body as MODEL_NOT_FOUND (shouldRetry=true, skipAccount=true)', () => {
+    const r = classifyError(404, 'Model not found, inaccessible, and/or not deployed', {})
+    assert.strictEqual(r.type, ErrorType.MODEL_NOT_FOUND)
+    assert.strictEqual(r.shouldRetry, true)
+    assert.strictEqual(r.skipAccount, true)
+  })
+
+  it('classifies 404 with "inaccessible" body as MODEL_NOT_FOUND', () => {
+    const r = classifyError(404, 'model inaccessible', {})
+    assert.strictEqual(r.type, ErrorType.MODEL_NOT_FOUND)
+    assert.strictEqual(r.shouldRetry, true)
+    assert.strictEqual(r.skipAccount, true)
+  })
+
+  it('classifies 410 with model-not-found body as MODEL_NOT_FOUND', () => {
+    const r = classifyError(410, 'Model not found', {})
+    assert.strictEqual(r.type, ErrorType.MODEL_NOT_FOUND)
+    assert.strictEqual(r.shouldRetry, true)
+    assert.strictEqual(r.skipAccount, true)
+  })
+
+  it('classifies generic 404 (no model keywords) as UNKNOWN with shouldRetry=false', () => {
+    const r = classifyError(404, 'not found', {})
+    assert.strictEqual(r.type, ErrorType.UNKNOWN)
+    assert.strictEqual(r.shouldRetry, false)
+  })
+
+  it('classifies 404 with "not deployed" in body as MODEL_NOT_FOUND', () => {
+    const r = classifyError(404, 'model not deployed in this region', {})
+    assert.strictEqual(r.type, ErrorType.MODEL_NOT_FOUND)
+    assert.strictEqual(r.shouldRetry, true)
+    assert.strictEqual(r.skipAccount, true)
   })
 
   it('classifies 429 with quota body as QUOTA_EXHAUSTED', () => {
