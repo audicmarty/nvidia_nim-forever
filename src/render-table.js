@@ -39,6 +39,7 @@ import { getAvg, getVerdict, getUptime, getStabilityScore } from './utils.js'
 import { usagePlaceholderForProvider } from './ping.js'
 import { formatTokenTotalCompact } from './token-usage-reader.js'
 import { calculateViewport, sortResultsWithPinnedFavorites, renderProxyStatusLine, padEndDisplay } from './render-helpers.js'
+import { getToolMeta } from './tool-metadata.js'
 
 const require = createRequire(import.meta.url)
 const { version: LOCAL_VERSION } = require('../package.json')
@@ -77,7 +78,7 @@ export function setActiveProxy(proxyInstance) {
 }
 
 // ─── renderTable: mode param controls footer hint text (opencode vs openclaw) ─────────
-export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, activeProfile = null, profileSaveMode = false, profileSaveBuffer = '', proxyStartupStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false) {
+export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, activeProfile = null, profileSaveMode = false, profileSaveBuffer = '', proxyStartupStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false) {
   // 📖 Filter out hidden models for display
   const visibleResults = results.filter(r => !r.hidden)
 
@@ -119,14 +120,11 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   // 📖 Tool badge keeps the active launch target visible in the header, so the
   // 📖 footer no longer needs a redundant Enter action or mode toggle reminder.
-  let modeBadge
-  if (mode === 'openclaw') {
-    modeBadge = chalk.bold.rgb(255, 100, 50)(' [ ') + chalk.yellow.bold('Z') + chalk.bold.rgb(255, 100, 50)(' Tool : OpenClaw ]')
-  } else if (mode === 'opencode-desktop') {
-    modeBadge = chalk.bold.rgb(0, 200, 255)(' [ ') + chalk.yellow.bold('Z') + chalk.bold.rgb(0, 200, 255)(' Tool : OpenCode Desktop ]')
-  } else {
-    modeBadge = chalk.bold.rgb(0, 200, 255)(' [ ') + chalk.yellow.bold('Z') + chalk.bold.rgb(0, 200, 255)(' Tool : OpenCode CLI ]')
-  }
+  const toolMeta = getToolMeta(mode)
+  const toolBadgeColor = mode === 'openclaw'
+    ? chalk.bold.rgb(255, 100, 50)
+    : chalk.bold.rgb(0, 200, 255)
+  const modeBadge = toolBadgeColor(' [ ') + chalk.yellow.bold('Z') + toolBadgeColor(` Tool : ${toolMeta.label} ]`)
 
   // 📖 Tier filter badge shown when filtering is active (shows exact tier name)
   const TIER_CYCLE_NAMES = [null, 'S+', 'S', 'A+', 'A', 'A-', 'B+', 'B', 'C']
@@ -173,14 +171,27 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   const W_TOKENS = 7
   const W_USAGE = 7
   const MIN_TABLE_WIDTH = 166
+  const warningDurationMs = 5_000
+  const elapsed = widthWarningStartedAt ? Math.max(0, Date.now() - widthWarningStartedAt) : warningDurationMs
+  const remainingMs = Math.max(0, warningDurationMs - elapsed)
+  const showWidthWarning = terminalCols > 0 && terminalCols < MIN_TABLE_WIDTH && !widthWarningDismissed && remainingMs > 0
 
-  if (terminalCols > 0 && terminalCols < MIN_TABLE_WIDTH) {
+  if (showWidthWarning) {
     const lines = []
-    const blankLines = Math.max(0, Math.floor(((terminalRows || 24) - 3) / 2))
-    const warning = 'Please maximize your terminal for optimal use. The current terminal width is too small for the full table.'
+    const blankLines = Math.max(0, Math.floor(((terminalRows || 24) - 5) / 2))
+    const warning = 'Please maximize your terminal for optimal use.'
+    const warning2 = 'The current terminal is too small.'
+    const warning3 = 'Reduce font size or maximize width of terminal.'
     const padLeft = Math.max(0, Math.floor((terminalCols - warning.length) / 2))
+    const padLeft2 = Math.max(0, Math.floor((terminalCols - warning2.length) / 2))
+    const padLeft3 = Math.max(0, Math.floor((terminalCols - warning3.length) / 2))
     for (let i = 0; i < blankLines; i++) lines.push('')
     lines.push(' '.repeat(padLeft) + chalk.red.bold(warning))
+    lines.push(' '.repeat(padLeft2) + chalk.red(warning2))
+    lines.push(' '.repeat(padLeft3) + chalk.red(warning3))
+    lines.push('')
+    lines.push(' '.repeat(Math.max(0, Math.floor((terminalCols - 34) / 2))) + chalk.yellow(`this message will hide in ${(remainingMs / 1000).toFixed(1)}s`))
+    lines.push(' '.repeat(Math.max(0, Math.floor((terminalCols - 20) / 2))) + chalk.dim('press esc to dismiss'))
     while (terminalRows > 0 && lines.length < terminalRows) lines.push('')
     const EL = '\x1b[K'
     return lines.map(line => line + EL).join('\n')

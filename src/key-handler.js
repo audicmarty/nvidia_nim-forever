@@ -132,7 +132,9 @@ export function createKeyHandler(ctx) {
     startOpenCodeDesktop,
     startOpenCode,
     startProxyAndLaunch,
+    startExternalTool,
     buildProxyTopologyFromConfig,
+    getToolModeOrder,
     startRecommendAnalysis,
     stopRecommendAnalysis,
     sendFeatureRequest,
@@ -1054,9 +1056,9 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Mode toggle key: Z = cycle through modes (CLI → Desktop → OpenClaw)
+    // 📖 Mode toggle key: Z cycles through the supported tool targets.
     if (key.name === 'z') {
-      const modeOrder = ['opencode', 'opencode-desktop', 'openclaw']
+      const modeOrder = getToolModeOrder()
       const currentIndex = modeOrder.indexOf(state.mode)
       const nextIndex = (currentIndex + 1) % modeOrder.length
       state.mode = modeOrder[nextIndex]
@@ -1094,6 +1096,12 @@ export function createKeyHandler(ctx) {
       return
     }
 
+    // 📖 Esc can dismiss the narrow-terminal warning immediately without quitting the app.
+    if (key.name === 'escape' && state.terminalCols > 0 && state.terminalCols < 166) {
+      state.widthWarningDismissed = true
+      return
+    }
+
     if (key.name === 'return') { // Enter
       // 📖 Use the cached visible+sorted array — guaranteed to match what's on screen
       const selected = state.visibleSorted[state.cursor]
@@ -1121,7 +1129,7 @@ export function createKeyHandler(ctx) {
         const selectedApiKey = getApiKey(state.config, selected.providerKey)
         if (!selectedApiKey) {
           console.log(chalk.yellow(`  Warning: No API key configured for ${selected.providerKey}.`))
-          console.log(chalk.yellow(`  OpenCode may not be able to use ${selected.label}.`))
+          console.log(chalk.yellow(`  The selected tool may not be able to use ${selected.label}.`))
           console.log(chalk.dim(`  Set ${ENV_VAR_NAMES[selected.providerKey] || selected.providerKey.toUpperCase() + '_API_KEY'} or configure via settings (P key).`))
           console.log()
         }
@@ -1132,7 +1140,7 @@ export function createKeyHandler(ctx) {
         await startOpenClaw(userSelected, apiKey)
       } else if (state.mode === 'opencode-desktop') {
         await startOpenCodeDesktop(userSelected, state.config)
-      } else {
+      } else if (state.mode === 'opencode') {
         const topology = buildProxyTopologyFromConfig(state.config)
         if (topology.accounts.length === 0) {
           console.log(chalk.yellow('  No API keys found for proxy model catalog. Falling back to direct flow.'))
@@ -1141,6 +1149,8 @@ export function createKeyHandler(ctx) {
         } else {
           await startProxyAndLaunch(userSelected, state.config)
         }
+      } else {
+        await startExternalTool(state.mode, userSelected, state.config)
       }
       process.exit(0)
     }

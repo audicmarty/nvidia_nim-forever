@@ -385,11 +385,15 @@ export function findBestModel(results) {
 //
 // 📖 Argument types:
 //   - API key: first positional arg that doesn't start with "--" (e.g., "nvapi-xxx")
-//   - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --openclaw, --no-telemetry (case-insensitive)
+//   - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --openclaw,
+//     --aider, --crush, --goose, --claude-code, --codex, --gemini, --qwen,
+//     --openhands, --amp, --pi, --no-telemetry (case-insensitive)
 //   - Value flag: --tier <letter> (the next non-flag arg is the tier value)
 //
 // 📖 Returns:
-//   { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openClawMode, noTelemetry, tierFilter }
+//   { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openClawMode,
+//     aiderMode, crushMode, gooseMode, claudeCodeMode, codexMode, geminiMode,
+//     qwenMode, openHandsMode, ampMode, piMode, noTelemetry, tierFilter }
 //
 // 📖 Note: apiKey may be null here — the main CLI falls back to env vars and saved config.
 export function parseArgs(argv) {
@@ -428,6 +432,16 @@ export function parseArgs(argv) {
   const openCodeMode = flags.includes('--opencode')
   const openCodeDesktopMode = flags.includes('--opencode-desktop')
   const openClawMode = flags.includes('--openclaw')
+  const aiderMode = flags.includes('--aider')
+  const crushMode = flags.includes('--crush')
+  const gooseMode = flags.includes('--goose')
+  const claudeCodeMode = flags.includes('--claude-code')
+  const codexMode = flags.includes('--codex')
+  const geminiMode = flags.includes('--gemini')
+  const qwenMode = flags.includes('--qwen')
+  const openHandsMode = flags.includes('--openhands')
+  const ampMode = flags.includes('--amp')
+  const piMode = flags.includes('--pi')
   const noTelemetry = flags.includes('--no-telemetry')
 
   let tierFilter = tierValueIdx !== -1 ? args[tierValueIdx].toUpperCase() : null
@@ -437,7 +451,28 @@ export function parseArgs(argv) {
   // 📖 --recommend — launch directly into Smart Recommend mode (Q key equivalent)
   const recommendMode = flags.includes('--recommend')
 
-  return { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openClawMode, noTelemetry, tierFilter, profileName, recommendMode }
+  return {
+    apiKey,
+    bestMode,
+    fiableMode,
+    openCodeMode,
+    openCodeDesktopMode,
+    openClawMode,
+    aiderMode,
+    crushMode,
+    gooseMode,
+    claudeCodeMode,
+    codexMode,
+    geminiMode,
+    qwenMode,
+    openHandsMode,
+    ampMode,
+    piMode,
+    noTelemetry,
+    tierFilter,
+    profileName,
+    recommendMode
+  }
 }
 
 // ─── Smart Recommend — Scoring Engine ─────────────────────────────────────────

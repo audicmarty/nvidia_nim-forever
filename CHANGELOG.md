@@ -2,6 +2,18 @@
 
 ---
 
+## 0.1.88
+
+### Added
+
+- 🧰 Added direct launch modes for `Aider`, `Crush`, `Goose`, `Claude Code`, `Codex CLI`, `Gemini CLI`, `Qwen Code`, `OpenHands`, `Amp`, and `Pi`, so pressing `Enter` can now auto-configure and start more than just OpenCode/OpenClaw.
+
+### Changed
+
+- 🧭 Extended the `Z` tool cycle, CLI flag parser, help overlay, and header mode badge so the active target tool is visible and switchable across all supported launchers.
+
+---
+
 ## 0.1.87
 
 ### Fixed

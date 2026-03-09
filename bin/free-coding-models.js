@@ -116,6 +116,8 @@ import { setOpenCodeModelData, startOpenCode, startOpenCodeDesktop, startProxyAn
 import { startOpenClaw } from '../src/openclaw.js'
 import { createOverlayRenderers } from '../src/overlays.js'
 import { createKeyHandler } from '../src/key-handler.js'
+import { getToolModeOrder } from '../src/tool-metadata.js'
+import { startExternalTool } from '../src/tool-launchers.js'
 
 // 📖 mergedModels: cross-provider grouped model list (one entry per label, N providers each)
 // 📖 mergedModelByLabel: fast lookup map from display label → merged model entry
@@ -204,11 +206,28 @@ async function main() {
   // 📖 Backward-compat: keep apiKey var for startOpenClaw() which still needs it
   let apiKey = getApiKey(config, 'nvidia')
 
-  // 📖 Default mode: OpenCode CLI
+  // 📖 Default mode: OpenCode CLI.
+  // 📖 Additional external tools can now be selected via dedicated flags.
   let mode = 'opencode'
-  if (cliArgs.openClawMode) mode = 'openclaw'
-  else if (cliArgs.openCodeDesktopMode) mode = 'opencode-desktop'
-  else if (cliArgs.openCodeMode) mode = 'opencode'
+  const requestedMode = getToolModeOrder().find((toolMode) => {
+    const flagByMode = {
+      opencode: cliArgs.openCodeMode,
+      'opencode-desktop': cliArgs.openCodeDesktopMode,
+      openclaw: cliArgs.openClawMode,
+      aider: cliArgs.aiderMode,
+      crush: cliArgs.crushMode,
+      goose: cliArgs.gooseMode,
+      'claude-code': cliArgs.claudeCodeMode,
+      codex: cliArgs.codexMode,
+      gemini: cliArgs.geminiMode,
+      qwen: cliArgs.qwenMode,
+      openhands: cliArgs.openHandsMode,
+      amp: cliArgs.ampMode,
+      pi: cliArgs.piMode,
+    }
+    return flagByMode[toolMode] === true
+  })
+  if (requestedMode) mode = requestedMode
 
   // 📖 Track app opening early so fast exits are still counted.
   // 📖 Must run before update checks because npm registry lookups can add startup delay.
@@ -353,6 +372,8 @@ async function main() {
     scrollOffset: 0,              // 📖 First visible model index in viewport
     terminalRows: process.stdout.rows || 24,  // 📖 Current terminal height
     terminalCols: process.stdout.columns || 80, // 📖 Current terminal width
+    widthWarningStartedAt: (process.stdout.columns || 80) < 166 ? now : null, // 📖 Start the narrow-terminal countdown immediately when booting in a small viewport.
+    widthWarningDismissed: false, // 📖 Esc hides the narrow-terminal warning early for the current narrow-width session.
     // 📖 Settings screen state (P key opens it)
     settingsOpen: false,          // 📖 Whether settings overlay is active
     settingsCursor: 0,            // 📖 Which provider row is selected in settings
@@ -410,8 +431,20 @@ async function main() {
 
   // 📖 Re-clamp viewport on terminal resize
   process.stdout.on('resize', () => {
+    const prevCols = state.terminalCols
     state.terminalRows = process.stdout.rows || 24
     state.terminalCols = process.stdout.columns || 80
+    if (state.terminalCols < 166) {
+      if (prevCols >= 166 || state.widthWarningDismissed) {
+        state.widthWarningStartedAt = Date.now()
+        state.widthWarningDismissed = false
+      } else if (!state.widthWarningStartedAt) {
+        state.widthWarningStartedAt = Date.now()
+      }
+    } else {
+      state.widthWarningStartedAt = null
+      state.widthWarningDismissed = false
+    }
     adjustScrollOffset(state)
   })
 
@@ -585,7 +618,9 @@ async function main() {
     startOpenCodeDesktop,
     startOpenCode,
     startProxyAndLaunch,
+    startExternalTool,
     buildProxyTopologyFromConfig,
+    getToolModeOrder,
     startRecommendAnalysis: overlays.startRecommendAnalysis,
     stopRecommendAnalysis: overlays.stopRecommendAnalysis,
     sendFeatureRequest,
@@ -652,7 +687,7 @@ async function main() {
                 ? overlays.renderHelp()
               : state.logVisible
                 ? overlays.renderLog()
-                : renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels)
+                : renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed)
     process.stdout.write(ALT_HOME + content)
   }, Math.round(1000 / FPS))
 
@@ -660,7 +695,7 @@ async function main() {
   const initialVisible = state.results.filter(r => !r.hidden)
   state.visibleSorted = sortResultsWithPinnedFavorites(initialVisible, state.sortColumn, state.sortDirection)
 
-  process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels))
+  process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed))
 
   // 📖 If --recommend was passed, auto-open the Smart Recommend overlay on start
   if (cliArgs.recommendMode) {

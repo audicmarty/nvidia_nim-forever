@@ -84,6 +84,7 @@
 - **🔀 Startup mode menu** — Choose between OpenCode and OpenClaw before the TUI launches
 - **💻 OpenCode integration** — Auto-detects NIM setup, sets model as default, launches OpenCode
 - **🦞 OpenClaw integration** — Sets selected model as default provider in `~/.openclaw/openclaw.json`
+- **🧰 Multi-tool launchers** — `Enter` can now auto-configure and launch `Aider`, `Crush`, `Goose`, `Claude Code` (proxy env), `Codex CLI`, `Gemini CLI`, `Qwen Code`, `OpenHands`, `Amp`, and `Pi`
 - **📝 Feature Request (J key)** — Send anonymous feedback directly to the project team
 - **🐛 Bug Report (I key)** — Send anonymous bug reports directly to the project team
  - **🎨 Clean output** — Zero scrollback pollution, interface stays open until Ctrl+C
@@ -161,6 +162,18 @@ free-coding-models --opencode-desktop
 
 # Explicitly target OpenClaw (TUI + Enter sets model as default in OpenClaw)
 free-coding-models --openclaw
+
+# Launch other supported tools with the selected model
+free-coding-models --aider
+free-coding-models --crush
+free-coding-models --goose
+free-coding-models --claude-code
+free-coding-models --codex
+free-coding-models --gemini
+free-coding-models --qwen
+free-coding-models --openhands
+free-coding-models --amp
+free-coding-models --pi
 
 # Show only top-tier models (A+, S, S+)
 free-coding-models --best

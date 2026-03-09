@@ -821,6 +821,31 @@ describe('parseArgs', () => {
     assert.equal(parseArgs(argv()).openCodeDesktopMode, false)
   })
 
+  it('detects external tool flags', () => {
+    const result = parseArgs(argv(
+      '--aider',
+      '--crush',
+      '--goose',
+      '--claude-code',
+      '--codex',
+      '--gemini',
+      '--qwen',
+      '--openhands',
+      '--amp',
+      '--pi'
+    ))
+    assert.equal(result.aiderMode, true)
+    assert.equal(result.crushMode, true)
+    assert.equal(result.gooseMode, true)
+    assert.equal(result.claudeCodeMode, true)
+    assert.equal(result.codexMode, true)
+    assert.equal(result.geminiMode, true)
+    assert.equal(result.qwenMode, true)
+    assert.equal(result.openHandsMode, true)
+    assert.equal(result.ampMode, true)
+    assert.equal(result.piMode, true)
+  })
+
   it('detects --no-telemetry flag', () => {
     assert.equal(parseArgs(argv('--no-telemetry')).noTelemetry, true)
     assert.equal(parseArgs(argv()).noTelemetry, false)
