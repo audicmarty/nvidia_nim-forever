@@ -6,6 +6,14 @@
  * an in-memory ring buffer of the 100 most-recent requests, and an
  * append-only JSONL log file for detailed history.
  *
+ * Quota snapshots are intentionally stored at two granularities:
+ * - byProviderModel: precise UI data for a specific Origin + model pair
+ * - byProvider: fallback when a provider exposes account-level remaining quota
+ *
+ * We still keep the legacy byModel aggregate for backward compatibility and
+ * debugging, but the TUI no longer trusts it for display because the same
+ * model ID can exist under multiple Origins with different limits.
+ *
  * Storage locations:
  *   ~/.free-coding-models/token-stats.json  — aggregated stats (auto-saved every 10 records)
  *   ~/.free-coding-models/request-log.jsonl — timestamped per-request log (pruned after 30 days)
@@ -46,7 +54,7 @@ export class TokenStats {
       byModel: {},
       hourly: {},
       daily: {},
-      quotaSnapshots: { byAccount: {}, byModel: {}, byProvider: {} },
+      quotaSnapshots: { byAccount: {}, byModel: {}, byProvider: {}, byProviderModel: {} },
     }
     this._ringBuffer = []
     this._recordsSinceLastSave = 0
@@ -64,11 +72,12 @@ export class TokenStats {
     } catch { /* start fresh */ }
     // Ensure quotaSnapshots always exists (backward compat for old files)
     if (!this._stats.quotaSnapshots || typeof this._stats.quotaSnapshots !== 'object') {
-      this._stats.quotaSnapshots = { byAccount: {}, byModel: {}, byProvider: {} }
+      this._stats.quotaSnapshots = { byAccount: {}, byModel: {}, byProvider: {}, byProviderModel: {} }
     }
     if (!this._stats.quotaSnapshots.byAccount) this._stats.quotaSnapshots.byAccount = {}
     if (!this._stats.quotaSnapshots.byModel) this._stats.quotaSnapshots.byModel = {}
     if (!this._stats.quotaSnapshots.byProvider) this._stats.quotaSnapshots.byProvider = {}
+    if (!this._stats.quotaSnapshots.byProviderModel) this._stats.quotaSnapshots.byProviderModel = {}
   }
 
   _pruneOldLogs() {
@@ -178,6 +187,7 @@ export class TokenStats {
    * @param {{ quotaPercent: number, providerKey?: string, modelId?: string, updatedAt?: string }} opts
    */
   updateQuotaSnapshot(accountId, { quotaPercent, providerKey, modelId, updatedAt } = {}) {
+    const previousSnap = this._stats.quotaSnapshots.byAccount[accountId]
     const snap = {
       quotaPercent,
       updatedAt: updatedAt || new Date().toISOString(),
@@ -187,8 +197,19 @@ export class TokenStats {
 
     this._stats.quotaSnapshots.byAccount[accountId] = snap
 
+    // 📖 Recompute the old aggregate buckets first when an account switches model/provider.
+    if (previousSnap?.modelId !== undefined) {
+      this._recomputeModelQuota(previousSnap.modelId)
+    }
+    if (previousSnap?.providerKey !== undefined && previousSnap?.modelId !== undefined) {
+      this._recomputeProviderModelQuota(previousSnap.providerKey, previousSnap.modelId)
+    }
+
     if (modelId !== undefined) {
       this._recomputeModelQuota(modelId)
+    }
+    if (providerKey !== undefined && modelId !== undefined) {
+      this._recomputeProviderModelQuota(providerKey, modelId)
     }
 
     if (providerKey !== undefined) {
@@ -203,6 +224,17 @@ export class TokenStats {
   }
 
   /**
+   * Build a stable key for provider-scoped model quota snapshots.
+   *
+   * @param {string} providerKey
+   * @param {string} modelId
+   * @returns {string}
+   */
+  _providerModelKey(providerKey, modelId) {
+    return `${providerKey}::${modelId}`
+  }
+
+  /**
    * Recompute the per-model quota snapshot by averaging all account snapshots
    * that share the given modelId.
    *
@@ -212,7 +244,10 @@ export class TokenStats {
     const accountSnaps = Object.values(this._stats.quotaSnapshots.byAccount)
       .filter(s => s.modelId === modelId)
 
-    if (accountSnaps.length === 0) return
+    if (accountSnaps.length === 0) {
+      delete this._stats.quotaSnapshots.byModel[modelId]
+      return
+    }
 
     const avgPercent = Math.round(
       accountSnaps.reduce((sum, s) => sum + s.quotaPercent, 0) / accountSnaps.length
@@ -225,6 +260,39 @@ export class TokenStats {
     this._stats.quotaSnapshots.byModel[modelId] = {
       quotaPercent: avgPercent,
       updatedAt: latestUpdatedAt,
+    }
+  }
+
+  /**
+   * Recompute the provider-scoped quota snapshot for one Origin + model pair.
+   * This is the canonical source used by the TUI Usage column.
+   *
+   * @param {string} providerKey
+   * @param {string} modelId
+   */
+  _recomputeProviderModelQuota(providerKey, modelId) {
+    const accountSnaps = Object.values(this._stats.quotaSnapshots.byAccount)
+      .filter((s) => s.providerKey === providerKey && s.modelId === modelId)
+
+    const key = this._providerModelKey(providerKey, modelId)
+    if (accountSnaps.length === 0) {
+      delete this._stats.quotaSnapshots.byProviderModel[key]
+      return
+    }
+
+    const avgPercent = Math.round(
+      accountSnaps.reduce((sum, s) => sum + s.quotaPercent, 0) / accountSnaps.length
+    )
+    const latestUpdatedAt = accountSnaps.reduce(
+      (latest, s) => (s.updatedAt > latest ? s.updatedAt : latest),
+      accountSnaps[0].updatedAt
+    )
+
+    this._stats.quotaSnapshots.byProviderModel[key] = {
+      quotaPercent: avgPercent,
+      updatedAt: latestUpdatedAt,
+      providerKey,
+      modelId,
     }
   }
 

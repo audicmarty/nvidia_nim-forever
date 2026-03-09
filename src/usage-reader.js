@@ -1,9 +1,13 @@
 /**
  * @file lib/usage-reader.js
- * @description Pure functions to read model quota usage from token-stats.json.
+ * @description Pure functions to read provider-scoped Usage snapshots from token-stats.json.
  *
- * Designed for TUI consumption: reads the pre-computed `quotaSnapshots.byModel`
- * section from the JSON file written by TokenStats.  Never reads the JSONL log.
+ * Designed for TUI consumption: reads the pre-computed provider-scoped quota
+ * snapshots written by TokenStats. Never reads the JSONL log.
+ *
+ * The UI must distinguish the same model served by different Origins
+ * (for example NVIDIA vs Groq). Because of that, the canonical snapshot source
+ * is `quotaSnapshots.byProviderModel`, not the legacy `byModel` aggregate.
  *
  * All functions are pure (no shared mutable state) and handle missing/malformed
  * files gracefully by returning safe fallback values.
@@ -30,6 +34,7 @@
  * @exports CACHE_TTL_MS
  * @exports clearUsageCache
  * @exports loadUsageSnapshot
+ * @exports buildUsageSnapshotKey
  * @exports loadUsageMap
  * @exports usageForModelId
  * @exports usageForRow
@@ -38,6 +43,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { supportsUsagePercent, usageResetsDaily } from './quota-capabilities.js'
 
 const DEFAULT_STATS_FILE = join(homedir(), '.free-coding-models', 'token-stats.json')
 
@@ -57,7 +63,7 @@ export const CACHE_TTL_MS = 750
 
 /**
  * Module-level cache: path → { snapshot, expiresAt }
- * @type {Map<string, { snapshot: { byModel: Record<string, number>, byProvider: Record<string, number> }, expiresAt: number }>}
+ * @type {Map<string, { snapshot: { byProviderModel: Record<string, number>, byProvider: Record<string, number>, legacyByModel: Record<string, number> }, expiresAt: number }>}
  */
 const _cache = new Map()
 
@@ -81,11 +87,27 @@ export function clearUsageCache() {
  * @param {number} [nowMs] - optional current time (ms) for testability
  * @returns {boolean}
  */
-function isSnapshotFresh(entry, nowMs = Date.now()) {
+function isSnapshotFresh(entry, nowMs = Date.now(), providerKey = null) {
   if (!entry || typeof entry.updatedAt !== 'string') return true // backward compat
   const updatedMs = Date.parse(entry.updatedAt)
   if (!Number.isFinite(updatedMs)) return true // unparseable: be generous
+  if (providerKey && usageResetsDaily(providerKey)) {
+    const nowDay = new Date(nowMs).toISOString().slice(0, 10)
+    const updatedDay = entry.updatedAt.slice(0, 10)
+    if (updatedDay !== nowDay) return false
+  }
   return nowMs - updatedMs < SNAPSHOT_TTL_MS
+}
+
+/**
+ * Build the canonical map key for one Origin + model pair.
+ *
+ * @param {string} providerKey
+ * @param {string} modelId
+ * @returns {string}
+ */
+export function buildUsageSnapshotKey(providerKey, modelId) {
+  return `${providerKey}::${modelId}`
 }
 
 /**
@@ -96,7 +118,7 @@ function isSnapshotFresh(entry, nowMs = Date.now()) {
  * The 30-minute data freshness filter is re-applied on every cache miss (parse).
  *
  * @param {string} [statsFile]
- * @returns {{ byModel: Record<string, number>, byProvider: Record<string, number> }}
+ * @returns {{ byProviderModel: Record<string, number>, byProvider: Record<string, number>, legacyByModel: Record<string, number> }}
  */
 export function loadUsageSnapshot(statsFile = DEFAULT_STATS_FILE) {
   const now = Date.now()
@@ -118,23 +140,40 @@ export function loadUsageSnapshot(statsFile = DEFAULT_STATS_FILE) {
  *
  * @param {string} statsFile
  * @param {number} now - current time in ms (for freshness checks)
- * @returns {{ byModel: Record<string, number>, byProvider: Record<string, number> }}
+ * @returns {{ byProviderModel: Record<string, number>, byProvider: Record<string, number>, legacyByModel: Record<string, number> }}
  */
 function _parseSnapshot(statsFile, now) {
   try {
-    if (!existsSync(statsFile)) return { byModel: {}, byProvider: {} }
+    if (!existsSync(statsFile)) return { byProviderModel: {}, byProvider: {}, legacyByModel: {} }
     const raw = readFileSync(statsFile, 'utf8')
     const data = JSON.parse(raw)
 
+    const byProviderModelSrc = data?.quotaSnapshots?.byProviderModel
     const byModelSrc = data?.quotaSnapshots?.byModel
     const byProviderSrc = data?.quotaSnapshots?.byProvider
 
-    const byModel = {}
+    const byProviderModel = {}
+    if (byProviderModelSrc && typeof byProviderModelSrc === 'object') {
+      for (const [snapshotKey, entry] of Object.entries(byProviderModelSrc)) {
+        const providerKey = typeof entry?.providerKey === 'string'
+          ? entry.providerKey
+          : snapshotKey.split('::', 1)[0]
+        if (!supportsUsagePercent(providerKey)) continue
+        if (entry && typeof entry.quotaPercent === 'number' && Number.isFinite(entry.quotaPercent)) {
+          if (isSnapshotFresh(entry, now, providerKey)) {
+            byProviderModel[snapshotKey] = entry.quotaPercent
+          }
+        }
+      }
+    }
+
+    // 📖 Legacy map kept only for backward compatibility helpers/tests.
+    const legacyByModel = {}
     if (byModelSrc && typeof byModelSrc === 'object') {
       for (const [modelId, entry] of Object.entries(byModelSrc)) {
         if (entry && typeof entry.quotaPercent === 'number' && Number.isFinite(entry.quotaPercent)) {
           if (isSnapshotFresh(entry, now)) {
-            byModel[modelId] = entry.quotaPercent
+            legacyByModel[modelId] = entry.quotaPercent
           }
         }
       }
@@ -143,44 +182,45 @@ function _parseSnapshot(statsFile, now) {
     const byProvider = {}
     if (byProviderSrc && typeof byProviderSrc === 'object') {
       for (const [providerKey, entry] of Object.entries(byProviderSrc)) {
+        if (!supportsUsagePercent(providerKey)) continue
         if (entry && typeof entry.quotaPercent === 'number' && Number.isFinite(entry.quotaPercent)) {
-          if (isSnapshotFresh(entry, now)) {
+          if (isSnapshotFresh(entry, now, providerKey)) {
             byProvider[providerKey] = entry.quotaPercent
           }
         }
       }
     }
 
-    return { byModel, byProvider }
+    return { byProviderModel, byProvider, legacyByModel }
   } catch {
-    return { byModel: {}, byProvider: {} }
+    return { byProviderModel: {}, byProvider: {}, legacyByModel: {} }
   }
 }
 
 /**
- * Load token-stats.json and return a plain object mapping modelId → quotaPercent.
+ * Load token-stats.json and return a plain object mapping provider+model → quotaPercent.
  *
  * Only includes models whose `quotaPercent` is a finite number and whose
  * snapshot is fresh (within SNAPSHOT_TTL_MS).
  * Returns an empty object on any error (missing file, bad JSON, missing keys).
  *
  * @param {string} [statsFile] - Path to token-stats.json (defaults to ~/.free-coding-models/token-stats.json)
- * @returns {Record<string, number>}  e.g. { 'claude-3-5': 80, 'gpt-4o': 45 }
+ * @returns {Record<string, number>}  e.g. { 'groq::openai/gpt-oss-120b': 37 }
  */
 export function loadUsageMap(statsFile = DEFAULT_STATS_FILE) {
-  return loadUsageSnapshot(statsFile).byModel
+  return loadUsageSnapshot(statsFile).byProviderModel
 }
 
 /**
- * Return the quota percent remaining for a specific model.
- * Returns null if the model has no snapshot or its snapshot is stale.
+ * Return the legacy quota percent remaining for a specific modelId.
+ * This helper is retained for backward compatibility tests only.
  *
  * @param {string} modelId
  * @param {string} [statsFile] - Path to token-stats.json (defaults to ~/.free-coding-models/token-stats.json)
  * @returns {number | null}  quota percent (0–100), or null if unknown/stale
  */
 export function usageForModelId(modelId, statsFile = DEFAULT_STATS_FILE) {
-  const map = loadUsageMap(statsFile)
+  const map = loadUsageSnapshot(statsFile).legacyByModel
   const value = map[modelId]
   return value !== undefined ? value : null
 }
@@ -196,8 +236,10 @@ export function usageForModelId(modelId, statsFile = DEFAULT_STATS_FILE) {
  * @returns {number | null}
  */
 export function usageForRow(providerKey, modelId, statsFile = DEFAULT_STATS_FILE) {
-  const { byModel, byProvider } = loadUsageSnapshot(statsFile)
-  if (byModel[modelId] !== undefined) return byModel[modelId]
+  if (!supportsUsagePercent(providerKey)) return null
+  const { byProviderModel, byProvider } = loadUsageSnapshot(statsFile)
+  const providerModelKey = buildUsageSnapshotKey(providerKey, modelId)
+  if (byProviderModel[providerModelKey] !== undefined) return byProviderModel[providerModelKey]
   if (byProvider[providerKey] !== undefined) return byProvider[providerKey]
   return null
 }

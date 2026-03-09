@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { loadUsageSnapshot, loadUsageMap, usageForModelId, usageForRow, SNAPSHOT_TTL_MS, CACHE_TTL_MS, clearUsageCache } from '../src/usage-reader.js'
+import { loadUsageSnapshot, loadUsageMap, usageForModelId, usageForRow, SNAPSHOT_TTL_MS, CACHE_TTL_MS, clearUsageCache, buildUsageSnapshotKey } from '../src/usage-reader.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,69 +58,69 @@ describe('usage-reader – loadUsageMap', () => {
     assert.strictEqual(Object.keys(map).length, 0)
   })
 
-  it('returns empty map when quotaSnapshots.byModel is missing', () => {
+  it('returns empty map when quotaSnapshots.byProviderModel is missing', () => {
     ctx.write({ quotaSnapshots: { byAccount: {} } })
     const map = loadUsageMap(ctx.statsFile)
     assert.strictEqual(Object.keys(map).length, 0)
   })
 
-  it('returns map of modelId -> quotaPercent for valid stats', () => {
+  it('returns map of provider+model -> quotaPercent for valid stats', () => {
     ctx.write({
       quotaSnapshots: {
         byAccount: {},
-        byModel: {
-          'claude-3-5': { quotaPercent: 80, updatedAt: freshTs() },
-          'gpt-4o': { quotaPercent: 45, updatedAt: freshTs() },
+        byProviderModel: {
+          [buildUsageSnapshotKey('groq', 'claude-3-5')]: { quotaPercent: 80, updatedAt: freshTs(), providerKey: 'groq', modelId: 'claude-3-5' },
+          [buildUsageSnapshotKey('openrouter', 'gpt-4o')]: { quotaPercent: 45, updatedAt: freshTs(), providerKey: 'openrouter', modelId: 'gpt-4o' },
         },
       },
     })
     const map = loadUsageMap(ctx.statsFile)
     assert.strictEqual(Object.keys(map).length, 2)
-    assert.strictEqual(map['claude-3-5'], 80)
-    assert.strictEqual(map['gpt-4o'], 45)
+    assert.strictEqual(map['groq::claude-3-5'], 80)
+    assert.strictEqual(map['openrouter::gpt-4o'], 45)
   })
 
-  it('includes quotaPercent for entry with updatedAt', () => {
+  it('includes quotaPercent for provider-scoped entry with updatedAt', () => {
     ctx.write({
       quotaSnapshots: {
         byAccount: {},
-        byModel: {
-          'gemini-pro': { quotaPercent: 60, updatedAt: freshTs() },
+        byProviderModel: {
+          [buildUsageSnapshotKey('googleai', 'gemini-pro')]: { quotaPercent: 60, updatedAt: freshTs(), providerKey: 'googleai', modelId: 'gemini-pro' },
         },
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(map['gemini-pro'], 60)
+    assert.strictEqual(map['googleai::gemini-pro'], 60)
   })
 
-  it('skips byModel entries missing quotaPercent field', () => {
+  it('skips byProviderModel entries missing quotaPercent field', () => {
     ctx.write({
       quotaSnapshots: {
         byAccount: {},
-        byModel: {
-          'good-model': { quotaPercent: 70, updatedAt: freshTs() },
-          'bad-model': { updatedAt: freshTs() }, // missing quotaPercent
+        byProviderModel: {
+          [buildUsageSnapshotKey('groq', 'good-model')]: { quotaPercent: 70, updatedAt: freshTs(), providerKey: 'groq', modelId: 'good-model' },
+          [buildUsageSnapshotKey('groq', 'bad-model')]: { updatedAt: freshTs(), providerKey: 'groq', modelId: 'bad-model' },
         },
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.ok('good-model' in map, 'good-model must be included')
-    assert.ok(!('bad-model' in map), 'bad-model missing quotaPercent must be skipped')
+    assert.ok('groq::good-model' in map, 'good-model must be included')
+    assert.ok(!('groq::bad-model' in map), 'bad-model missing quotaPercent must be skipped')
   })
 
   it('handles non-numeric quotaPercent gracefully (skips entry)', () => {
     ctx.write({
       quotaSnapshots: {
         byAccount: {},
-        byModel: {
-          'fine-model': { quotaPercent: 55, updatedAt: freshTs() },
-          'weird-model': { quotaPercent: 'lots', updatedAt: freshTs() },
+        byProviderModel: {
+          [buildUsageSnapshotKey('groq', 'fine-model')]: { quotaPercent: 55, updatedAt: freshTs(), providerKey: 'groq', modelId: 'fine-model' },
+          [buildUsageSnapshotKey('groq', 'weird-model')]: { quotaPercent: 'lots', updatedAt: freshTs(), providerKey: 'groq', modelId: 'weird-model' },
         },
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.ok('fine-model' in map)
-    assert.ok(!('weird-model' in map), 'non-numeric quotaPercent must be skipped')
+    assert.ok('groq::fine-model' in map)
+    assert.ok(!('groq::weird-model' in map), 'non-numeric quotaPercent must be skipped')
   })
 
   it('handles null or empty quotaSnapshots gracefully', () => {
@@ -143,8 +143,8 @@ describe('usage-reader – loadUsageSnapshot', () => {
   it('returns model and provider maps', () => {
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'model-a': { quotaPercent: 80, updatedAt: freshTs() },
+        byProviderModel: {
+          [buildUsageSnapshotKey('groq', 'model-a')]: { quotaPercent: 80, updatedAt: freshTs(), providerKey: 'groq', modelId: 'model-a' },
         },
         byProvider: {
           groq: { quotaPercent: 64, updatedAt: freshTs() },
@@ -153,7 +153,7 @@ describe('usage-reader – loadUsageSnapshot', () => {
     })
 
     const snapshot = loadUsageSnapshot(ctx.statsFile)
-    assert.strictEqual(snapshot.byModel['model-a'], 80)
+    assert.strictEqual(snapshot.byProviderModel['groq::model-a'], 80)
     assert.strictEqual(snapshot.byProvider.groq, 64)
   })
 })
@@ -212,10 +212,10 @@ describe('usage-reader – usageForRow', () => {
   beforeEach(() => clearUsageCache())
   after(() => ctx.cleanup())
 
-  it('prefers model-specific quota when available', () => {
+  it('prefers provider-scoped model quota when available', () => {
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'model-a': { quotaPercent: 71, updatedAt: freshTs() } },
+        byProviderModel: { [buildUsageSnapshotKey('groq', 'model-a')]: { quotaPercent: 71, updatedAt: freshTs(), providerKey: 'groq', modelId: 'model-a' } },
         byProvider: { groq: { quotaPercent: 55, updatedAt: freshTs() } },
       },
     })
@@ -226,7 +226,7 @@ describe('usage-reader – usageForRow', () => {
   it('falls back to provider quota when model is missing', () => {
     ctx.write({
       quotaSnapshots: {
-        byModel: {},
+        byProviderModel: {},
         byProvider: { groq: { quotaPercent: 77, updatedAt: freshTs() } },
       },
     })
@@ -235,8 +235,20 @@ describe('usage-reader – usageForRow', () => {
   })
 
   it('returns null when neither model nor provider usage exists', () => {
-    ctx.write({ quotaSnapshots: { byModel: {}, byProvider: {} } })
+    ctx.write({ quotaSnapshots: { byProviderModel: {}, byProvider: {} } })
     assert.strictEqual(usageForRow('cerebras', 'model-x', ctx.statsFile), null)
+  })
+
+  it('returns null for providers whose Usage percent is not applicable', () => {
+    ctx.write({
+      quotaSnapshots: {
+        byProviderModel: {
+          [buildUsageSnapshotKey('nvidia', 'model-x')]: { quotaPercent: 37, updatedAt: freshTs(), providerKey: 'nvidia', modelId: 'model-x' },
+        },
+        byProvider: { nvidia: { quotaPercent: 37, updatedAt: freshTs() } },
+      },
+    })
+    assert.strictEqual(usageForRow('nvidia', 'model-x', ctx.statsFile), null)
   })
 })
 
@@ -249,23 +261,23 @@ describe('usage-reader – aggregation from multiple accounts (integration)', ()
   beforeEach(() => clearUsageCache())
   after(() => ctx.cleanup())
 
-  it('byModel quotaPercent reflects average of multiple accounts sharing a model', () => {
-    // Simulate what TokenStats.updateQuotaSnapshot would produce
+  it('provider-scoped quotaPercent keeps identical model IDs isolated per Origin', () => {
     const freshTime = new Date(Date.now() - 60 * 1000).toISOString() // 1 min ago = fresh
     ctx.write({
       quotaSnapshots: {
         byAccount: {
-          'acct-a': { quotaPercent: 90, providerKey: 'p1', modelId: 'shared', updatedAt: freshTime },
-          'acct-b': { quotaPercent: 50, providerKey: 'p2', modelId: 'shared', updatedAt: freshTime },
+          'acct-a': { quotaPercent: 90, providerKey: 'nvidia', modelId: 'shared', updatedAt: freshTime },
+          'acct-b': { quotaPercent: 50, providerKey: 'groq', modelId: 'shared', updatedAt: freshTime },
         },
-        byModel: {
-          // Average of 90 + 50 = 70
-          'shared': { quotaPercent: 70, updatedAt: freshTime },
+        byProviderModel: {
+          'nvidia::shared': { quotaPercent: 90, updatedAt: freshTime, providerKey: 'nvidia', modelId: 'shared' },
+          'groq::shared': { quotaPercent: 50, updatedAt: freshTime, providerKey: 'groq', modelId: 'shared' },
         },
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(map['shared'], 70, 'should reflect the stored average')
+    assert.strictEqual(map['nvidia::shared'], undefined, 'nvidia snapshots are not surfaced as Usage %')
+    assert.strictEqual(map['groq::shared'], 50, 'groq value must stay scoped to groq only')
   })
 })
 
@@ -284,32 +296,32 @@ describe('usage-reader – snapshot freshness TTL', () => {
     assert.strictEqual(SNAPSHOT_TTL_MS, 30 * 60 * 1000, 'SNAPSHOT_TTL_MS must be 30 minutes')
   })
 
-  it('loadUsageMap includes fresh model entry (updatedAt within TTL)', () => {
+  it('loadUsageMap includes fresh provider-scoped model entry (updatedAt within TTL)', () => {
     const freshTime = new Date(Date.now() - 60 * 1000).toISOString() // 1 min ago
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'fresh-model': { quotaPercent: 75, updatedAt: freshTime },
+        byProviderModel: {
+          'groq::fresh-model': { quotaPercent: 75, updatedAt: freshTime, providerKey: 'groq', modelId: 'fresh-model' },
         },
         byProvider: {},
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(map['fresh-model'], 75, 'fresh entry must be included')
+    assert.strictEqual(map['groq::fresh-model'], 75, 'fresh entry must be included')
   })
 
-  it('loadUsageMap excludes stale model entry (updatedAt older than TTL)', () => {
+  it('loadUsageMap excludes stale provider-scoped model entry (updatedAt older than TTL)', () => {
     const staleTime = new Date(Date.now() - 31 * 60 * 1000).toISOString() // 31 min ago
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'stale-model': { quotaPercent: 60, updatedAt: staleTime },
+        byProviderModel: {
+          'groq::stale-model': { quotaPercent: 60, updatedAt: staleTime, providerKey: 'groq', modelId: 'stale-model' },
         },
         byProvider: {},
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.ok(!('stale-model' in map), 'stale entry (>30m) must be excluded from loadUsageMap')
+    assert.ok(!('groq::stale-model' in map), 'stale entry (>30m) must be excluded from loadUsageMap')
   })
 
   it('loadUsageMap excludes model entry exactly at TTL boundary (exclusive)', () => {
@@ -324,7 +336,7 @@ describe('usage-reader – snapshot freshness TTL', () => {
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.ok(!('boundary-model' in map), 'entry at exactly TTL boundary must be excluded')
+    assert.ok(Object.keys(map).length === 0, 'entry at exactly TTL boundary must be excluded')
   })
 
   it('loadUsageMap includes model entry just inside TTL (updatedAt < 30m ago)', () => {
@@ -332,14 +344,14 @@ describe('usage-reader – snapshot freshness TTL', () => {
     const justFreshTime = new Date(Date.now() - (30 * 60 * 1000 - 1000)).toISOString()
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'just-fresh-model': { quotaPercent: 88, updatedAt: justFreshTime },
+        byProviderModel: {
+          'groq::just-fresh-model': { quotaPercent: 88, updatedAt: justFreshTime, providerKey: 'groq', modelId: 'just-fresh-model' },
         },
         byProvider: {},
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(map['just-fresh-model'], 88, 'entry just inside TTL must be included')
+    assert.strictEqual(map['groq::just-fresh-model'], 88, 'entry just inside TTL must be included')
   })
 
   it('loadUsageMap includes entry without updatedAt (backward compat: no TTL filter)', () => {
@@ -347,14 +359,14 @@ describe('usage-reader – snapshot freshness TTL', () => {
     // (Freshness check only applies when updatedAt is present.)
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'no-timestamp-model': { quotaPercent: 42 },
+        byProviderModel: {
+          'groq::no-timestamp-model': { quotaPercent: 42, providerKey: 'groq', modelId: 'no-timestamp-model' },
         },
         byProvider: {},
       },
     })
     const map = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(map['no-timestamp-model'], 42, 'entry without updatedAt must still be included for backward compat')
+    assert.strictEqual(map['groq::no-timestamp-model'], 42, 'entry without updatedAt must still be included for backward compat')
   })
 
   it('loadUsageSnapshot excludes stale provider entry (updatedAt older than TTL)', () => {
@@ -362,8 +374,8 @@ describe('usage-reader – snapshot freshness TTL', () => {
     const freshTime = new Date(Date.now() - 5 * 60 * 1000).toISOString() // 5 min ago
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'model-b': { quotaPercent: 80, updatedAt: freshTime },
+        byProviderModel: {
+          'groq::model-b': { quotaPercent: 80, updatedAt: freshTime, providerKey: 'groq', modelId: 'model-b' },
         },
         byProvider: {
           'stale-provider': { quotaPercent: 70, updatedAt: staleTime },
@@ -380,8 +392,8 @@ describe('usage-reader – snapshot freshness TTL', () => {
     const staleTime = new Date(Date.now() - 40 * 60 * 1000).toISOString() // 40 min ago
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'stale-model': { quotaPercent: 50, updatedAt: staleTime },
+        byProviderModel: {
+          'stale-prov::stale-model': { quotaPercent: 50, updatedAt: staleTime, providerKey: 'stale-prov', modelId: 'stale-model' },
         },
         byProvider: {
           'stale-prov': { quotaPercent: 60, updatedAt: staleTime },
@@ -397,8 +409,8 @@ describe('usage-reader – snapshot freshness TTL', () => {
     const freshTime = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     ctx.write({
       quotaSnapshots: {
-        byModel: {
-          'stale-model': { quotaPercent: 50, updatedAt: staleTime },
+        byProviderModel: {
+          'fresh-prov::stale-model': { quotaPercent: 50, updatedAt: staleTime, providerKey: 'fresh-prov', modelId: 'stale-model' },
         },
         byProvider: {
           'fresh-prov': { quotaPercent: 72, updatedAt: freshTime },
@@ -446,54 +458,54 @@ describe('usage-reader – module-level parse cache', () => {
     clearUsageCache()
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'cached-model': { quotaPercent: 33, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::cached-model': { quotaPercent: 33, updatedAt: freshTs(), providerKey: 'groq', modelId: 'cached-model' } },
         byProvider: {},
       },
     })
 
     const first = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(first['cached-model'], 33, 'first call must return the value')
+    assert.strictEqual(first['groq::cached-model'], 33, 'first call must return the value')
 
     // Overwrite the file on disk — the cache should shield the second call
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'cached-model': { quotaPercent: 99, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::cached-model': { quotaPercent: 99, updatedAt: freshTs(), providerKey: 'groq', modelId: 'cached-model' } },
         byProvider: {},
       },
     })
 
     const second = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(second['cached-model'], 33, 'second call within CACHE_TTL_MS must return cached value, not updated disk value')
+    assert.strictEqual(second['groq::cached-model'], 33, 'second call within CACHE_TTL_MS must return cached value, not updated disk value')
   })
 
   it('clearUsageCache forces re-read from disk on next call', () => {
     clearUsageCache()
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'refresh-model': { quotaPercent: 10, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::refresh-model': { quotaPercent: 10, updatedAt: freshTs(), providerKey: 'groq', modelId: 'refresh-model' } },
         byProvider: {},
       },
     })
 
     const first = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(first['refresh-model'], 10, 'first call returns initial value')
+    assert.strictEqual(first['groq::refresh-model'], 10, 'first call returns initial value')
 
     // Update disk content
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'refresh-model': { quotaPercent: 20, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::refresh-model': { quotaPercent: 20, updatedAt: freshTs(), providerKey: 'groq', modelId: 'refresh-model' } },
         byProvider: {},
       },
     })
 
     // Without clearing, still cached
     const stillCached = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(stillCached['refresh-model'], 10, 'before clearUsageCache, must still return cached value')
+    assert.strictEqual(stillCached['groq::refresh-model'], 10, 'before clearUsageCache, must still return cached value')
 
     // After clearing, must re-read from disk
     clearUsageCache()
     const afterClear = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(afterClear['refresh-model'], 20, 'after clearUsageCache, must re-read from disk')
+    assert.strictEqual(afterClear['groq::refresh-model'], 20, 'after clearUsageCache, must re-read from disk')
   })
 
   it('cache is keyed by statsFile path — different paths have independent caches', () => {
@@ -503,13 +515,13 @@ describe('usage-reader – module-level parse cache', () => {
     try {
       ctx.write({
         quotaSnapshots: {
-          byModel: { 'model-path-a': { quotaPercent: 11, updatedAt: freshTs() } },
+          byProviderModel: { 'groq::model-path-a': { quotaPercent: 11, updatedAt: freshTs(), providerKey: 'groq', modelId: 'model-path-a' } },
           byProvider: {},
         },
       })
       ctx2.write({
         quotaSnapshots: {
-          byModel: { 'model-path-b': { quotaPercent: 22, updatedAt: freshTs() } },
+          byProviderModel: { 'groq::model-path-b': { quotaPercent: 22, updatedAt: freshTs(), providerKey: 'groq', modelId: 'model-path-b' } },
           byProvider: {},
         },
       })
@@ -517,10 +529,10 @@ describe('usage-reader – module-level parse cache', () => {
       const mapA = loadUsageMap(ctx.statsFile)
       const mapB = loadUsageMap(ctx2.statsFile)
 
-      assert.strictEqual(mapA['model-path-a'], 11, 'path A must have its own cached value')
-      assert.ok(!('model-path-b' in mapA), 'path A cache must not bleed into path B')
-      assert.strictEqual(mapB['model-path-b'], 22, 'path B must have its own cached value')
-      assert.ok(!('model-path-a' in mapB), 'path B cache must not bleed into path A')
+      assert.strictEqual(mapA['groq::model-path-a'], 11, 'path A must have its own cached value')
+      assert.ok(!('groq::model-path-b' in mapA), 'path A cache must not bleed into path B')
+      assert.strictEqual(mapB['groq::model-path-b'], 22, 'path B must have its own cached value')
+      assert.ok(!('groq::model-path-a' in mapB), 'path B cache must not bleed into path A')
     } finally {
       ctx2.cleanup()
     }
@@ -530,13 +542,13 @@ describe('usage-reader – module-level parse cache', () => {
     clearUsageCache()
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'expiry-model': { quotaPercent: 41, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::expiry-model': { quotaPercent: 41, updatedAt: freshTs(), providerKey: 'groq', modelId: 'expiry-model' } },
         byProvider: {},
       },
     })
 
     const first = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(first['expiry-model'], 41, 'first call returns initial value')
+    assert.strictEqual(first['groq::expiry-model'], 41, 'first call returns initial value')
 
     // Wait for the cache TTL to expire (CACHE_TTL_MS + small buffer)
     await new Promise((resolve) => setTimeout(resolve, CACHE_TTL_MS + 100))
@@ -544,13 +556,13 @@ describe('usage-reader – module-level parse cache', () => {
     // Update disk content after TTL has elapsed
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'expiry-model': { quotaPercent: 99, updatedAt: freshTs() } },
+        byProviderModel: { 'groq::expiry-model': { quotaPercent: 99, updatedAt: freshTs(), providerKey: 'groq', modelId: 'expiry-model' } },
         byProvider: {},
       },
     })
 
     const afterExpiry = loadUsageMap(ctx.statsFile)
-    assert.strictEqual(afterExpiry['expiry-model'], 99, 'after CACHE_TTL_MS, must re-read from disk')
+    assert.strictEqual(afterExpiry['groq::expiry-model'], 99, 'after CACHE_TTL_MS, must re-read from disk')
   })
 
   it('30-minute data freshness (SNAPSHOT_TTL_MS) is preserved even when cache is active', () => {
@@ -558,12 +570,33 @@ describe('usage-reader – module-level parse cache', () => {
     const staleTime = new Date(Date.now() - 31 * 60 * 1000).toISOString()
     ctx.write({
       quotaSnapshots: {
-        byModel: { 'stale-cached-model': { quotaPercent: 77, updatedAt: staleTime } },
+        byProviderModel: { 'groq::stale-cached-model': { quotaPercent: 77, updatedAt: staleTime, providerKey: 'groq', modelId: 'stale-cached-model' } },
         byProvider: {},
       },
     })
 
     const map = loadUsageMap(ctx.statsFile)
-    assert.ok(!('stale-cached-model' in map), 'stale data must still be excluded even when result is cached')
+    assert.ok(!('groq::stale-cached-model' in map), 'stale data must still be excluded even when result is cached')
+  })
+
+  it('daily-reset providers are invalidated after day rollover even if within generic TTL', () => {
+    clearUsageCache()
+    const justBeforeMidnight = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const yesterdaySameClock = new Date(yesterday.getTime() + 5 * 60 * 1000).toISOString()
+
+    ctx.write({
+      quotaSnapshots: {
+        byProviderModel: {
+          'groq::yesterday-model': { quotaPercent: 20, updatedAt: yesterdaySameClock, providerKey: 'groq', modelId: 'yesterday-model' },
+          'openrouter::recent-model': { quotaPercent: 33, updatedAt: justBeforeMidnight, providerKey: 'openrouter', modelId: 'recent-model' },
+        },
+        byProvider: {},
+      },
+    })
+
+    const map = loadUsageMap(ctx.statsFile)
+    assert.ok(!('groq::yesterday-model' in map), 'daily-reset provider must drop yesterday snapshot immediately')
+    assert.strictEqual(map['openrouter::recent-model'], 33, 'non-daily provider keeps fresh snapshot')
   })
 })

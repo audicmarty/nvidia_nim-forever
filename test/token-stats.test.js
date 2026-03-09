@@ -59,6 +59,10 @@ describe('TokenStats – quota snapshots', () => {
     const providerSnap = summary.quotaSnapshots.byProvider['prov-a']
     assert.ok(providerSnap, 'byProvider must contain prov-a')
     assert.strictEqual(providerSnap.quotaPercent, 75)
+
+    const providerModelSnap = summary.quotaSnapshots.byProviderModel['prov-a::model-x']
+    assert.ok(providerModelSnap, 'byProviderModel must contain provider-scoped snapshot')
+    assert.strictEqual(providerModelSnap.quotaPercent, 75)
   })
 
   it('updateQuotaSnapshot keeps latest provider quota across models', () => {
@@ -93,6 +97,16 @@ describe('TokenStats – quota snapshots', () => {
     assert.ok(typeof modelSnap.updatedAt === 'string', 'byModel entry must have updatedAt')
   })
 
+  it('updateQuotaSnapshot computes provider-scoped quotaPercent without mixing Origins', () => {
+    const ts = freshTokenStats()
+    ts.updateQuotaSnapshot('acct-1', { quotaPercent: 80, providerKey: 'nvidia', modelId: 'shared-model' })
+    ts.updateQuotaSnapshot('acct-2', { quotaPercent: 60, providerKey: 'groq', modelId: 'shared-model' })
+
+    const byProviderModel = ts.getSummary().quotaSnapshots.byProviderModel
+    assert.strictEqual(byProviderModel['nvidia::shared-model'].quotaPercent, 80)
+    assert.strictEqual(byProviderModel['groq::shared-model'].quotaPercent, 60)
+  })
+
   it('updateQuotaSnapshot updates byModel when one account quota changes', () => {
     const ts = freshTokenStats()
     ts.updateQuotaSnapshot('acct-1', { quotaPercent: 100, providerKey: 'p1', modelId: 'dynamic-model' })
@@ -102,6 +116,16 @@ describe('TokenStats – quota snapshots', () => {
 
     const modelSnap = ts.getSummary().quotaSnapshots.byModel['dynamic-model']
     assert.strictEqual(modelSnap.quotaPercent, 70, 'Average of 40 and 100 = 70')
+  })
+
+  it('updateQuotaSnapshot removes stale provider-scoped aggregate when account switches provider/model', () => {
+    const ts = freshTokenStats()
+    ts.updateQuotaSnapshot('acct-1', { quotaPercent: 90, providerKey: 'groq', modelId: 'model-a' })
+    ts.updateQuotaSnapshot('acct-1', { quotaPercent: 70, providerKey: 'cerebras', modelId: 'model-b' })
+
+    const byProviderModel = ts.getSummary().quotaSnapshots.byProviderModel
+    assert.ok(!('groq::model-a' in byProviderModel), 'old provider-model aggregate must be cleared')
+    assert.strictEqual(byProviderModel['cerebras::model-b'].quotaPercent, 70)
   })
 
   it('updateQuotaSnapshot works without providerKey/modelId (minimal snapshot)', () => {
@@ -141,6 +165,9 @@ describe('TokenStats – quota snapshots', () => {
         byModel: {
           'pm': { quotaPercent: 42, updatedAt: '2026-01-01T00:00:00.000Z' },
         },
+        byProviderModel: {
+          'pp::pm': { quotaPercent: 42, updatedAt: '2026-01-01T00:00:00.000Z', providerKey: 'pp', modelId: 'pm' },
+        },
       },
     }
     writeFileSync(statsFile, JSON.stringify(preloaded))
@@ -175,6 +202,7 @@ describe('TokenStats – quota snapshots', () => {
     assert.deepStrictEqual(summary.quotaSnapshots.byAccount, {})
     assert.deepStrictEqual(summary.quotaSnapshots.byModel, {})
     assert.deepStrictEqual(summary.quotaSnapshots.byProvider, {})
+    assert.deepStrictEqual(summary.quotaSnapshots.byProviderModel, {})
   })
 
   it('existing record() behavior is unaffected by quota snapshot changes', () => {
@@ -231,6 +259,7 @@ describe('TokenStats – quota snapshots', () => {
     assert.ok('byAccount' in summary.quotaSnapshots)
     assert.ok('byModel' in summary.quotaSnapshots)
     assert.ok('byProvider' in summary.quotaSnapshots)
+    assert.ok('byProviderModel' in summary.quotaSnapshots)
   })
 
   // ── Deferred prune ─────────────────────────────────────────────────────────

@@ -76,7 +76,7 @@
 - **📈 Rolling averages** — Avg calculated from ALL successful pings since start
 - **📊 Uptime tracking** — Percentage of successful pings shown in real-time
 - **📐 Stability score** — Composite 0–100 score measuring consistency (p95, jitter, spikes, uptime)
-- **📊 Usage tracking** — Monitor remaining quota percentage for each model directly in the TUI; persists across sessions via `token-stats.json`.
+- **📊 Usage tracking** — Monitor remaining quota for each exact provider/model pair when the provider exposes it; otherwise the TUI shows a green dot instead of a misleading percentage.
 - **📜 Live Log Viewer** — Press `X` to view real-time activity and error logs in a focused TUI overlay.
 - **🛠 MODEL_NOT_FOUND Rotation** — If a specific provider returns a 404 for a model, the TUI intelligently rotates through other available providers for the same model.
 - **🔄 Auto-retry** — Timeout models keep getting retried, nothing is ever "given up on"
@@ -459,7 +459,7 @@ The main table displays one row per model with the following columns:
 | **Verdict** | `V` | Health verdict based on avg latency + stability analysis |
 | **Stability** | `B` | Composite 0–100 consistency score (see [Stability Score](#-stability-score)) |
 | **Up%** | `U` | Uptime — percentage of successful pings |
-| **Usage** | `G` | Quota remaining — percentage of available tokens/requests left |
+| **Usage** | `G` | Provider-scoped quota remaining when measurable; otherwise a green dot means usage % is not applicable/reliable for that Origin |
 
 ### Verdict values
 

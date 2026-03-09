@@ -22,24 +22,24 @@
  *   - `extractQuotaPercent`: Parse rate limit headers to calculate remaining quota percentage
  *   - `fetchProviderQuotaPercent`: Fetch quota for a provider from dedicated endpoint/headers
  *   - `getProviderQuotaPercentCached`: Wrapper for cached provider quota fetching
- *   - `usagePlaceholderForProvider`: Return display text for Usage column based on quota telemetry support
+ *   - `usagePlaceholderForProvider`: Return display token for Usage column based on provider behavior
  *
  *   📦 Dependencies:
  *   - ../src/constants.js: PING_TIMEOUT
  *   - ../src/provider-quota-fetchers.js: _fetchProviderQuotaFromModule (quota fetching with cache)
- *   - ../src/quota-capabilities.js: isKnownQuotaTelemetry
+ *   - ../src/quota-capabilities.js: supportsUsagePercent
  *
  *   ⚙️ Configuration:
  *   - PING_TIMEOUT: Timeout in ms for ping requests (default: 15000)
  *   - CLOUDFLARE_ACCOUNT_ID: Env var for Cloudflare Workers AI account ID
  *
  *   @see {@link ../src/provider-quota-fetchers.js} Quota fetching implementation
- *   @see {@link ../src/quota-capabilities.js} Quota telemetry capability detection
+ *   @see {@link ../src/quota-capabilities.js} Quota telemetry + Usage behavior detection
  */
 
 import { PING_TIMEOUT } from './constants.js'
 import { fetchProviderQuota as _fetchProviderQuotaFromModule } from './provider-quota-fetchers.js'
-import { isKnownQuotaTelemetry } from './quota-capabilities.js'
+import { supportsUsagePercent } from './quota-capabilities.js'
 
 // 📖 resolveCloudflareUrl: Cloudflare's OpenAI-compatible endpoint is account-scoped.
 // 📖 We resolve {account_id} from env so provider setup can stay simple in config.
@@ -178,9 +178,9 @@ export async function getProviderQuotaPercentCached(providerKey, apiKey) {
   return fetchProviderQuotaPercent(providerKey, apiKey)
 }
 
-// 📖 usagePlaceholderForProvider: Return display text for Usage column.
-// 📖 'N/A' for providers with no reliable quota signal (unknown telemetry type),
-// 📖 '--' for providers that expose quota via headers or a dedicated endpoint.
+// 📖 usagePlaceholderForProvider: Return display token for Usage column.
+// 📖 '--' means this provider can expose a real remaining percentage once telemetry arrives.
+// 📖 '🟢' means the provider is usable, but a live remaining % is not applicable/reliable.
 export function usagePlaceholderForProvider(providerKey) {
-  return isKnownQuotaTelemetry(providerKey) ? '--' : 'N/A'
+  return supportsUsagePercent(providerKey) ? '--' : '🟢'
 }

@@ -1,11 +1,19 @@
 /**
  * @file lib/quota-capabilities.js
- * @description Provider quota telemetry capability map.
+ * @description Provider quota telemetry and Usage-column behavior map.
  *
  * Describes how we can observe quota state for each provider:
  * - header:   Provider sends x-ratelimit-remaining / x-ratelimit-limit headers
  * - endpoint: Provider has a dedicated usage/quota REST endpoint we can poll
  * - unknown:  No reliable quota signal available
+ *
+ * The TUI needs an extra distinction beyond telemetry transport:
+ * - `usageDisplay: 'percent'` means we can show a trustworthy remaining %.
+ * - `usageDisplay: 'ok'` means Usage is not meaningfully measurable as a live %,
+ *   so the table shows a green status dot instead of a misleading number.
+ *
+ * `resetCadence` tells the reader when a stored snapshot should be invalidated
+ * even if it is still within the generic freshness TTL.
  *
  * supportsEndpoint (optional, for openrouter/siliconflow):
  *   true  — provider has a known usage endpoint
@@ -20,39 +28,41 @@
  * @typedef {Object} ProviderCapability
  * @property {'header'|'endpoint'|'unknown'} telemetryType
  * @property {boolean} [supportsEndpoint]
+ * @property {'percent'|'ok'} usageDisplay
+ * @property {'rolling'|'daily'|'unknown'|'none'} resetCadence
  */
 
 /** @type {Record<string, ProviderCapability>} */
 export const PROVIDER_CAPABILITIES = {
   // Providers that return x-ratelimit-remaining / x-ratelimit-limit headers
-  nvidia: { telemetryType: 'header', supportsEndpoint: false },
-  groq: { telemetryType: 'header', supportsEndpoint: false },
-  cerebras: { telemetryType: 'header', supportsEndpoint: false },
-  sambanova: { telemetryType: 'header', supportsEndpoint: false },
-  deepinfra: { telemetryType: 'header', supportsEndpoint: false },
-  fireworks: { telemetryType: 'header', supportsEndpoint: false },
-  together: { telemetryType: 'header', supportsEndpoint: false },
-  hyperbolic: { telemetryType: 'header', supportsEndpoint: false },
-  scaleway: { telemetryType: 'header', supportsEndpoint: false },
-  googleai: { telemetryType: 'header', supportsEndpoint: false },
-  codestral: { telemetryType: 'header', supportsEndpoint: false },
-  perplexity: { telemetryType: 'header', supportsEndpoint: false },
-  qwen: { telemetryType: 'header', supportsEndpoint: false },
+  nvidia: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'ok',      resetCadence: 'none' },
+  groq: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'daily' },
+  cerebras: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  sambanova: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  deepinfra: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  fireworks: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  together: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  hyperbolic: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  scaleway: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  googleai: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'daily' },
+  codestral: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'daily' },
+  perplexity: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
+  qwen: { telemetryType: 'header', supportsEndpoint: false, usageDisplay: 'percent', resetCadence: 'unknown' },
 
   // Providers that have a dedicated usage/credits endpoint
-  openrouter: { telemetryType: 'endpoint', supportsEndpoint: true },
-  siliconflow: { telemetryType: 'endpoint', supportsEndpoint: true },
+  openrouter: { telemetryType: 'endpoint', supportsEndpoint: true, usageDisplay: 'percent', resetCadence: 'unknown' },
+  siliconflow: { telemetryType: 'endpoint', supportsEndpoint: true, usageDisplay: 'ok',      resetCadence: 'unknown' },
 
   // Providers with no reliable quota signal
-  huggingface: { telemetryType: 'unknown', supportsEndpoint: false },
-  replicate: { telemetryType: 'unknown', supportsEndpoint: false },
-  cloudflare: { telemetryType: 'unknown', supportsEndpoint: false },
-  zai: { telemetryType: 'unknown', supportsEndpoint: false },
-  iflow: { telemetryType: 'unknown', supportsEndpoint: false },
+  huggingface: { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'none' },
+  replicate: { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'none' },
+  cloudflare: { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'daily' },
+  zai: { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'none' },
+  iflow: { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'none' },
 }
 
 /** Fallback for unrecognized providers */
-const UNKNOWN_CAPABILITY = { telemetryType: 'unknown', supportsEndpoint: false }
+const UNKNOWN_CAPABILITY = { telemetryType: 'unknown', supportsEndpoint: false, usageDisplay: 'ok', resetCadence: 'unknown' }
 
 /**
  * Get quota telemetry capability for a provider.
@@ -76,4 +86,27 @@ export function getQuotaTelemetry(providerKey) {
  */
 export function isKnownQuotaTelemetry(providerKey) {
   return getQuotaTelemetry(providerKey).telemetryType !== 'unknown'
+}
+
+/**
+ * Returns true when the Usage column can show a real remaining percentage for
+ * the given provider.
+ *
+ * @param {string} providerKey
+ * @returns {boolean}
+ */
+export function supportsUsagePercent(providerKey) {
+  return getQuotaTelemetry(providerKey).usageDisplay === 'percent'
+}
+
+/**
+ * Returns true when the provider's quota commonly resets on a daily cadence.
+ * This lets the usage reader invalidate yesterday's snapshots immediately
+ * after midnight instead of waiting for the generic TTL window to expire.
+ *
+ * @param {string} providerKey
+ * @returns {boolean}
+ */
+export function usageResetsDaily(providerKey) {
+  return getQuotaTelemetry(providerKey).resetCadence === 'daily'
 }

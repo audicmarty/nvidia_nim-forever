@@ -804,7 +804,7 @@ export function createKeyHandler(ctx) {
 
     // 📖 Sorting keys: R=rank, Y=tier, O=origin, M=model, L=latest ping, A=avg ping, S=SWE-bench, C=context, H=health, V=verdict, B=stability, U=uptime, G=usage
     // 📖 T is reserved for tier filter cycling — tier sort moved to Y
-    // 📖 N is now reserved for origin filter cycling
+    // 📖 D is now reserved for provider filter cycling
     const sortKeys = {
       'r': 'rank', 'y': 'tier', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx', 'h': 'condition', 'v': 'verdict', 'b': 'stability', 'u': 'uptime', 'g': 'usage'
@@ -892,8 +892,8 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Origin filter key: N = cycle through each provider (All → NIM → Groq → ... → All)
-    if (key.name === 'n') {
+    // 📖 Provider filter key: D = cycle through each provider (All → NIM → Groq → ... → All)
+    if (key.name === 'd') {
       state.originFilterMode = (state.originFilterMode + 1) % ORIGIN_CYCLE.length
       applyTierFilter()
       // 📖 Recompute visible sorted list and reset cursor to avoid stale index into new filtered set

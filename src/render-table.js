@@ -42,6 +42,31 @@ import { calculateViewport, sortResultsWithPinnedFavorites, renderProxyStatusLin
 const require = createRequire(import.meta.url)
 const { version: LOCAL_VERSION } = require('../package.json')
 
+// 📖 Provider column palette: keep all Origins in the same visual family
+// 📖 (blue/cyan tones) while making each provider easy to distinguish at a glance.
+const PROVIDER_COLOR = {
+  nvidia: [120, 205, 255],
+  groq: [95, 185, 255],
+  cerebras: [70, 165, 255],
+  sambanova: [45, 145, 245],
+  openrouter: [135, 220, 255],
+  huggingface: [110, 190, 235],
+  replicate: [85, 175, 230],
+  deepinfra: [60, 160, 225],
+  fireworks: [125, 215, 245],
+  codestral: [100, 180, 240],
+  hyperbolic: [75, 170, 240],
+  scaleway: [55, 150, 235],
+  googleai: [130, 210, 255],
+  siliconflow: [90, 195, 245],
+  together: [65, 155, 245],
+  cloudflare: [115, 200, 240],
+  perplexity: [140, 225, 255],
+  qwen: [80, 185, 235],
+  zai: [50, 140, 225],
+  iflow: [145, 230, 255],
+}
+
 // 📖 Active proxy reference for footer status line (set by bin/free-coding-models.js).
 let activeProxyRef = null
 
@@ -93,7 +118,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   }
 
   const normalizeOriginLabel = (name, key) => {
-    if (key === 'alibaba') return 'Alibaba Cloud'
+    if (key === 'alibaba') return 'Alibaba'
     return name
   }
 
@@ -133,7 +158,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   const sorted = sortResultsWithPinnedFavorites(visibleResults, sortColumn, sortDirection)
 
   const lines = [
-    `  ${chalk.bold('⚡ Free Coding Models')} ${chalk.dim('v' + LOCAL_VERSION)}${modeBadge}${modeHint}${tierBadge}${originBadge}${profileBadge}   ` +
+    `  ${chalk.greenBright.bold('✅ FCM')}${modeBadge}${modeHint}${tierBadge}${originBadge}${profileBadge}   ` +
       chalk.greenBright(`✅ ${up}`) + chalk.dim(' up  ') +
       chalk.yellow(`⏳ ${timeout}`) + chalk.dim(' timeout  ') +
       chalk.red(`❌ ${down}`) + chalk.dim(' down  ') +
@@ -148,7 +173,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   const rankH    = 'Rank'
   const tierH    = 'Tier'
-  const originH  = 'Origin'
+  const originH  = 'Provider'
   const modelH   = 'Model'
   const sweH     = sortColumn === 'swe' ? dir + ' SWE%' : 'SWE%'
   const ctxH     = sortColumn === 'ctx' ? dir + ' CTX' : 'CTX'
@@ -173,14 +198,14 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   // 📖 Now colorize after padding is calculated on plain text
   const rankH_c    = colorFirst(rankH, W_RANK)
   const tierH_c    = colorFirst('Tier', W_TIER)
-  const originLabel = 'Origin'
+  const originLabel = 'Provider'
   const originH_c  = sortColumn === 'origin'
     ? chalk.bold.cyan(originLabel.padEnd(W_SOURCE))
     : (originFilterMode > 0 ? chalk.bold.rgb(100, 200, 255)(originLabel.padEnd(W_SOURCE)) : (() => {
-      // 📖 Origin uses N because O is already reserved for direct origin sorting.
-      const plain = 'OrigiN'
+      // 📖 Provider keeps O for sorting and D for provider-filter cycling.
+      const plain = 'PrOviDer'
       const padding = ' '.repeat(Math.max(0, W_SOURCE - plain.length))
-      return chalk.dim('Origi') + chalk.yellow.bold('N') + chalk.dim(padding)
+      return chalk.dim('Pr') + chalk.yellow.bold('O') + chalk.dim('vi') + chalk.yellow.bold('D') + chalk.dim('er' + padding)
     })())
   const modelH_c   = colorFirst(modelH, W_MODEL)
   const sweH_c     = sortColumn === 'swe' ? chalk.bold.cyan(sweH.padEnd(W_SWE)) : colorFirst(sweH, W_SWE)
@@ -208,7 +233,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     return chalk.dim('Usa') + chalk.yellow.bold('G') + chalk.dim('e' + padding)
   })()
 
-  // 📖 Header with proper spacing (column order: Rank, Tier, SWE%, CTX, Model, Origin, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Usage)
+  // 📖 Header with proper spacing (column order: Rank, Tier, SWE%, CTX, Model, Provider, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Usage)
   lines.push('  ' + rankH_c + '  ' + tierH_c + '  ' + sweH_c + '  ' + ctxH_c + '  ' + modelH_c + '  ' + originH_c + '  ' + pingH_c + '  ' + avgH_c + '  ' + healthH_c + '  ' + verdictH_c + '  ' + stabH_c + '  ' + uptimeH_c + '  ' + usageH_c)
 
   // 📖 Separator line
@@ -248,7 +273,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     // 📖 Keep terminal view provider-specific so each row is monitorable per provider
     const providerNameRaw = sources[r.providerKey]?.name ?? r.providerKey ?? 'NIM'
     const providerName = normalizeOriginLabel(providerNameRaw, r.providerKey)
-    const source = chalk.green(providerName.padEnd(W_SOURCE))
+    const providerRgb = PROVIDER_COLOR[r.providerKey] ?? [105, 190, 245]
+    const source = chalk.rgb(...providerRgb)(providerName.padEnd(W_SOURCE))
     // 📖 Favorites: always reserve 2 display columns at the start of Model column.
     // 📖 🎯 (2 cols) for recommended, ⭐ (2 cols) for favorites, '  ' (2 spaces) for non-favorites — keeps alignment stable.
     const favoritePrefix = r.isRecommended ? '🎯' : r.isFavorite ? '⭐' : '  '
@@ -428,12 +454,13 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       uptimeCell = chalk.red(uptimeStr.padEnd(W_UPTIME))
     }
 
-    // 📖 When cursor is on this row, render Model and Origin in bright white for readability
+    // 📖 When cursor is on this row, render Model and Provider in bright white for readability
     const nameCell = isCursor ? chalk.white.bold(favoritePrefix + r.label.slice(0, nameWidth).padEnd(nameWidth)) : name
     const sourceCursorText = providerName.padEnd(W_SOURCE)
     const sourceCell = isCursor ? chalk.white.bold(sourceCursorText) : source
 
-    // 📖 Usage column — quota percent remaining from token-stats.json (higher = more quota left)
+    // 📖 Usage column — provider-scoped remaining quota when measurable,
+    // 📖 otherwise a green dot to show "usable but not meaningfully quantifiable".
     let usageCell
     if (r.usagePercent !== undefined && r.usagePercent !== null) {
       const usageStr = Math.round(r.usagePercent) + '%'
@@ -447,10 +474,13 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
         usageCell = chalk.red(usageStr.padEnd(W_USAGE))
       }
     } else {
-      usageCell = chalk.dim(usagePlaceholderForProvider(r.providerKey).padEnd(W_USAGE))
+      const usagePlaceholder = usagePlaceholderForProvider(r.providerKey)
+      usageCell = usagePlaceholder === '🟢'
+        ? chalk.greenBright(usagePlaceholder.padEnd(W_USAGE))
+        : chalk.dim(usagePlaceholder.padEnd(W_USAGE))
     }
 
-    // 📖 Build row with double space between columns (order: Rank, Tier, SWE%, CTX, Model, Origin, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Usage)
+    // 📖 Build row with double space between columns (order: Rank, Tier, SWE%, CTX, Model, Provider, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Usage)
     const row = '  ' + num + '  ' + tier + '  ' + sweCell + '  ' + ctxCell + '  ' + nameCell + '  ' + sourceCell + '  ' + pingCell + '  ' + avgCell + '  ' + status + '  ' + speedCell + '  ' + stabCell + '  ' + uptimeCell + '  ' + usageCell
 
     if (isCursor) {
@@ -484,7 +514,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       ? chalk.rgb(0, 200, 255)('Enter→OpenDesktop')
       : chalk.rgb(0, 200, 255)('Enter→OpenCode')
   // 📖 Line 1: core navigation + sorting shortcuts
-  lines.push(chalk.dim(`  ↑↓ Navigate  •  `) + actionHint + chalk.dim(`  •  `) + chalk.yellow('F') + chalk.dim(` Favorite  •  R/Y/O/M/L/A/S/C/H/V/B/U/`) + chalk.yellow('G') + chalk.dim(` Sort  •  `) + chalk.yellow('T') + chalk.dim(` Tier  •  `) + chalk.yellow('N') + chalk.dim(` Origin  •  W↓/=↑ (${intervalSec}s)  •  `) + chalk.rgb(255, 100, 50).bold('Z') + chalk.dim(` Mode  •  `) + chalk.yellow('X') + chalk.dim(` Logs  •  `) + chalk.yellow('P') + chalk.dim(` Settings  •  `) + chalk.rgb(0, 255, 80).bold('K') + chalk.dim(` Help`))
+  lines.push(chalk.dim(`  ↑↓ Navigate  •  `) + actionHint + chalk.dim(`  •  `) + chalk.yellow('F') + chalk.dim(` Favorite  •  R/Y/O/M/L/A/S/C/H/V/B/U/`) + chalk.yellow('G') + chalk.dim(` Sort  •  `) + chalk.yellow('T') + chalk.dim(` Tier  •  `) + chalk.yellow('D') + chalk.dim(` Provider  •  W↓/=↑ (${intervalSec}s)  •  `) + chalk.rgb(255, 100, 50).bold('Z') + chalk.dim(` Mode  •  `) + chalk.yellow('X') + chalk.dim(` Logs  •  `) + chalk.yellow('P') + chalk.dim(` Settings  •  `) + chalk.rgb(0, 255, 80).bold('K') + chalk.dim(` Help`))
   // 📖 Line 2: profiles, recommend, feature request, bug report, and extended hints — gives visibility to less-obvious features
   lines.push(chalk.dim(`  `) + chalk.rgb(200, 150, 255).bold('⇧P') + chalk.dim(` Cycle profile  •  `) + chalk.rgb(200, 150, 255).bold('⇧S') + chalk.dim(` Save profile  •  `) + chalk.rgb(0, 200, 180).bold('Q') + chalk.dim(` Smart Recommend  •  `) + chalk.rgb(57, 255, 20).bold('J') + chalk.dim(` Request feature  •  `) + chalk.rgb(255, 87, 51).bold('I') + chalk.dim(` Report bug  •  `) + chalk.yellow('Esc') + chalk.dim(` Close overlay  •  Ctrl+C Exit`))
   // 📖 Proxy status line — always rendered with explicit state (starting/running/failed/stopped)
@@ -502,6 +532,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     chalk.rgb(200, 150, 255)('\x1b]8;;https://discord.gg/5MbTnDC3Md\x1b\\Discord\x1b]8;;\x1b\\') +
     chalk.dim(' → ') +
     chalk.rgb(200, 150, 255)('https://discord.gg/5MbTnDC3Md') +
+    chalk.dim('  •  ') +
+    chalk.dim(`v${LOCAL_VERSION}`) +
     chalk.dim('  •  ') +
     chalk.dim('Ctrl+C Exit')
   )
