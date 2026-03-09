@@ -306,8 +306,30 @@ async function main() {
   // 📖 Add interactive selection state - cursor index and user's choice
   // 📖 sortColumn: 'rank'|'tier'|'origin'|'model'|'ping'|'avg'|'status'|'verdict'|'uptime'
   // 📖 sortDirection: 'asc' (default) or 'desc'
-    // 📖 pingInterval: current interval in ms (default 2000, adjustable with W/= keys)
-    // 📖 tierFilter: current tier filter letter (null = all, 'S' = S+/S, 'A' = A+/A/A-, etc.)
+  // 📖 ping cadence is now mode-driven:
+  // 📖 speed  = 2s for 1 minute bursts
+  // 📖 normal = 10s steady state
+  // 📖 slow   = 30s after 5 minutes of inactivity
+  // 📖 forced = 4s and ignores inactivity / auto slowdowns
+  const PING_MODE_INTERVALS = {
+    speed: 2_000,
+    normal: 10_000,
+    slow: 30_000,
+    forced: 4_000,
+  }
+  const PING_MODE_CYCLE = ['speed', 'normal', 'slow', 'forced']
+  const SPEED_MODE_DURATION_MS = 60_000
+  const IDLE_SLOW_AFTER_MS = 5 * 60_000
+  const now = Date.now()
+
+  const intervalToPingMode = (intervalMs) => {
+    if (intervalMs <= 3000) return 'speed'
+    if (intervalMs <= 5000) return 'forced'
+    if (intervalMs >= 30000) return 'slow'
+    return 'normal'
+  }
+
+  // 📖 tierFilter: current tier filter letter (null = all, 'S' = S+/S, 'A' = A+/A/A-, etc.)
   const state = {
     results,
     pendingPings: 0,
@@ -316,8 +338,13 @@ async function main() {
     selectedModel: null,
     sortColumn: 'avg',
     sortDirection: 'asc',
-    pingInterval: PING_INTERVAL,  // 📖 Track current interval for W/= keys
-    lastPingTime: Date.now(),     // 📖 Track when last ping cycle started
+    pingInterval: PING_MODE_INTERVALS.speed, // 📖 Effective live interval derived from the active ping mode.
+    pingMode: 'speed',            // 📖 Current ping mode: speed | normal | slow | forced.
+    pingModeSource: 'startup',    // 📖 Why this mode is active: startup | manual | auto | idle | activity.
+    speedModeUntil: now + SPEED_MODE_DURATION_MS, // 📖 Speed bursts auto-fall back to normal after 60 seconds.
+    lastPingTime: now,            // 📖 Track when last ping cycle started
+    lastUserActivityAt: now,      // 📖 Any keypress refreshes this timer; inactivity can force slow mode.
+    resumeSpeedOnActivity: false, // 📖 Set after idle slowdown so the next activity restarts a 60s speed burst.
     mode,                         // 📖 'opencode' or 'openclaw' — controls Enter action
     tierFilterMode: 0,            // 📖 Index into TIER_CYCLE (0=All, 1=S+, 2=S, ...)
     originFilterMode: 0,          // 📖 Index into ORIGIN_CYCLE (0=All, then providers)
@@ -384,6 +411,53 @@ async function main() {
     adjustScrollOffset(state)
   })
 
+  let ticker = null
+  let onKeyPress = null
+  let pingModel = null
+
+  const scheduleNextPing = () => {
+    clearTimeout(state.pingIntervalObj)
+    const elapsed = Date.now() - state.lastPingTime
+    const delay = Math.max(0, state.pingInterval - elapsed)
+    state.pingIntervalObj = setTimeout(runPingCycle, delay)
+  }
+
+  const setPingMode = (nextMode, source = 'manual') => {
+    const modeInterval = PING_MODE_INTERVALS[nextMode] ?? PING_MODE_INTERVALS.normal
+    state.pingMode = nextMode
+    state.pingModeSource = source
+    state.pingInterval = modeInterval
+    state.speedModeUntil = nextMode === 'speed' ? Date.now() + SPEED_MODE_DURATION_MS : null
+    state.resumeSpeedOnActivity = source === 'idle'
+    if (state.pingIntervalObj) scheduleNextPing()
+  }
+
+  const noteUserActivity = () => {
+    state.lastUserActivityAt = Date.now()
+    if (state.pingMode === 'forced') return
+    if (state.resumeSpeedOnActivity) {
+      setPingMode('speed', 'activity')
+    }
+  }
+
+  const refreshAutoPingMode = () => {
+    const currentTime = Date.now()
+    if (state.pingMode === 'forced') return
+
+    if (state.speedModeUntil && currentTime >= state.speedModeUntil) {
+      setPingMode('normal', 'auto')
+      return
+    }
+
+    if (currentTime - state.lastUserActivityAt >= IDLE_SLOW_AFTER_MS) {
+      if (state.pingMode !== 'slow' || state.pingModeSource !== 'idle') {
+        setPingMode('slow', 'idle')
+      } else {
+        state.resumeSpeedOnActivity = true
+      }
+    }
+  }
+
   // 📖 Auto-start proxy on launch if OpenCode config already has an fcm-proxy provider.
   // 📖 Fire-and-forget: does not block UI startup. state.proxyStartupStatus is updated async.
   if (mode === 'opencode' || mode === 'opencode-desktop') {
@@ -426,9 +500,6 @@ async function main() {
   }
 
   // ─── Overlay renderers + key handler ─────────────────────────────────────
-  let pingModel = null
-  let ticker = null
-  let onKeyPress = null
   const stopUi = ({ resetRawMode = false } = {}) => {
     if (ticker) clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
@@ -519,6 +590,10 @@ async function main() {
     mergedModels,
     apiKey,
     chalk,
+    setPingMode,
+    noteUserActivity,
+    intervalToPingMode,
+    PING_MODE_CYCLE,
     setResults: (next) => { results = next },
     readline,
   })
@@ -545,9 +620,11 @@ async function main() {
   }
 
   process.stdin.on('keypress', onKeyPress)
+  process.on('SIGCONT', noteUserActivity)
 
   // 📖 Animation loop: render settings overlay, recommend overlay, help overlay, feature request overlay, bug report overlay, OR main table
   ticker = setInterval(() => {
+    refreshAutoPingMode()
     state.frame++
     // 📖 Cache visible+sorted models each frame so Enter handler always matches the display
     if (!state.settingsOpen && !state.recommendOpen && !state.featureRequestOpen && !state.bugReportOpen) {
@@ -562,11 +639,11 @@ async function main() {
           ? overlays.renderFeatureRequest()
           : state.bugReportOpen
             ? overlays.renderBugReport()
-            : state.helpVisible
-              ? overlays.renderHelp()
+              : state.helpVisible
+                ? overlays.renderHelp()
               : state.logVisible
                 ? overlays.renderLog()
-                : renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus)
+                : renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource)
     process.stdout.write(ALT_HOME + content)
   }, Math.round(1000 / FPS))
 
@@ -574,7 +651,7 @@ async function main() {
   const initialVisible = state.results.filter(r => !r.hidden)
   state.visibleSorted = sortResultsWithPinnedFavorites(initialVisible, state.sortColumn, state.sortDirection)
 
-  process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus))
+  process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.originFilterMode, state.activeProfile, state.profileSaveMode, state.profileSaveBuffer, state.proxyStartupStatus, state.pingMode, state.pingModeSource))
 
   // 📖 If --recommend was passed, auto-open the Smart Recommend overlay on start
   if (cliArgs.recommendMode) {
@@ -647,37 +724,36 @@ async function main() {
   // 📖 Initial ping of all models
   const initialPing = Promise.all(state.results.map(r => pingModel(r)))
 
-  // 📖 Continuous ping loop with dynamic interval (adjustable with W/= keys)
-  const schedulePing = () => {
-    state.pingIntervalObj = setTimeout(async () => {
-      state.lastPingTime = Date.now()
+  // 📖 Continuous ping loop with mode-driven cadence.
+  const runPingCycle = async () => {
+    refreshAutoPingMode()
+    state.lastPingTime = Date.now()
 
-      // 📖 Refresh persisted usage snapshots each cycle so proxy writes appear live in table.
-      // 📖 Freshness-aware: stale snapshots (>30m) are excluded and row reverts to undefined.
-      for (const r of state.results) {
-        const pct = _usageForRow(r.providerKey, r.modelId)
-        if (typeof pct === 'number' && Number.isFinite(pct)) {
-          r.usagePercent = pct
-        } else {
-          // If snapshot is now stale or gone, clear the cached value so UI shows N/A.
-          r.usagePercent = undefined
-        }
+    // 📖 Refresh persisted usage snapshots each cycle so proxy writes appear live in table.
+    // 📖 Freshness-aware: stale snapshots (>30m) are excluded and row reverts to undefined.
+    for (const r of state.results) {
+      const pct = _usageForRow(r.providerKey, r.modelId)
+      if (typeof pct === 'number' && Number.isFinite(pct)) {
+        r.usagePercent = pct
+      } else {
+        // If snapshot is now stale or gone, clear the cached value so UI shows N/A.
+        r.usagePercent = undefined
       }
+    }
 
-      state.results.forEach(r => {
-        pingModel(r).catch(() => {
-          // Individual ping failures don't crash the loop
-        })
+    state.results.forEach(r => {
+      pingModel(r).catch(() => {
+        // Individual ping failures don't crash the loop
       })
+    })
 
-      // 📖 Schedule next ping with current interval
-      schedulePing()
-    }, state.pingInterval)
+    refreshAutoPingMode()
+    scheduleNextPing()
   }
 
   // 📖 Start the ping loop
   state.pingIntervalObj = null
-  schedulePing()
+  scheduleNextPing()
 
   await initialPing
 

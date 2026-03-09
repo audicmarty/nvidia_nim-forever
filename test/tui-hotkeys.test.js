@@ -5,8 +5,9 @@
  * Scope:
  *   1. G        — usage sort: sortResults('usage') sorts by usagePercent asc/desc
  *   2. X key    — log page toggle: logVisible state flag semantics
- *   3. = key    — interval increase (reassigned from X): validatees the new binding
- *                  is distinct from X and correctly adjusts pingInterval
+ *   3. W key    — ping mode cycle: speed → normal → slow → forced
+ *   4. Auto ping transitions — startup speed drops to normal, inactivity drops to slow,
+ *                  and activity wakes idle sessions back into a 60s speed burst
  *
  * Because the TUI is a full interactive loop we test the underlying pure logic
  * (sortResults from lib/utils.js) plus a lightweight state-machine helper that
@@ -156,53 +157,146 @@ describe('tui-hotkeys – X key log page toggle', () => {
     assert.strictEqual(state.logVisible, false)
   })
 
-  it('X key is distinct from W (interval decrease) key', () => {
-    // X must NOT decrease interval; W must NOT toggle log
+  it('X key is distinct from W (ping mode toggle) key', () => {
+    // X must NOT change ping mode; W must NOT toggle log
     const KEY_LOG_TOGGLE   = 'x'
-    const KEY_INTERVAL_DEC = 'w'
-    const KEY_INTERVAL_INC = '='
+    const KEY_PING_MODE    = 'w'
 
-    assert.notStrictEqual(KEY_LOG_TOGGLE, KEY_INTERVAL_DEC)
-    assert.notStrictEqual(KEY_LOG_TOGGLE, KEY_INTERVAL_INC)
-    assert.notStrictEqual(KEY_INTERVAL_DEC, KEY_INTERVAL_INC)
+    assert.notStrictEqual(KEY_LOG_TOGGLE, KEY_PING_MODE)
   })
 })
 
-// ─── Suite: = key — ping interval increase (reassigned from X) ───────────────
+// ─── Suite: W key + auto transitions — ping mode state machine ──────────────
 
-describe('tui-hotkeys – = key interval increase (reassigned from X)', () => {
-  const PING_INTERVAL_MAX = 60000
-  const PING_INTERVAL_MIN = 1000
+describe('tui-hotkeys – W key ping mode cycle + auto transitions', () => {
+  const PING_MODE_CYCLE = ['speed', 'normal', 'slow', 'forced']
+  const PING_MODE_INTERVALS = { speed: 2000, normal: 10000, slow: 30000, forced: 4000 }
+  const SPEED_MODE_DURATION_MS = 60000
+  const IDLE_SLOW_AFTER_MS = 5 * 60_000
 
-  it('= key increases pingInterval by 1000ms up to 60s cap', () => {
-    let pingInterval = 5000
+  function setPingMode(state, nextMode, source = 'manual', now = 0) {
+    state.pingMode = nextMode
+    state.pingModeSource = source
+    state.pingInterval = PING_MODE_INTERVALS[nextMode]
+    state.speedModeUntil = nextMode === 'speed' ? now + SPEED_MODE_DURATION_MS : null
+    state.resumeSpeedOnActivity = source === 'idle'
+  }
 
-    // Simulate = key: increase
-    pingInterval = Math.min(PING_INTERVAL_MAX, pingInterval + 1000)
-    assert.strictEqual(pingInterval, 6000)
+  function refreshAutoPingMode(state, now) {
+    if (state.pingMode === 'forced') return
+    if (state.speedModeUntil && now >= state.speedModeUntil) {
+      setPingMode(state, 'normal', 'auto', now)
+      return
+    }
+    if (now - state.lastUserActivityAt >= IDLE_SLOW_AFTER_MS) {
+      if (state.pingMode !== 'slow' || state.pingModeSource !== 'idle') {
+        setPingMode(state, 'slow', 'idle', now)
+      } else {
+        state.resumeSpeedOnActivity = true
+      }
+    }
+  }
 
-    // Cap at 60s
-    pingInterval = 60000
-    pingInterval = Math.min(PING_INTERVAL_MAX, pingInterval + 1000)
-    assert.strictEqual(pingInterval, 60000)
+  function noteUserActivity(state, now) {
+    state.lastUserActivityAt = now
+    if (state.pingMode === 'forced') return
+    if (state.resumeSpeedOnActivity) {
+      setPingMode(state, 'speed', 'activity', now)
+    }
+  }
+
+  it('W cycles speed → normal → slow → forced → speed', () => {
+    const state = { pingMode: 'speed', pingInterval: 2000 }
+
+    const nextMode = () => {
+      const currentIdx = PING_MODE_CYCLE.indexOf(state.pingMode)
+      const nextIdx = (currentIdx + 1) % PING_MODE_CYCLE.length
+      state.pingMode = PING_MODE_CYCLE[nextIdx]
+      state.pingInterval = PING_MODE_INTERVALS[state.pingMode]
+    }
+
+    nextMode()
+    assert.strictEqual(state.pingMode, 'normal')
+    assert.strictEqual(state.pingInterval, 10000)
+
+    nextMode()
+    assert.strictEqual(state.pingMode, 'slow')
+    assert.strictEqual(state.pingInterval, 30000)
+
+    nextMode()
+    assert.strictEqual(state.pingMode, 'forced')
+    assert.strictEqual(state.pingInterval, 4000)
+
+    nextMode()
+    assert.strictEqual(state.pingMode, 'speed')
+    assert.strictEqual(state.pingInterval, 2000)
   })
 
-  it('W key decreases pingInterval by 1000ms down to 1s floor', () => {
-    let pingInterval = 5000
+  it('startup speed auto-falls back to normal after one minute', () => {
+    const state = {
+      pingMode: 'speed',
+      pingModeSource: 'startup',
+      pingInterval: 2000,
+      speedModeUntil: 60000,
+      lastUserActivityAt: 0,
+      resumeSpeedOnActivity: false,
+    }
 
-    // Simulate W key: decrease
-    pingInterval = Math.max(PING_INTERVAL_MIN, pingInterval - 1000)
-    assert.strictEqual(pingInterval, 4000)
-
-    // Floor at 1s
-    pingInterval = 1000
-    pingInterval = Math.max(PING_INTERVAL_MIN, pingInterval - 1000)
-    assert.strictEqual(pingInterval, 1000)
+    refreshAutoPingMode(state, 60000)
+    assert.strictEqual(state.pingMode, 'normal')
+    assert.strictEqual(state.pingInterval, 10000)
   })
 
-  it('X key no longer adjusts pingInterval — it toggles logVisible', () => {
-    // The binding contract: X → log toggle, = → interval increase
-    // We verify X does NOT appear in the sortKeys map and is not = 
+  it('five minutes of inactivity auto-switches to slow', () => {
+    const state = {
+      pingMode: 'normal',
+      pingModeSource: 'manual',
+      pingInterval: 10000,
+      speedModeUntil: null,
+      lastUserActivityAt: 0,
+      resumeSpeedOnActivity: false,
+    }
+
+    refreshAutoPingMode(state, IDLE_SLOW_AFTER_MS)
+    assert.strictEqual(state.pingMode, 'slow')
+    assert.strictEqual(state.pingModeSource, 'idle')
+    assert.strictEqual(state.resumeSpeedOnActivity, true)
+  })
+
+  it('activity after idle slowdown restarts a one-minute speed burst', () => {
+    const state = {
+      pingMode: 'slow',
+      pingModeSource: 'idle',
+      pingInterval: 30000,
+      speedModeUntil: null,
+      lastUserActivityAt: 0,
+      resumeSpeedOnActivity: true,
+    }
+
+    noteUserActivity(state, 301000)
+    assert.strictEqual(state.pingMode, 'speed')
+    assert.strictEqual(state.pingModeSource, 'activity')
+    assert.strictEqual(state.pingInterval, 2000)
+    assert.strictEqual(state.speedModeUntil, 361000)
+  })
+
+  it('forced mode ignores idle and speed auto transitions', () => {
+    const state = {
+      pingMode: 'forced',
+      pingModeSource: 'manual',
+      pingInterval: 4000,
+      speedModeUntil: 1000,
+      lastUserActivityAt: 0,
+      resumeSpeedOnActivity: false,
+    }
+
+    refreshAutoPingMode(state, IDLE_SLOW_AFTER_MS + 1000)
+    assert.strictEqual(state.pingMode, 'forced')
+    assert.strictEqual(state.pingInterval, 4000)
+  })
+
+  it('X key no longer adjusts ping cadence — it toggles logVisible', () => {
+    // The binding contract: X → log toggle, W → ping mode cycle
     const sortKeys = {
       'r': 'rank', 'y': 'tier', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx',
@@ -210,19 +304,8 @@ describe('tui-hotkeys – = key interval increase (reassigned from X)', () => {
     }
     // X is NOT a sort key
     assert.ok(!('x' in sortKeys), 'x must not be in sort keys')
-    // = is NOT a sort key
-    assert.ok(!('=' in sortKeys), '= must not be in sort keys')
     // W is NOT a sort key (it controls interval)
     assert.ok(!('w' in sortKeys), 'w must not be in sort keys')
-  })
-
-  it('= (equals) key is not already bound to sort or filter functions', () => {
-    // These are all the sort key bindings; = must not appear among them
-    const allSortKeys = ['r','y','o','m','l','a','s','c','h','v','b','u','g']
-    assert.ok(!allSortKeys.includes('='), '= is not a sort key')
-    // These are modal keys that = must not conflict with
-    const modalKeys = ['t','n','f','j','i','p','q','z','k','w','x','e','d']
-    assert.ok(!modalKeys.includes('='), '= is not already a modal key')
   })
 })
 

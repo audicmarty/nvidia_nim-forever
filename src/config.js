@@ -392,7 +392,7 @@ export function _emptyProfileSettings() {
     tierFilter: null,     // 📖 null = show all tiers, or 'S'|'A'|'B'|'C'|'D'
     sortColumn: 'avg',    // 📖 default sort column
     sortAsc: true,        // 📖 true = ascending (fastest first for latency)
-    pingInterval: 8000,   // 📖 default ms between pings
+    pingInterval: 10000,  // 📖 default ms between pings in the steady "normal" mode
   }
 }
 

@@ -65,6 +65,10 @@ export function createKeyHandler(ctx) {
     mergedModels,
     apiKey,
     chalk,
+    setPingMode,
+    noteUserActivity,
+    intervalToPingMode,
+    PING_MODE_CYCLE,
     setResults,
     readline,
   } = ctx
@@ -121,6 +125,7 @@ export function createKeyHandler(ctx) {
 
   return async (str, key) => {
     if (!key) return
+    noteUserActivity()
 
     // 📖 Profile save mode: intercept ALL keys while inline name input is active.
     // 📖 Enter → save, Esc → cancel, Backspace → delete char, printable → append to buffer.
@@ -583,7 +588,7 @@ export function createKeyHandler(ctx) {
             if (settings) {
               state.sortColumn = settings.sortColumn || 'avg'
               state.sortDirection = settings.sortAsc ? 'asc' : 'desc'
-              state.pingInterval = settings.pingInterval || PING_INTERVAL
+              setPingMode(intervalToPingMode(settings.pingInterval || PING_INTERVAL), 'manual')
               if (settings.tierFilter) {
                 const tierIdx = TIER_CYCLE.indexOf(settings.tierFilter)
                 if (tierIdx >= 0) state.tierFilterMode = tierIdx
@@ -774,7 +779,7 @@ export function createKeyHandler(ctx) {
             // 📖 Apply profile's TUI settings to live state
             state.sortColumn = settings.sortColumn || 'avg'
             state.sortDirection = settings.sortAsc ? 'asc' : 'desc'
-            state.pingInterval = settings.pingInterval || PING_INTERVAL
+            setPingMode(intervalToPingMode(settings.pingInterval || PING_INTERVAL), 'manual')
             if (settings.tierFilter) {
               const tierIdx = TIER_CYCLE.indexOf(settings.tierFilter)
               if (tierIdx >= 0) state.tierFilterMode = tierIdx
@@ -872,13 +877,13 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Interval adjustment keys: W=decrease (faster), ==increase (slower)
-    // 📖 X was previously used for interval increase but is now reserved for the log page overlay.
-    // 📖 Minimum 1s, maximum 60s
+    // 📖 W cycles the supported ping modes:
+    // 📖 speed (2s) → normal (10s) → slow (30s) → forced (4s) → speed.
+    // 📖 forced ignores auto speed/slow transitions until the user leaves it manually.
     if (key.name === 'w') {
-      state.pingInterval = Math.max(1000, state.pingInterval - 1000)
-    } else if (str === '=' || key.name === '=') {
-      state.pingInterval = Math.min(60000, state.pingInterval + 1000)
+      const currentIdx = PING_MODE_CYCLE.indexOf(state.pingMode)
+      const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % PING_MODE_CYCLE.length : 0
+      setPingMode(PING_MODE_CYCLE[nextIdx], 'manual')
     }
 
     // 📖 Tier toggle key: T = cycle through each individual tier (All → S+ → S → A+ → A → A- → B+ → B → C → All)

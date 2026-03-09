@@ -1082,7 +1082,7 @@ describe('config profile functions', () => {
     assert.equal(typeof settings.tierFilter, 'object') // null
     assert.equal(settings.sortColumn, 'avg')
     assert.equal(settings.sortAsc, true)
-    assert.equal(settings.pingInterval, 8000)
+    assert.equal(settings.pingInterval, 10000)
   })
 
   it('listProfiles returns empty array for fresh config', () => {

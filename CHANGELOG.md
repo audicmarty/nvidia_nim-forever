@@ -2,12 +2,33 @@
 
 ---
 
+## 0.1.85
+
+### Added
+
+- 🌀 Added an inline spinner beside `Latest Ping` so each row shows when a fresh ping is still in flight without hiding the previous latency.
+- 🏎 Added ping mode badges next to `FCM` so the active cadence is always visible in the header.
+
+### Fixed
+
+- 🔑 `Avg Ping` and latency-derived metrics now also use `401` responses, so rows without an API key still accumulate real latency samples.
+- 🎨 Unified footer shortcut colors so every hotkey uses the same visual treatment.
+
+### Changed
+
+- ⏱ Reworked ping scheduling: startup now runs a 60s `FAST` burst at 2s, steady state uses `NORMAL` at 10s, idle sessions auto-drop to `SLOW` at 30s after 5 minutes, and `FORCED` stays at 4s without auto slowdowns.
+- 🎛 `W` now cycles ping modes (`FAST` / `NORMAL` / `SLOW` / `FORCED`) instead of tweaking raw intervals.
+- 🧾 Updated the main footer, in-app help, README, and profile defaults to match the new ping mode system and token log wording.
+
+---
+
 ## 0.1.84
 
 ### Added
 
 - ✅ Added a new `Used` column showing total consumed prompt+completion tokens per exact `provider + model`, formatted in compact `k` / `M` units from startup log aggregation.
 - 🌀 Added an inline spinner beside `Latest Ping` so each row shows when a fresh ping is still in flight without hiding the previous latency.
+- 🏎 Added ping mode badges in the header plus adaptive ping cadence states: `FAST`, `NORMAL`, `SLOW`, and `FORCED`.
 
 ### Fixed
 
@@ -27,6 +48,7 @@
 - ✅ Renamed the app header to `✅ FCM`, moved the version next to `Ctrl+C Exit`, and added subtle blue color variations per provider in the `Provider` column.
 - 🧹 Cleaned the footer hints by removing the duplicate `Ctrl+C Exit` entry while keeping the proxy status directly under the shortcut line.
 - 📚 Updated README and in-app help to match the new `Provider`, `Used`, `Usage`, and current hotkey behaviors.
+- ⏱ Reworked ping scheduling: app startup now runs a 60s fast burst at 2s, steady-state defaults to 10s, idle sessions auto-drop to 30s after 5 minutes, and `W` now cycles ping modes instead of tweaking raw intervals.
 
 ---
 

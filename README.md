@@ -72,7 +72,7 @@
 - **🚀 Parallel pings** — All models tested simultaneously via native `fetch`
 - **📊 Real-time animation** — Watch latency appear live in alternate screen buffer
 - **🏆 Smart ranking** — Top 3 fastest models highlighted with medals 🥇🥈🥉
-- **⏱ Continuous monitoring** — Pings all models every 3 seconds forever, never stops
+- **⏱ Adaptive monitoring** — Starts in a fast 2s cadence for 60s, settles to 10s, slows to 30s after 5 minutes idle, and supports a forced 4s mode
 - **📈 Rolling averages** — Avg calculated from ALL successful pings since start
 - **📊 Uptime tracking** — Percentage of successful pings shown in real-time
 - **📐 Stability score** — Composite 0–100 score measuring consistency (p95, jitter, spikes, uptime)
@@ -200,7 +200,7 @@ Use `↑↓` arrows to select, `Enter` to confirm. Then the TUI launches with yo
 
 **How it works:**
  1. **Ping phase** — All enabled models are pinged in parallel (up to 150 across 20 providers)
- 2. **Continuous monitoring** — Models are re-pinged every 3 seconds forever
+ 2. **Continuous monitoring** — Models start at 2s re-pings for 60s, then fall back to 10s automatically
 3. **Real-time updates** — Watch "Latest", "Avg", and "Up%" columns update live
 4. **Select anytime** — Use ↑↓ arrows to navigate, press Enter on a model to act
 5. **Smart detection** — Automatically detects if NVIDIA NIM is configured in OpenCode or OpenClaw
@@ -725,7 +725,7 @@ This script:
 │  1. Enter alternate screen buffer (like vim/htop/less)           │
 │  2. Ping ALL models in parallel                                  │
 │  3. Display real-time table with Latest/Avg/Stability/Up%        │
-│  4. Re-ping ALL models every 3 seconds (forever)               │
+│  4. Re-ping ALL models at 2s on startup, then 10s steady-state │
 │  5. Update rolling averages + stability scores per model        │
 │  6. User can navigate with ↑↓ and select with Enter            │
 │  7. On Enter (OpenCode): set model, launch OpenCode             │
@@ -803,7 +803,7 @@ This script:
 
 **Configuration:**
 - **Ping timeout**: 15 seconds per attempt (slow models get more time)
-- **Ping interval**: 3 seconds between complete re-pings of all models (adjustable with W/X keys)
+- **Ping cadence**: startup burst at 2 seconds for 60s, then 10 seconds normally, 30 seconds when idle for 5 minutes, or forced 4 seconds via `W`
 - **Monitor mode**: Interface stays open forever, press Ctrl+C to exit
 
 **Flags:**
@@ -831,12 +831,12 @@ This script:
 - **T** — Cycle tier filter (All → S+ → S → A+ → A → A- → B+ → B → C → All)
 - **D** — Cycle provider filter (All → NIM → Groq → ...)
 - **Z** — Cycle mode (OpenCode CLI → OpenCode Desktop → OpenClaw)
-- **X** — **Toggle Log Viewer** (view recent activity and error logs)
+- **X** — **Toggle Token Logs** (view recent request/token usage logs)
 - **P** — Open Settings (manage API keys, toggles, updates, profiles)
 - **Shift+P** — Cycle through saved profiles (switches live TUI settings)
 - **Shift+S** — Save current TUI settings as a named profile (inline prompt)
 - **Q** — Open Smart Recommend overlay (find the best model for your task)
-- **W / =** — Decrease / Increase ping interval
+- **W** — Cycle ping mode (`FAST` 2s → `NORMAL` 10s → `SLOW` 30s → `FORCED` 4s)
 - **J / I** — Request feature / Report bug
 - **K / Esc** — Show help overlay / Close overlay
 - **Ctrl+C** — Exit
@@ -862,7 +862,7 @@ Profiles let you save and restore different TUI configurations — useful if you
 - Favorites (starred models)
 - Sort column and direction
 - Tier filter
-- Ping interval
+- Ping mode
 - API keys
 
 **Saving a profile:**

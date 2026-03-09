@@ -77,7 +77,7 @@ export function setActiveProxy(proxyInstance) {
 }
 
 // ─── renderTable: mode param controls footer hint text (opencode vs openclaw) ─────────
-export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, originFilterMode = 0, activeProfile = null, profileSaveMode = false, profileSaveBuffer = '', proxyStartupStatus = null) {
+export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, originFilterMode = 0, activeProfile = null, profileSaveMode = false, profileSaveBuffer = '', proxyStartupStatus = null, pingMode = 'normal', pingModeSource = 'auto') {
   // 📖 Filter out hidden models for display
   const visibleResults = results.filter(r => !r.hidden)
 
@@ -96,6 +96,23 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     : pendingPings > 0
       ? chalk.dim(`pinging — ${pendingPings} in flight…`)
       : chalk.dim(`next ping ${secondsUntilNext}s`)
+
+  const intervalSec = Math.round(pingInterval / 1000)
+  const pingModeMeta = {
+    speed: { label: `${intervalSec}s speed`, color: chalk.bold.rgb(255, 210, 80) },
+    normal: { label: `${intervalSec}s normal`, color: chalk.bold.rgb(120, 210, 255) },
+    slow: { label: `${intervalSec}s slow`, color: chalk.bold.rgb(255, 170, 90) },
+    forced: { label: `${intervalSec}s forced`, color: chalk.bold.rgb(255, 120, 120) },
+  }
+  const activePingMode = pingModeMeta[pingMode] ?? pingModeMeta.normal
+  const pingModeBadge = activePingMode.color(` [${activePingMode.label}]`)
+  const pingModeHint = pingModeSource === 'idle'
+    ? chalk.dim(' idle')
+    : pingModeSource === 'activity'
+      ? chalk.dim(' resumed')
+      : pingModeSource === 'startup'
+        ? chalk.dim(' startup')
+        : ''
 
   // 📖 Mode badge shown in header so user knows what Enter will do
   // 📖 Now includes key hint for mode toggle
@@ -160,7 +177,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   const sorted = sortResultsWithPinnedFavorites(visibleResults, sortColumn, sortDirection)
 
   const lines = [
-    `  ${chalk.greenBright.bold('✅ FCM')}${modeBadge}${modeHint}${tierBadge}${originBadge}${profileBadge}   ` +
+    `  ${chalk.greenBright.bold('✅ FCM')}${modeBadge}${pingModeBadge}${modeHint}${tierBadge}${originBadge}${profileBadge}   ` +
       chalk.greenBright(`✅ ${up}`) + chalk.dim(' up  ') +
       chalk.yellow(`⏳ ${timeout}`) + chalk.dim(' timeout  ') +
       chalk.red(`❌ ${down}`) + chalk.dim(' down  ') +
@@ -531,18 +548,17 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
    } else {
      lines.push('')
    }
-  const intervalSec = Math.round(pingInterval / 1000)
-
-  // 📖 Footer hints adapt based on active mode
+  // 📖 Footer hints adapt based on active mode.
+  const hotkey = (keyLabel, text) => chalk.yellow(keyLabel) + chalk.dim(text)
   const actionHint = mode === 'openclaw'
-    ? chalk.rgb(255, 100, 50)('Enter→SetOpenClaw')
+    ? hotkey('Enter', '→SetOpenClaw')
     : mode === 'opencode-desktop'
-      ? chalk.rgb(0, 200, 255)('Enter→OpenDesktop')
-      : chalk.rgb(0, 200, 255)('Enter→OpenCode')
+      ? hotkey('Enter', '→OpenDesktop')
+      : hotkey('Enter', '→OpenCode')
   // 📖 Line 1: core navigation + sorting shortcuts
-  lines.push(chalk.dim(`  ↑↓ Navigate  •  `) + actionHint + chalk.dim(`  •  `) + chalk.yellow('F') + chalk.dim(` Favorite  •  R/Y/O/M/L/A/S/C/H/V/B/U/`) + chalk.yellow('G') + chalk.dim(` Sort  •  `) + chalk.yellow('T') + chalk.dim(` Tier  •  `) + chalk.yellow('D') + chalk.dim(` Provider  •  W↓/=↑ (${intervalSec}s)  •  `) + chalk.rgb(255, 100, 50).bold('Z') + chalk.dim(` Mode  •  `) + chalk.yellow('X') + chalk.dim(` Logs  •  `) + chalk.yellow('P') + chalk.dim(` Settings  •  `) + chalk.rgb(0, 255, 80).bold('K') + chalk.dim(` Help`))
+  lines.push(chalk.dim(`  ↑↓ Navigate  •  `) + actionHint + chalk.dim(`  •  `) + hotkey('F', ' Toggle Favorite') + chalk.dim(`  •  Press Highlighted letters in column named to sort & filter  •  `) + hotkey('T', ' Tier') + chalk.dim(`  •  `) + hotkey('D', ' Provider') + chalk.dim(`  •  `) + hotkey('W', ' Ping Mode : FAST/NORMAL/SLOW/FORCED') + chalk.dim(`  •  `) + hotkey('Z', ' Tool Mode') + chalk.dim(`  •  `) + hotkey('X', ' Token Logs') + chalk.dim(`  •  `) + hotkey('P', ' Settings') + chalk.dim(`  •  `) + hotkey('K', ' Help'))
   // 📖 Line 2: profiles, recommend, feature request, bug report, and extended hints — gives visibility to less-obvious features
-  lines.push(chalk.dim(`  `) + chalk.rgb(200, 150, 255).bold('⇧P') + chalk.dim(` Cycle profile  •  `) + chalk.rgb(200, 150, 255).bold('⇧S') + chalk.dim(` Save profile  •  `) + chalk.rgb(0, 200, 180).bold('Q') + chalk.dim(` Smart Recommend  •  `) + chalk.rgb(57, 255, 20).bold('J') + chalk.dim(` Request feature  •  `) + chalk.rgb(255, 87, 51).bold('I') + chalk.dim(` Report bug  •  `) + chalk.yellow('Esc') + chalk.dim(` Close overlay`))
+  lines.push(chalk.dim(`  `) + hotkey('⇧P', ' Cycle profile') + chalk.dim(`  •  `) + hotkey('⇧S', ' Save profile') + chalk.dim(`  •  `) + hotkey('Q', ' Smart Recommend') + chalk.dim(`  •  `) + hotkey('J', ' Request feature') + chalk.dim(`  •  `) + hotkey('I', ' Report bug'))
   // 📖 Proxy status line — always rendered with explicit state (starting/running/failed/stopped)
   lines.push(renderProxyStatusLine(proxyStartupStatus, activeProxyRef))
   lines.push(

@@ -51,7 +51,9 @@ export const ALT_HOME  = '\x1b[H'
 
 // 📖 Timing constants — control how fast the health-check loop runs.
 export const PING_TIMEOUT  = 15_000  // 📖 15s per attempt before abort
-export const PING_INTERVAL = 3_000   // 📖 3s between pings for fast model selection feedback
+// 📖 PING_INTERVAL is the baseline "normal" cadence. Startup can still temporarily
+// 📖 boost to faster modes, but steady-state uses 10s unless the user picks another mode.
+export const PING_INTERVAL = 10_000
 
 // 📖 Animation and column-width constants.
 export const FPS       = 12
