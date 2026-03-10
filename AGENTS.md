@@ -177,6 +177,46 @@ For arrow keys:
 7. Stop: {"action": "stop", "id": "tui"}
 ```
 
+### When Should the Agent Use terminalcp?
+
+Use `terminalcp` MCP when:
+
+- **Visual Testing Needed** — Changes affect TUI rendering, layout, colors, or formatting
+- **Interaction Testing** — New keypress handlers, filters, or navigation logic
+- **Regression Detection** — Verify existing flows still work after code changes
+- **User-Facing Features** — Settings screen, mode switching, tier filtering
+
+**Do NOT use terminalcp** for:
+- Unit test verification (use `pnpm test` instead)
+- Code-only logic changes (use tests for pure functions)
+- Build errors (use `pnpm build` or `pnpm start`)
+
+### What terminalcp Can Do
+
+| Task | How | Why |
+|------|-----|-----|
+| **Verify TUI renders** | Spawn → read stdout → check for table, headers, rows | Catch ANSI formatting breaks, truncated text, rendering issues |
+| **Test filtering** | Send "T" → read output → verify S+ tier models visible | Ensure filter logic reflects in UI |
+| **Test sorting** | Send "R" → read output → verify rank order | Verify sort order updates dynamically |
+| **Test navigation** | Send arrow keys → read output → verify cursor position | Catch navigation handler bugs |
+| **Test mode switching** | Send "Z" → read output → verify mode text changed | Ensure multi-mode logic works end-to-end |
+| **Catch visual glitches** | Inspect output for duplicate rows, misaligned columns, missing text | Prevent users from seeing broken layouts |
+
+### Example: Verify a Feature with terminalcp
+
+If you add a new feature to the TUI (e.g., new sort key "X"), test it:
+
+```
+1. Spawn TUI
+2. Read initial state
+3. Send "X" keystroke
+4. Read output → verify new sort order in table
+5. Send Up/Down → verify cursor navigation still works with new data
+6. Stop TUI
+```
+
+This gives **visual verification** that your code changes actually work in the rendered output, not just in logic tests.
+
 ---
 
 ## Changelog (MANDATORY)
