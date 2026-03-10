@@ -2,6 +2,14 @@
 
 ---
 
+## 0.2.4
+
+### Fixed
+
+- 🔧 Fixed Configured Only filter (E key) not being applied at startup. The flag was initialized correctly but the filter function was never called on first render, causing all models to appear visible even when Configured Only mode was enabled.
+
+---
+
 ## 0.2.3
 
 ### Fixed
