@@ -102,7 +102,7 @@
  *   → getProxySettings(config) — Return normalized proxy settings from config
  *   → normalizeEndpointInstalls(endpointInstalls) — Keep tracked endpoint installs stable across app versions
  *
- * @exports loadConfig, saveConfig, getApiKey, isProviderEnabled
+ * @exports loadConfig, saveConfig, validateConfigFile, getApiKey, isProviderEnabled
  * @exports addApiKey, removeApiKey, listApiKeys — multi-key management helpers
  * @exports saveAsProfile, loadProfile, listProfiles, deleteProfile
  * @exports getActiveProfileName, setActiveProfile, getProxySettings, normalizeEndpointInstalls
@@ -112,9 +112,9 @@
  * @see sources.js — provider keys come from Object.keys(sources)
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { homedir } from 'os'
-import { join } from 'path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 // 📖 New JSON config path — stores all providers' API keys + enabled state
 export const CONFIG_PATH = join(homedir(), '.free-coding-models.json')
@@ -155,14 +155,26 @@ const ENV_VARS = {
  *   2. If missing, check if ~/.free-coding-models (old plain-text) exists → migrate
  *   3. If neither, return an empty default config
  *
- * 📖 The migration reads the old file as a plain nvidia API key and writes
- *    a proper JSON config. The old file is NOT deleted (safety first).
+ * 📖 Now includes automatic validation and repair from backups if config is corrupted.
  *
  * @returns {{ apiKeys: Record<string,string>, providers: Record<string,{enabled:boolean}>, favorites: string[], telemetry: { enabled: boolean | null, consentVersion: number, anonymousId: string | null } }}
  */
 export function loadConfig() {
   // 📖 Try new JSON config first
   if (existsSync(CONFIG_PATH)) {
+    // 📖 Validate the config file first, try auto-repair if corrupted
+    const validation = validateConfigFile({ autoRepair: true })
+    
+    if (!validation.valid && !validation.repaired) {
+      // 📖 Config is corrupted and repair failed - warn user but continue with empty config
+      console.error(`⚠️  Warning: Config file is corrupted and could not be repaired: ${validation.error}`)
+      console.error('⚠️  Starting with fresh config. Your backups are in ~/.free-coding-models.backups/')
+    }
+
+    if (validation.repaired) {
+      console.log('✅ Config file was corrupted but has been restored from backup.')
+    }
+
     try {
       const raw = readFileSync(CONFIG_PATH, 'utf8').trim()
       const parsed = JSON.parse(raw)
@@ -204,7 +216,10 @@ export function loadConfig() {
         const config = _emptyConfig()
         config.apiKeys.nvidia = oldKey
         // 📖 Auto-save migrated config so next launch is fast
-        saveConfig(config)
+        const result = saveConfig(config)
+        if (!result.success) {
+          console.error(`⚠️  Warning: Failed to save migrated config: ${result.error}`)
+        }
         return config
       }
     } catch {
@@ -220,14 +235,217 @@ export function loadConfig() {
  *
  * 📖 Uses mode 0o600 so the file is only readable by the owning user (API keys!).
  * 📖 Pretty-prints JSON for human readability.
+ * 📖 Now includes:
+ *   - Automatic backup before overwriting (keeps last 5 versions)
+ *   - Verification that write succeeded
+ *   - Explicit error handling (no silent failures)
+ *   - Post-write validation to ensure file is valid JSON
  *
  * @param {{ apiKeys: Record<string,string>, providers: Record<string,{enabled:boolean}>, favorites?: string[], telemetry?: { enabled?: boolean | null, consentVersion?: number, anonymousId?: string | null } }} config
+ * @returns {{ success: boolean, error?: string, backupCreated?: boolean }}
  */
 export function saveConfig(config) {
+  // 📖 Create backup of existing config before overwriting
+  const backupCreated = createBackup()
+
   try {
-    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o600 })
-  } catch {
-    // 📖 Silently fail — the app is still usable, keys just won't persist
+    // 📖 Write the new config
+    const json = JSON.stringify(config, null, 2)
+    writeFileSync(CONFIG_PATH, json, { mode: 0o600 })
+
+    // 📖 Verify the write succeeded by reading back and validating
+    try {
+      const written = readFileSync(CONFIG_PATH, 'utf8')
+      const parsed = JSON.parse(written)
+
+      // 📖 Basic sanity check - ensure apiKeys object exists
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Written config is not a valid object')
+      }
+
+      // 📖 Verify critical data wasn't lost
+      if (config.apiKeys && Object.keys(config.apiKeys).length > 0) {
+        if (!parsed.apiKeys || Object.keys(parsed.apiKeys).length === 0) {
+          throw new Error('API keys were lost during write')
+        }
+      }
+
+      return { success: true, backupCreated }
+    } catch (verifyError) {
+      // 📖 Verification failed - this is critical!
+      const errorMsg = `Config verification failed: ${verifyError.message}`
+      
+      // 📖 Try to restore from backup if we have one
+      if (backupCreated) {
+        try {
+          restoreFromBackup()
+          errorMsg += ' (Restored from backup)'
+        } catch (restoreError) {
+          errorMsg += ` (Backup restoration failed: ${restoreError.message})`
+        }
+      }
+
+      return { success: false, error: errorMsg, backupCreated }
+    }
+  } catch (writeError) {
+    // 📖 Write failed - explicit error instead of silent failure
+    const errorMsg = `Failed to write config: ${writeError.message}`
+    
+    // 📖 Try to restore from backup if we have one
+    if (backupCreated) {
+      try {
+        restoreFromBackup()
+        errorMsg += ' (Restored from backup)'
+      } catch (restoreError) {
+        errorMsg += ` (Backup restoration failed: ${restoreError.message})`
+      }
+    }
+
+    return { success: false, error: errorMsg, backupCreated }
+  }
+}
+
+/**
+ * 📖 createBackup: Creates a timestamped backup of the current config file.
+ * 📖 Keeps only the 5 most recent backups to avoid disk space issues.
+ * 📖 Backup files are stored in ~/.free-coding-models.backups/
+ * 
+ * @returns {boolean} true if backup was created, false otherwise
+ */
+function createBackup() {
+  try {
+    if (!existsSync(CONFIG_PATH)) {
+      return false // No file to backup
+    }
+
+    // 📖 Create backup directory if it doesn't exist
+    const backupDir = join(homedir(), '.free-coding-models.backups')
+    if (!existsSync(backupDir)) {
+      mkdirSync(backupDir, { mode: 0o700, recursive: true })
+    }
+
+    // 📖 Create timestamped backup
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, -5) + 'Z'
+    const backupPath = join(backupDir, `config.${timestamp}.json`)
+    const backupContent = readFileSync(CONFIG_PATH, 'utf8')
+    writeFileSync(backupPath, backupContent, { mode: 0o600 })
+
+    // 📖 Clean up old backups (keep only 5 most recent)
+    const backups = readdirSync(backupDir)
+      .filter(f => f.startsWith('config.') && f.endsWith('.json'))
+      .map(f => ({
+        name: f,
+        path: join(backupDir, f),
+        time: statSync(join(backupDir, f)).mtime.getTime()
+      }))
+      .sort((a, b) => b.time - a.time)
+
+    // 📖 Delete old backups beyond the 5 most recent
+    if (backups.length > 5) {
+      for (const oldBackup of backups.slice(5)) {
+        try {
+          unlinkSync(oldBackup.path)
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    }
+
+    return true
+  } catch (error) {
+    // 📖 Log but don't fail if backup creation fails
+    console.error(`Warning: Backup creation failed: ${error.message}`)
+    return false
+  }
+}
+
+/**
+ * 📖 restoreFromBackup: Restores the most recent backup.
+ * 📖 Used when config write or verification fails.
+ * 
+ * @throws {Error} if no backup exists or restoration fails
+ */
+function restoreFromBackup() {
+  const backupDir = join(homedir(), '.free-coding-models.backups')
+  
+  if (!existsSync(backupDir)) {
+    throw new Error('No backup directory found')
+  }
+
+  // 📖 Find the most recent backup
+  const backups = readdirSync(backupDir)
+    .filter(f => f.startsWith('config.') && f.endsWith('.json'))
+    .map(f => ({
+      name: f,
+      path: join(backupDir, f),
+      time: statSync(join(backupDir, f)).mtime.getTime()
+    }))
+    .sort((a, b) => b.time - a.time)
+
+  if (backups.length === 0) {
+    throw new Error('No backups available')
+  }
+
+  const latestBackup = backups[0]
+  const backupContent = readFileSync(latestBackup.path, 'utf8')
+  
+  // 📖 Verify backup is valid JSON before restoring
+  JSON.parse(backupContent)
+  
+  // 📖 Restore the backup
+  writeFileSync(CONFIG_PATH, backupContent, { mode: 0o600 })
+}
+
+/**
+ * 📖 validateConfigFile: Checks if the config file is valid JSON.
+ * 📖 Returns validation result and can auto-repair from backups if needed.
+ * 
+ * @param {{ autoRepair?: boolean }} options - If true, attempts to repair using backups
+ * @returns {{ valid: boolean, error?: string, repaired?: boolean }}
+ */
+export function validateConfigFile(options = {}) {
+  const { autoRepair = false } = options
+
+  try {
+    if (!existsSync(CONFIG_PATH)) {
+      return { valid: true } // No config file is valid (will be created)
+    }
+
+    const content = readFileSync(CONFIG_PATH, 'utf8')
+    
+    // 📖 Check if file is empty
+    if (!content.trim()) {
+      throw new Error('Config file is empty')
+    }
+
+    // 📖 Try to parse JSON
+    const parsed = JSON.parse(content)
+
+    // 📖 Basic structure validation
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Config is not a valid object')
+    }
+
+    // 📖 Check for critical corruption (apiKeys should be an object if it exists)
+    if (parsed.apiKeys !== null && parsed.apiKeys !== undefined && typeof parsed.apiKeys !== 'object') {
+      throw new Error('apiKeys field is corrupted')
+    }
+
+    return { valid: true }
+  } catch (error) {
+    const errorMsg = `Config validation failed: ${error.message}`
+
+    // 📖 Attempt auto-repair from backup if requested
+    if (autoRepair) {
+      try {
+        restoreFromBackup()
+        return { valid: false, error: errorMsg, repaired: true }
+      } catch (repairError) {
+        return { valid: false, error: `${errorMsg} (Repair failed: ${repairError.message})`, repaired: false }
+      }
+    }
+
+    return { valid: false, error: errorMsg, repaired: false }
   }
 }
 
