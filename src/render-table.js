@@ -170,11 +170,6 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     }
   }
 
-  let configuredBadge = ''
-  if (hideUnconfiguredModels) {
-    configuredBadge = ` ${activeHeaderBadge('CONFIGURED ONLY')}`
-  }
-
   // 📖 Profile badge — shown when a named profile is active (Shift+P to cycle, Shift+S to save)
   let profileBadge = ''
   if (activeProfile) {
@@ -227,7 +222,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   const sorted = sortResultsWithPinnedFavorites(visibleResults, sortColumn, sortDirection)
 
   const lines = [
-    `  ${chalk.cyanBright.bold(`🚀 free-coding-models v${LOCAL_VERSION}`)}${modeBadge}${pingControlBadge}${tierBadge}${originBadge}${configuredBadge}${profileBadge}${chalk.reset('')}   ` +
+    `  ${chalk.cyanBright.bold(`🚀 free-coding-models v${LOCAL_VERSION}`)}${modeBadge}${pingControlBadge}${tierBadge}${originBadge}${profileBadge}${chalk.reset('')}   ` +
       chalk.dim('📦 ') + chalk.cyanBright.bold(`${completedPings}/${totalVisible}`) + chalk.dim('  ') +
       chalk.greenBright(`✅ ${up}`) + chalk.dim(' up  ') +
       chalk.yellow(`⏳ ${timeout}`) + chalk.dim(' timeout  ') +

@@ -24,6 +24,8 @@
 
 - 🧹 **Removed unnecessary blank line** - Overlays (Settings P, Help K, Log X) no longer have a blank line at the top, giving more vertical space for content
 
+- 🔽 **Removed duplicate "CONFIGURED ONLY" badge** - The header no longer shows the "CONFIGURED ONLY" indicator since it's already displayed in the footer hints. This reduces header clutter while keeping the information visible.
+
 ### Fixed
 
 - 🖥️ **Overlays now use 100% terminal width** - All overlays (Settings P, Help K, Log X, Recommend Q, Feature J, Bug I) now dynamically adapt to full terminal width instead of fixed 116-column panels:
