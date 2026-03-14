@@ -28,6 +28,7 @@ export const TOOL_METADATA = {
   openclaw: { label: 'OpenClaw', emoji: '🦞', flag: '--openclaw' },
   crush: { label: 'Crush', emoji: '💘', flag: '--crush' },
   goose: { label: 'Goose', emoji: '🪿', flag: '--goose' },
+  pi: { label: 'Pi', emoji: 'π', flag: '--pi' },
   // aider: { label: 'Aider', emoji: '🛠', flag: '--aider' },
   // 'claude-code': { label: 'Claude Code', emoji: '🧠', flag: '--claude-code' },
   // codex: { label: 'Codex CLI', emoji: '⌘', flag: '--codex' },
@@ -35,7 +36,6 @@ export const TOOL_METADATA = {
   // qwen: { label: 'Qwen Code', emoji: '🌊', flag: '--qwen' },
   // openhands: { label: 'OpenHands', emoji: '🤲', flag: '--openhands' },
   // amp: { label: 'Amp', emoji: '⚡', flag: '--amp' },
-  // pi: { label: 'Pi', emoji: 'π', flag: '--pi' },
 }
 
 export const TOOL_MODE_ORDER = [
@@ -44,6 +44,7 @@ export const TOOL_MODE_ORDER = [
   'openclaw',
   'crush',
   'goose',
+  'pi',
   // 'aider',
   // 'claude-code',
   // 'codex',
@@ -51,7 +52,6 @@ export const TOOL_MODE_ORDER = [
   // 'qwen',
   // 'openhands',
   // 'amp',
-  // 'pi',
 ]
 
 export function getToolMeta(mode) {

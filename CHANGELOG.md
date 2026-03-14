@@ -2,6 +2,13 @@
 
 ---
 
+## 0.2.11
+
+### Added
+- **Pi Coding Agent support**: Enabled Pi (pi.dev) as a launchable mode in the Z key cycle. Select a model and press Enter to configure Pi's config file and spawn the PI coding agent CLI with the chosen model and API endpoint.
+
+---
+
 ## 0.2.10
 
 ### Changed

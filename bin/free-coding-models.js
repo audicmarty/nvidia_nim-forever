@@ -74,7 +74,7 @@
  *   - --opencode: OpenCode CLI mode (launch CLI with selected model)
  *   - --opencode-desktop: OpenCode Desktop mode (set model & open Desktop app)
  *   - --openclaw: OpenClaw mode (set selected model as default in OpenClaw)
- *   - --crush / --goose: launch the currently selected model in the supported external CLI
+ *   - --crush / --goose / --pi: launch the currently selected model in the supported external CLI
  *   - --best: Show only top-tier models (A+, S, S+)
  *   - --fiable: Analyze 10s and output the most reliable model
  *   - --json: Output results as JSON (for scripting/automation)
