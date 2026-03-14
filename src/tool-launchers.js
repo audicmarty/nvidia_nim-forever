@@ -252,11 +252,12 @@ function writePiConfig(model, apiKey, baseUrl) {
   return { filePath: modelsFilePath, backupPath: modelsBackupPath, settingsFilePath, settingsBackupPath }
 }
 
-function writeAmpConfig(baseUrl) {
+function writeAmpConfig(model, baseUrl) {
   const filePath = join(homedir(), '.config', 'amp', 'settings.json')
   const backupPath = backupIfExists(filePath)
   const config = readJson(filePath, {})
   config['amp.url'] = baseUrl
+  config['amp.model'] = model.modelId
   writeJson(filePath, config)
   return { filePath, backupPath }
 }
@@ -356,14 +357,17 @@ export async function startExternalTool(mode, model, config) {
   }
 
   if (mode === 'openhands') {
-    console.log(chalk.dim('  📖 OpenHands is launched with --override-with-envs so the selected model applies immediately.'))
+    // 📖 OpenHands supports LLM_MODEL env var to set the default model
+    env.LLM_MODEL = model.modelId
+    env.LLM_API_KEY = apiKey || env.LLM_API_KEY
+    if (baseUrl) env.LLM_BASE_URL = baseUrl
+    console.log(chalk.dim(`  📖 OpenHands launched with model: ${model.modelId}`))
     return spawnCommand('openhands', ['--override-with-envs'], env)
   }
 
   if (mode === 'amp') {
-    printConfigResult(meta.label, writeAmpConfig(baseUrl))
-    console.log(chalk.yellow('  ⚠ Amp does not officially expose arbitrary model switching like the other CLIs.'))
-    console.log(chalk.dim('  The proxy URL is written, then Amp is launched so you can reuse the current endpoint.'))
+    printConfigResult(meta.label, writeAmpConfig(model, baseUrl))
+    console.log(chalk.dim(`  📖 Amp config updated with model: ${model.modelId}`))
     return spawnCommand('amp', [], env)
   }
 
