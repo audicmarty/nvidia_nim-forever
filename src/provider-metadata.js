@@ -218,4 +218,11 @@ export const PROVIDER_METADATA = {
     signupHint: 'Register → Personal Information → Generate API Key (7-day expiry)',
     rateLimits: 'Free for individuals (no request limits)',
   },
+  pi: {
+    label: 'Pi (pi.dev)',
+    color: chalk.rgb(173, 216, 230), // light blue
+    signupUrl: 'https://pi.dev',
+    signupHint: 'Install @mariozechner/pi-coding-agent and set ANTHROPIC_API_KEY',
+    rateLimits: 'Depends on provider subscription (e.g., Anthropic, OpenAI)',
+  },
 }
