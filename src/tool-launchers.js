@@ -228,18 +228,28 @@ function writeQwenConfig(model, providerKey, apiKey, baseUrl) {
 }
 
 function writePiConfig(model, apiKey, baseUrl) {
-  const filePath = join(homedir(), '.pi', 'agent', 'models.json')
-  const backupPath = backupIfExists(filePath)
-  const config = readJson(filePath, { providers: {} })
-  if (!config.providers || typeof config.providers !== 'object') config.providers = {}
-  config.providers.freeCodingModels = {
+  // 📖 Write models.json with the selected provider config
+  const modelsFilePath = join(homedir(), '.pi', 'agent', 'models.json')
+  const modelsBackupPath = backupIfExists(modelsFilePath)
+  const modelsConfig = readJson(modelsFilePath, { providers: {} })
+  if (!modelsConfig.providers || typeof modelsConfig.providers !== 'object') modelsConfig.providers = {}
+  modelsConfig.providers.freeCodingModels = {
     baseUrl,
     api: 'openai-completions',
     apiKey,
     models: [{ id: model.modelId, name: model.label }],
   }
-  writeJson(filePath, config)
-  return { filePath, backupPath }
+  writeJson(modelsFilePath, modelsConfig)
+
+  // 📖 Write settings.json to set the model as default on next launch
+  const settingsFilePath = join(homedir(), '.pi', 'agent', 'settings.json')
+  const settingsBackupPath = backupIfExists(settingsFilePath)
+  const settingsConfig = readJson(settingsFilePath, {})
+  settingsConfig.defaultProvider = 'freeCodingModels'
+  settingsConfig.defaultModel = model.modelId
+  writeJson(settingsFilePath, settingsConfig)
+
+  return { filePath: modelsFilePath, backupPath: modelsBackupPath, settingsFilePath, settingsBackupPath }
 }
 
 function writeAmpConfig(baseUrl) {
@@ -358,7 +368,9 @@ export async function startExternalTool(mode, model, config) {
   }
 
   if (mode === 'pi') {
-    printConfigResult(meta.label, writePiConfig(model, apiKey, baseUrl))
+    const piResult = writePiConfig(model, apiKey, baseUrl)
+    printConfigResult(meta.label, { filePath: piResult.filePath, backupPath: piResult.backupPath })
+    printConfigResult(meta.label, { filePath: piResult.settingsFilePath, backupPath: piResult.settingsBackupPath })
     return spawnCommand('pi', [], env)
   }
 
