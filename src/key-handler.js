@@ -852,10 +852,31 @@ export function createKeyHandler(ctx) {
         const viewportRows = Math.max(1, state.terminalRows || 1)
         const maxScrollOffset = Math.max(0, totalChangelogLines - viewportRows)
 
-        if (key.name === 'up') { state.changelogScrollOffset = Math.max(0, state.changelogScrollOffset - 1); return }
-        if (key.name === 'down') { state.changelogScrollOffset = Math.min(maxScrollOffset, state.changelogScrollOffset + 1); return }
-        if (key.name === 'pageup') { state.changelogScrollOffset = Math.max(0, state.changelogScrollOffset - pageStep); return }
-        if (key.name === 'pagedown') { state.changelogScrollOffset = Math.min(maxScrollOffset, state.changelogScrollOffset + pageStep); return }
+        // 📖 Circular wrap-around scrolling: up at top → bottom, down at bottom → top
+        if (key.name === 'up') {
+          state.changelogScrollOffset = state.changelogScrollOffset > 0
+            ? state.changelogScrollOffset - 1
+            : maxScrollOffset
+          return
+        }
+        if (key.name === 'down') {
+          state.changelogScrollOffset = state.changelogScrollOffset < maxScrollOffset
+            ? state.changelogScrollOffset + 1
+            : 0
+          return
+        }
+        if (key.name === 'pageup') {
+          state.changelogScrollOffset = state.changelogScrollOffset >= pageStep
+            ? state.changelogScrollOffset - pageStep
+            : maxScrollOffset - (pageStep - state.changelogScrollOffset - 1)
+          return
+        }
+        if (key.name === 'pagedown') {
+          state.changelogScrollOffset = state.changelogScrollOffset + pageStep <= maxScrollOffset
+            ? state.changelogScrollOffset + pageStep
+            : (state.changelogScrollOffset + pageStep - maxScrollOffset - 1)
+          return
+        }
         if (key.name === 'home') { state.changelogScrollOffset = 0; return }
         if (key.name === 'end') { state.changelogScrollOffset = maxScrollOffset; return }
       }
