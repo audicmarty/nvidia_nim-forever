@@ -84,6 +84,7 @@ By Vanessa Depraute
 - **📊 Token usage tracking** — The proxy logs prompt+completion token usage per exact provider/model pair, and the TUI surfaces that history in the `Used` column and the request log overlay.
 - **📜 Request Log Overlay** — Press `X` to inspect recent proxied requests and token usage for exact provider/model pairs.
 - **📋 Changelog Overlay** — Press `N` to browse all versions in an index, then `Enter` to view details for any version with full scroll support
+- **🧪 AI end-to-end workflow** — Run the repo-local `/testfcm` flow to drive the TUI in a PTY, launch one tool, send `hi`, and generate a Markdown bug report plus raw artifacts under `task/`
 - **🛠 MODEL_NOT_FOUND Rotation** — If a specific provider returns a 404 for a model, the TUI intelligently rotates through other available providers for the same model.
 - **🔄 Auto-retry** — Timeout models keep getting retried, nothing is ever "given up on"
 - **🎮 Interactive selection** — Navigate with arrow keys directly in the table, press Enter to act
@@ -235,6 +236,26 @@ free-coding-models --opencode --best
 free-coding-models --tier S --json
 ```
 
+### AI E2E workflow (`/testfcm`)
+
+For repo-level validation, this project now ships a repeatable AI-driven manual test flow:
+
+- Preferred: `pnpm test:fcm -- --tool crush`
+- Fallback when `pnpm` is unavailable: `npm run test:fcm -- --tool crush`
+- Mock plumbing check: `pnpm test:fcm:mock`
+
+What it does:
+
+1. Copies your current `~/.free-coding-models.json` into an isolated HOME
+2. Runs a `--json` preflight to catch obvious startup regressions
+3. Starts the real TUI in a PTY via the system `expect` command
+4. Presses `Enter` like a user to launch the chosen tool
+5. Sends `hi`
+6. Captures the response, `request-log.jsonl`, daemon logs, and generated tool config
+7. Writes a Markdown report to `task/reports/` and raw artifacts to `task/artifacts/`
+
+The command workflow is documented in [task/TESTFCM-WORKFLOW.md](task/TESTFCM-WORKFLOW.md). Project-local slash commands are also included at [.claude/commands/testfcm.md](.claude/commands/testfcm.md) and [.crush/commands/testfcm.md](.crush/commands/testfcm.md).
+
 ### Choosing the target tool
 
 Running `free-coding-models` with no launcher flag starts in **OpenCode CLI** mode.
@@ -318,7 +339,8 @@ Press **`P`** to open the Settings screen at any time:
 
  Manual update is in the same Settings screen (`P`) under **Maintenance** (Enter to check, Enter again to install when an update is available).
  When a newer npm release is known, the main footer also adds a full-width red warning line with the manual recovery command `npm install -g free-coding-models@latest`.
- Favorites are also persisted in the same config file and survive restarts.
+ Favorites are also persisted in the same config file and survive restarts, app relaunches, and package updates.
+ Favorite rows stay pinned at the top and remain visible even when `Configured Only` mode is enabled.
  The main table now starts in `Configured Only` mode, so if nothing is set up yet you can press `P` and add your first API key immediately.
 
 ### Environment variable overrides
@@ -1073,6 +1095,7 @@ Profiles let you save and restore different TUI configurations — useful if you
 **Managing profiles:**
 - Open Settings (**P** key) — scroll down to the **Profiles** section
 - **Enter** on a profile row to load it
+- While a profile is active, edits to favorites and API keys update that active profile immediately
 - **Backspace** on a profile row to delete it
 
 Profiles are stored inside `~/.free-coding-models.json` under the `profiles` key.

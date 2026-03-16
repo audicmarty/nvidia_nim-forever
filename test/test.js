@@ -41,7 +41,8 @@ import {
 import {
   _emptyProfileSettings, saveAsProfile, loadProfile, listProfiles,
   deleteProfile, getActiveProfileName, setActiveProfile, getProxySettings,
-  normalizeProxySettings, normalizeEndpointInstalls, getApiKey, setClaudeProxyModelRouting
+  normalizeProxySettings, normalizeEndpointInstalls, getApiKey, setClaudeProxyModelRouting,
+  buildPersistedConfig
 } from '../src/config.js'
 import { buildProviderModelTokenKey, loadTokenUsageByProviderModel, formatTokenTotalCompact } from '../src/token-usage-reader.js'
 import { renderTable } from '../src/render-table.js'
@@ -60,6 +61,15 @@ import {
 } from '../src/tool-launchers.js'
 import { parseLogLine } from '../src/log-reader.js'
 import { getConfiguredInstallableProviders, getInstallTargetModes, installProviderEndpoints } from '../src/endpoint-installer.js'
+import {
+  buildFixTasks,
+  classifyToolTranscript,
+  createTestfcmRunId,
+  extractJsonPayload,
+  hasConfiguredKey,
+  normalizeTestfcmToolName,
+  resolveTestfcmToolSpec,
+} from '../src/testfcm.js'
 
 // ─── Helper: create a mock model result ──────────────────────────────────────
 // 📖 Builds a minimal result object matching the shape used by the main script
@@ -1677,6 +1687,155 @@ describe('config profile functions', () => {
   })
 })
 
+describe('buildPersistedConfig', () => {
+  it('preserves disk apiKeys and favorites when a stale snapshot saves unrelated changes', () => {
+    const diskConfig = {
+      apiKeys: {
+        nvidia: 'disk-nvidia',
+        groq: 'disk-groq',
+      },
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: ['nvidia/model-a', 'groq/model-b'],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const incomingConfig = {
+      apiKeys: {
+        nvidia: 'disk-nvidia',
+      },
+      providers: {},
+      settings: { hideUnconfiguredModels: false, proxy: { enabled: false } },
+      favorites: ['nvidia/model-a'],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const persisted = buildPersistedConfig(incomingConfig, diskConfig)
+    assert.deepEqual(persisted.apiKeys, {
+      nvidia: 'disk-nvidia',
+      groq: 'disk-groq',
+    })
+    assert.deepEqual(persisted.favorites, ['nvidia/model-a', 'groq/model-b'])
+    assert.equal(persisted.settings.hideUnconfiguredModels, false)
+  })
+
+  it('can exactly replace favorites when the caller intentionally removes one', () => {
+    const diskConfig = {
+      apiKeys: {},
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: ['nvidia/model-a', 'groq/model-b'],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const incomingConfig = {
+      apiKeys: {},
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: ['groq/model-b'],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const persisted = buildPersistedConfig(incomingConfig, diskConfig, { replaceFavorites: true })
+    assert.deepEqual(persisted.favorites, ['groq/model-b'])
+  })
+
+  it('can exactly replace apiKeys when a provider key is intentionally removed', () => {
+    const diskConfig = {
+      apiKeys: {
+        nvidia: 'disk-nvidia',
+        groq: 'disk-groq',
+      },
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const incomingConfig = {
+      apiKeys: {
+        nvidia: 'disk-nvidia',
+      },
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const persisted = buildPersistedConfig(incomingConfig, diskConfig, { replaceApiKeys: true })
+    assert.deepEqual(persisted.apiKeys, { nvidia: 'disk-nvidia' })
+  })
+
+  it('can exactly replace tracked endpoint installs when managed catalogs are rewritten', () => {
+    const diskConfig = {
+      apiKeys: {},
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [
+        {
+          providerKey: 'groq',
+          toolMode: 'goose',
+          scope: 'selected',
+          modelIds: ['openai/gpt-oss-120b'],
+          lastSyncedAt: '2026-03-09T08:00:00.000Z',
+        },
+      ],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const incomingConfig = {
+      apiKeys: {},
+      providers: {},
+      settings: { hideUnconfiguredModels: true, proxy: { enabled: false } },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [
+        {
+          providerKey: 'nvidia',
+          toolMode: 'opencode',
+          scope: 'selected',
+          modelIds: ['deepseek-ai/deepseek-v3.2'],
+          lastSyncedAt: '2026-03-10T09:00:00.000Z',
+        },
+      ],
+      activeProfile: null,
+      profiles: {},
+    }
+
+    const persisted = buildPersistedConfig(incomingConfig, diskConfig, { replaceEndpointInstalls: true })
+    assert.deepEqual(persisted.endpointInstalls, [
+      {
+        providerKey: 'nvidia',
+        toolMode: 'opencode',
+        scope: 'selected',
+        modelIds: ['deepseek-ai/deepseek-v3.2'],
+        lastSyncedAt: '2026-03-10T09:00:00.000Z',
+      },
+    ])
+  })
+})
+
 // ─── formatCtxWindow ─────────────────────────────────────────────────────────
 // 📖 Tests for context window number-to-string conversion used by dynamic OpenRouter discovery
 describe('formatCtxWindow', () => {
@@ -1798,6 +1957,55 @@ describe('request log parsing', () => {
     assert.equal(row.switchReason, '429')
     assert.equal(row.switchedFromProvider, 'nvidia')
     assert.equal(row.switchedFromModel, 'deepseek-ai/deepseek-v3.1')
+  })
+})
+
+describe('/testfcm helpers', () => {
+  it('normalizes common tool aliases to canonical launcher modes', () => {
+    assert.equal(normalizeTestfcmToolName('claude'), 'claude-code')
+    assert.equal(normalizeTestfcmToolName('clAudeCode'), 'claude-code')
+    assert.equal(normalizeTestfcmToolName('crush'), 'crush')
+  })
+
+  it('resolves a known tool spec and keeps its CLI flag', () => {
+    const spec = resolveTestfcmToolSpec('codex')
+    assert.equal(spec?.mode, 'codex')
+    assert.equal(spec?.flag, '--codex')
+  })
+
+  it('treats string and array API key entries as configured only when non-empty', () => {
+    assert.equal(hasConfiguredKey('gsk_live'), true)
+    assert.equal(hasConfiguredKey('   '), false)
+    assert.equal(hasConfiguredKey(['', '  ', 'gsk_live']), true)
+    assert.equal(hasConfiguredKey(['', '  ']), false)
+  })
+
+  it('builds compact run ids from timestamps', () => {
+    assert.equal(createTestfcmRunId(new Date('2026-03-16T18:45:12.000Z')), '20260316-184512')
+  })
+
+  it('extracts JSON arrays from mixed stdout text', () => {
+    const parsed = extractJsonPayload('  ⚡ Pinging models...\n\n[\n  {"label":"Model A"}\n]\n')
+    assert.deepEqual(parsed, [{ label: 'Model A' }])
+  })
+
+  it('classifies a successful assistant transcript', () => {
+    const result = classifyToolTranscript('Mock Crush ready\nhello, how can i help you?\n')
+    assert.equal(result.status, 'passed')
+    assert.equal(result.findings.length, 0)
+  })
+
+  it('classifies invalid API failures and emits a follow-up task', () => {
+    const result = classifyToolTranscript('Error: invalid api key (401 unauthorized)')
+    assert.equal(result.status, 'failed')
+    assert.equal(result.findings[0]?.id, 'invalid_api_key')
+    assert.match(buildFixTasks(result.findings)[0] || '', /Validate the provider key/i)
+  })
+
+  it('stays inconclusive when no success or known failure pattern exists', () => {
+    const result = classifyToolTranscript('Tool opened, waiting for model...')
+    assert.equal(result.status, 'inconclusive')
+    assert.equal(result.findings.length, 0)
   })
 })
 

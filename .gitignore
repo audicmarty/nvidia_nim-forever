@@ -50,3 +50,9 @@ Thumbs.db
 
 # 11. Local-only telemetry POC (kept out of this repo on purpose)
 private-telemetry/
+
+# 12. Local AI test workflow artifacts
+task/artifacts/*
+!task/artifacts/.gitkeep
+task/reports/*.md
+!task/reports/.gitkeep

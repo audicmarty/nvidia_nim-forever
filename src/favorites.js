@@ -11,8 +11,8 @@
  *   How it works at runtime:
  *   1. On startup, `syncFavoriteFlags()` is called once to attach `isFavorite`/`favoriteRank`
  *      metadata to every result row based on the persisted favorites list.
- *   2. When the user presses F, `toggleFavoriteModel()` mutates the config array and persists
- *      immediately via `saveConfig()`.
+ *   2. When the user presses F, `toggleFavoriteModel()` reloads the latest config snapshot,
+ *      applies the toggle there, then persists atomically so stale state cannot wipe favorites.
  *   3. The renderer reads `r.isFavorite` and `r.favoriteRank` from the row to decide whether
  *      to show the ⭐ prefix and how to sort the row relative to non-favorites.
  *
@@ -25,11 +25,11 @@
  * @exports
  *   ensureFavoritesConfig, toFavoriteKey, syncFavoriteFlags, toggleFavoriteModel
  *
- * @see src/config.js  — saveConfig used here to persist changes immediately
+ * @see src/config.js  — load/save helpers keep favorite persistence atomic and merge-safe
  * @see bin/free-coding-models.js — calls syncFavoriteFlags on startup and toggleFavoriteModel on F key
  */
 
-import { saveConfig } from './config.js'
+import { loadConfig, saveConfig, replaceConfigContents } from './config.js'
 
 /**
  * 📖 Ensure favorites config shape exists and remains clean.
@@ -84,15 +84,36 @@ export function syncFavoriteFlags(results, config) {
  * @returns {boolean}
  */
 export function toggleFavoriteModel(config, providerKey, modelId) {
-  ensureFavoritesConfig(config)
+  const latestConfig = loadConfig()
+  latestConfig.activeProfile = typeof config?.activeProfile === 'string' && config.activeProfile.trim()
+    ? config.activeProfile.trim()
+    : latestConfig.activeProfile
+  ensureFavoritesConfig(latestConfig)
+  if (latestConfig.activeProfile && !latestConfig.profiles?.[latestConfig.activeProfile] && config?.profiles?.[latestConfig.activeProfile]) {
+    latestConfig.profiles[latestConfig.activeProfile] = JSON.parse(JSON.stringify(config.profiles[latestConfig.activeProfile]))
+  }
   const favoriteKey = toFavoriteKey(providerKey, modelId)
-  const existingIndex = config.favorites.indexOf(favoriteKey)
+  const existingIndex = latestConfig.favorites.indexOf(favoriteKey)
   if (existingIndex >= 0) {
-    config.favorites.splice(existingIndex, 1)
-    saveConfig(config)
+    latestConfig.favorites.splice(existingIndex, 1)
+    if (latestConfig.activeProfile && latestConfig.profiles?.[latestConfig.activeProfile]) {
+      latestConfig.profiles[latestConfig.activeProfile].favorites = [...latestConfig.favorites]
+    }
+    const saveResult = saveConfig(latestConfig, {
+      replaceFavorites: true,
+      replaceProfileNames: latestConfig.activeProfile ? [latestConfig.activeProfile] : [],
+    })
+    if (saveResult.success) replaceConfigContents(config, latestConfig)
     return false
   }
-  config.favorites.push(favoriteKey)
-  saveConfig(config)
+  latestConfig.favorites.push(favoriteKey)
+  if (latestConfig.activeProfile && latestConfig.profiles?.[latestConfig.activeProfile]) {
+    latestConfig.profiles[latestConfig.activeProfile].favorites = [...latestConfig.favorites]
+  }
+  const saveResult = saveConfig(latestConfig, {
+    replaceFavorites: true,
+    replaceProfileNames: latestConfig.activeProfile ? [latestConfig.activeProfile] : [],
+  })
+  if (saveResult.success) replaceConfigContents(config, latestConfig)
   return true
 }

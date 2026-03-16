@@ -171,6 +171,7 @@ export function createKeyHandler(ctx) {
     saveAsProfile,
     setActiveProfile,
     saveConfig,
+    persistApiKeysForProvider,
     getConfiguredInstallableProviders,
     getInstallTargetModes,
     getProviderCatalogModels,
@@ -405,7 +406,7 @@ export function createKeyHandler(ctx) {
           })
           setActiveProfile(state.config, name)
           state.activeProfile = name
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: [name] })
         }
         state.profileSaveMode = false
         state.profileSaveBuffer = ''
@@ -985,14 +986,24 @@ const updateRowIdx = providerKeys.length
               setTimeout(() => { state.settingsErrorMsg = null }, 3000)
               return
             }
+            if (!state.config.apiKeys || typeof state.config.apiKeys !== 'object' || Array.isArray(state.config.apiKeys)) {
+              state.config.apiKeys = {}
+            }
             if (state.settingsAddKeyMode) {
               // 📖 Add-key mode: append new key (addApiKey handles duplicates/empty)
               addApiKey(state.config, pk, newKey)
             } else {
-              // 📖 Edit mode: replace the primary key (string-level)
-              state.config.apiKeys[pk] = newKey
+              // 📖 Edit mode: replace only the primary key and keep any extra rotated keys intact.
+              const existingKeys = resolveApiKeys(state.config, pk)
+              state.config.apiKeys[pk] = existingKeys.length > 1
+                ? [newKey, ...existingKeys.slice(1)]
+                : newKey
             }
-            saveConfig(state.config)
+            const saveResult = persistApiKeysForProvider(state.config, pk)
+            if (!saveResult.success) {
+              state.settingsErrorMsg = `⚠️  Failed to persist ${pk} API key: ${saveResult.error || 'Unknown error'}`
+              setTimeout(() => { state.settingsErrorMsg = null }, 4000)
+            }
           }
           state.settingsEditMode = false
           state.settingsAddKeyMode = false
@@ -1103,7 +1114,7 @@ const updateRowIdx = providerKeys.length
         if (state.settingsCursor === widthWarningRowIdx) {
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.disableWidthsWarning = !state.config.settings.disableWidthsWarning
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           return
         }
 
@@ -1156,7 +1167,10 @@ const updateRowIdx = providerKeys.length
               applyTierFilter()
               const visible = state.results.filter(r => !r.hidden)
               state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection)
-              saveConfig(state.config)
+              saveConfig(state.config, {
+                replaceApiKeys: true,
+                replaceFavorites: true,
+              })
             }
           }
           return
@@ -1164,7 +1178,7 @@ const updateRowIdx = providerKeys.length
 
         // 📖 Enter edit mode for the selected provider's key
         const pk = providerKeys[state.settingsCursor]
-        state.settingsEditBuffer = state.config.apiKeys?.[pk] ?? ''
+        state.settingsEditBuffer = resolveApiKeys(state.config, pk)[0] ?? ''
         state.settingsEditMode = true
         return
       }
@@ -1176,7 +1190,7 @@ const updateRowIdx = providerKeys.length
         if (state.settingsCursor === widthWarningRowIdx) {
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.disableWidthsWarning = !state.config.settings.disableWidthsWarning
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           return
         }
         // 📖 Profile rows don't respond to Space
@@ -1187,7 +1201,7 @@ const updateRowIdx = providerKeys.length
         if (!state.config.providers) state.config.providers = {}
         if (!state.config.providers[pk]) state.config.providers[pk] = { enabled: true }
         state.config.providers[pk].enabled = !isProviderEnabled(state.config, pk)
-        saveConfig(state.config)
+        saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
         return
       }
 
@@ -1218,7 +1232,7 @@ const updateRowIdx = providerKeys.length
             setActiveProfile(state.config, null)
             state.activeProfile = null
           }
-          saveConfig(state.config)
+          saveConfig(state.config, { removedProfileNames: [profileName] })
           // 📖 Re-clamp cursor after deletion (profile list just got shorter)
           const newProfiles = listProfiles(state.config)
           const newMaxRowIdx = newProfiles.length > 0 ? profileStartIdx + newProfiles.length - 1 : changelogViewRowIdx
@@ -1285,7 +1299,11 @@ const updateRowIdx = providerKeys.length
         const pk = providerKeys[state.settingsCursor]
         const removed = removeApiKey(state.config, pk)  // removes last key; collapses array-of-1 to string
         if (removed) {
-          saveConfig(state.config)
+          const saveResult = persistApiKeysForProvider(state.config, pk)
+          if (!saveResult.success) {
+            state.settingsSyncStatus = { type: 'error', msg: `❌ Failed to save API key changes: ${saveResult.error || 'Unknown error'}` }
+            return
+          }
           const remaining = resolveApiKeys(state.config, pk).length
           const msg = remaining > 0
             ? `✅ Removed one key for ${pk} (${remaining} remaining)`
@@ -1325,7 +1343,7 @@ const updateRowIdx = providerKeys.length
           }
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.proxy = { ...proxySettings, preferredPort: parsed }
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           state.settingsProxyPortEditMode = false
           state.settingsProxyPortBuffer = ''
           state.proxyDaemonMessage = { type: 'success', msg: `✅ Preferred port saved: ${parsed === 0 ? 'auto' : parsed}`, ts: Date.now() }
@@ -1366,7 +1384,7 @@ const updateRowIdx = providerKeys.length
         if (state.proxyDaemonCursor === ROW_PROXY_ENABLED) {
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.proxy = { ...proxySettings, enabled: !proxySettings.enabled }
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           state.proxyDaemonMessage = { type: 'success', msg: `✅ Proxy mode ${state.config.settings.proxy.enabled ? 'enabled' : 'disabled'}`, ts: Date.now() }
           return
         }
@@ -1377,7 +1395,7 @@ const updateRowIdx = providerKeys.length
           }
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.proxy = { ...proxySettings, syncToOpenCode: !proxySettings.syncToOpenCode }
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           const { getToolMeta } = await import('./tool-metadata.js')
           const toolLabel = getToolMeta(currentProxyTool).label
           state.proxyDaemonMessage = { type: 'success', msg: `✅ Auto-sync to ${toolLabel} ${state.config.settings.proxy.syncToOpenCode ? 'enabled' : 'disabled'}`, ts: Date.now() }
@@ -1393,7 +1411,7 @@ const updateRowIdx = providerKeys.length
         if (state.proxyDaemonCursor === ROW_PROXY_ENABLED) {
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.proxy = { ...proxySettings, enabled: !proxySettings.enabled }
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           state.proxyDaemonMessage = { type: 'success', msg: `✅ Proxy mode ${state.config.settings.proxy.enabled ? 'enabled' : 'disabled'}`, ts: Date.now() }
           return
         }
@@ -1406,7 +1424,7 @@ const updateRowIdx = providerKeys.length
           }
           if (!state.config.settings) state.config.settings = {}
           state.config.settings.proxy = { ...proxySettings, syncToOpenCode: !proxySettings.syncToOpenCode }
-          saveConfig(state.config)
+          saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
           const { getToolMeta } = await import('./tool-metadata.js')
           const toolLabel = getToolMeta(currentProxyTool).label
           state.proxyDaemonMessage = { type: 'success', msg: `✅ Auto-sync to ${toolLabel} ${state.config.settings.proxy.syncToOpenCode ? 'enabled' : 'disabled'}`, ts: Date.now() }
@@ -1456,7 +1474,7 @@ const updateRowIdx = providerKeys.length
             if (!state.config.settings.proxy.preferredPort || state.config.settings.proxy.preferredPort === 0) {
               state.config.settings.proxy.preferredPort = 18045
             }
-            saveConfig(state.config)
+            saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
             const result = installDaemon()
             if (result.success) {
               state.proxyDaemonMessage = { type: 'success', msg: '✅ FCM Proxy V2 background service installed and started!', ts: Date.now() }
@@ -1470,7 +1488,7 @@ const updateRowIdx = providerKeys.length
             // 📖 Uninstall daemon
             const result = uninstallDaemon()
             state.config.settings.proxy.daemonEnabled = false
-            saveConfig(state.config)
+            saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
             if (result.success) {
               state.proxyDaemonMessage = { type: 'success', msg: '✅ FCM Proxy V2 background service uninstalled.', ts: Date.now() }
               state.daemonStatus = 'not-installed'
@@ -1629,7 +1647,7 @@ const updateRowIdx = providerKeys.length
         })
         setActiveProfile(state.config, 'default')
         state.activeProfile = 'default'
-        saveConfig(state.config)
+        saveConfig(state.config, { replaceProfileNames: ['default'] })
       } else {
         // 📖 Cycle to next profile (or back to null = raw config)
         const currentIdx = state.activeProfile ? profiles.indexOf(state.activeProfile) : -1
@@ -1662,7 +1680,10 @@ const updateRowIdx = providerKeys.length
             state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection)
             state.cursor = 0
             state.scrollOffset = 0
-            saveConfig(state.config)
+            saveConfig(state.config, {
+              replaceApiKeys: true,
+              replaceFavorites: true,
+            })
           }
         }
       }
@@ -1693,7 +1714,7 @@ const updateRowIdx = providerKeys.length
         profile.settings.sortColumn = state.config.settings.sortColumn
         profile.settings.sortAsc = state.config.settings.sortAsc
       }
-      saveConfig(state.config)
+      saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
     }
 
     // 📖 Shift+R: reset all UI view settings to defaults (tier, sort, provider) and clear persisted config
@@ -1717,7 +1738,7 @@ const updateRowIdx = providerKeys.length
           delete profile.settings.sortAsc
         }
       }
-      saveConfig(state.config)
+      saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
       applyTierFilter()
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection)
@@ -1824,7 +1845,7 @@ const updateRowIdx = providerKeys.length
         if (!profile.settings || typeof profile.settings !== 'object') profile.settings = {}
         profile.settings.hideUnconfiguredModels = state.hideUnconfiguredModels
       }
-      saveConfig(state.config)
+      saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
       applyTierFilter()
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection)
@@ -1891,7 +1912,7 @@ const updateRowIdx = providerKeys.length
         if (!profile.settings || typeof profile.settings !== 'object') profile.settings = {}
         profile.settings.preferredToolMode = state.mode
       }
-      saveConfig(state.config)
+      saveConfig(state.config, { replaceProfileNames: state.activeProfile ? [state.activeProfile] : [] })
       return
     }
 

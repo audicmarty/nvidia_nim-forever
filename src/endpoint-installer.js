@@ -587,7 +587,7 @@ export function installProviderEndpoints(config, providerKey, toolMode, options 
 
   if (options.track !== false) {
     upsertInstallRecord(config, buildInstallRecord(providerKey, canonicalToolMode, scope, models.map((model) => model.modelId)))
-    saveConfig(config)
+    saveConfig(config, { replaceEndpointInstalls: true })
   }
 
   return {
@@ -636,7 +636,7 @@ export function refreshInstalledEndpoints(config, options = {}) {
       ...record,
       lastSyncedAt: new Date().toISOString(),
     }))
-    saveConfig(config)
+    saveConfig(config, { replaceEndpointInstalls: true })
   }
 
   return { refreshed, failed, errors }

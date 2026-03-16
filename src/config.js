@@ -86,12 +86,15 @@
  *
  * @functions
  *   → loadConfig() — Read ~/.free-coding-models.json; auto-migrate old plain-text config if needed
- *   → saveConfig(config) — Write config to ~/.free-coding-models.json with 0o600 permissions
+ *   → saveConfig(config, options?) — Write config to ~/.free-coding-models.json with atomic replace + merge safeguards
  *   → getApiKey(config, providerKey) — Get effective API key (env var override > config > null)
  *   → addApiKey(config, providerKey, key) — Append a key (string→array); ignores empty/duplicate
  *   → removeApiKey(config, providerKey, index?) — Remove key at index (or last); collapses array-of-1 to string; deletes when empty
  *   → listApiKeys(config, providerKey) — Return all keys for a provider as normalized array
  *   → isProviderEnabled(config, providerKey) — Check if provider is enabled (defaults true)
+ *   → buildPersistedConfig(incomingConfig, diskConfig, options?) — Merge a live snapshot with the latest disk state safely
+ *   → replaceConfigContents(targetConfig, nextConfig) — Refresh an in-memory config object from a normalized snapshot
+ *   → persistApiKeysForProvider(config, providerKey) — Persist one provider's API keys without clobbering the rest of the file
  *   → saveAsProfile(config, name) — Snapshot current apiKeys/providers/favorites/settings into a named profile
  *   → loadProfile(config, name) — Apply a named profile's values onto the live config
  *   → listProfiles(config) — Return array of profile names
@@ -107,13 +110,14 @@
  * @exports addApiKey, removeApiKey, listApiKeys — multi-key management helpers
  * @exports saveAsProfile, loadProfile, listProfiles, deleteProfile
  * @exports getActiveProfileName, setActiveProfile, getProxySettings, setClaudeProxyModelRouting, normalizeEndpointInstalls
+ * @exports buildPersistedConfig, replaceConfigContents, persistApiKeysForProvider
  * @exports CONFIG_PATH — path to the JSON config file
  *
  * @see bin/free-coding-models.js — main CLI that uses these functions
  * @see sources.js — provider keys come from Object.keys(sources)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -152,6 +156,317 @@ const ENV_VARS = {
   iflow:      'IFLOW_API_KEY',
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function cloneConfigValue(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function normalizeFavoriteList(favorites) {
+  if (!Array.isArray(favorites)) return []
+  const normalized = []
+  const seen = new Set()
+  for (const entry of favorites) {
+    if (typeof entry !== 'string') continue
+    const trimmed = entry.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    normalized.push(trimmed)
+  }
+  return normalized
+}
+
+function normalizeApiKeyValue(value) {
+  if (Array.isArray(value)) {
+    const normalized = []
+    const seen = new Set()
+    for (const item of value) {
+      if (typeof item !== 'string') continue
+      const trimmed = item.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      normalized.push(trimmed)
+    }
+    if (normalized.length === 0) return null
+    if (normalized.length === 1) return normalized[0]
+    return normalized
+  }
+
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+function normalizeApiKeysSection(apiKeys) {
+  if (!isPlainObject(apiKeys)) return {}
+  const normalized = {}
+  for (const [providerKey, value] of Object.entries(apiKeys)) {
+    const normalizedValue = normalizeApiKeyValue(value)
+    if (normalizedValue !== null) normalized[providerKey] = normalizedValue
+  }
+  return normalized
+}
+
+function normalizeProvidersSection(providers) {
+  if (!isPlainObject(providers)) return {}
+  const normalized = {}
+  for (const [providerKey, value] of Object.entries(providers)) {
+    if (typeof value === 'boolean') {
+      normalized[providerKey] = { enabled: value !== false }
+      continue
+    }
+    if (!isPlainObject(value)) continue
+    normalized[providerKey] = { ...value, enabled: value.enabled !== false }
+  }
+  return normalized
+}
+
+function normalizeSettingsSection(settings) {
+  const safeSettings = isPlainObject(settings) ? { ...settings } : {}
+  return {
+    ...safeSettings,
+    hideUnconfiguredModels: typeof safeSettings.hideUnconfiguredModels === 'boolean' ? safeSettings.hideUnconfiguredModels : true,
+    proxy: normalizeProxySettings(safeSettings.proxy),
+    disableWidthsWarning: safeSettings.disableWidthsWarning === true,
+  }
+}
+
+function normalizeTelemetrySection(telemetry) {
+  const safeTelemetry = isPlainObject(telemetry) ? { ...telemetry } : {}
+  return {
+    enabled: typeof safeTelemetry.enabled === 'boolean' ? safeTelemetry.enabled : null,
+    consentVersion: typeof safeTelemetry.consentVersion === 'number' ? safeTelemetry.consentVersion : 0,
+    anonymousId: typeof safeTelemetry.anonymousId === 'string' && safeTelemetry.anonymousId.trim()
+      ? safeTelemetry.anonymousId
+      : null,
+  }
+}
+
+function normalizeProfileSettings(settings) {
+  const safeSettings = isPlainObject(settings) ? { ...settings } : {}
+  return {
+    ..._emptyProfileSettings(),
+    ...safeSettings,
+    proxy: normalizeProxySettings(safeSettings.proxy),
+    disableWidthsWarning: safeSettings.disableWidthsWarning === true,
+  }
+}
+
+function normalizeProfilesSection(profiles) {
+  if (!isPlainObject(profiles)) return {}
+  const normalized = {}
+  for (const [profileName, profile] of Object.entries(profiles)) {
+    if (!isPlainObject(profile)) continue
+    normalized[profileName] = {
+      apiKeys: normalizeApiKeysSection(profile.apiKeys),
+      providers: normalizeProvidersSection(profile.providers),
+      favorites: normalizeFavoriteList(profile.favorites),
+      settings: normalizeProfileSettings(profile.settings),
+    }
+  }
+  return normalized
+}
+
+function normalizeConfigShape(config) {
+  const safeConfig = isPlainObject(config) ? config : {}
+  return {
+    apiKeys: normalizeApiKeysSection(safeConfig.apiKeys),
+    providers: normalizeProvidersSection(safeConfig.providers),
+    settings: normalizeSettingsSection(safeConfig.settings),
+    favorites: normalizeFavoriteList(safeConfig.favorites),
+    telemetry: normalizeTelemetrySection(safeConfig.telemetry),
+    endpointInstalls: normalizeEndpointInstalls(safeConfig.endpointInstalls),
+    activeProfile: typeof safeConfig.activeProfile === 'string' && safeConfig.activeProfile.trim()
+      ? safeConfig.activeProfile.trim()
+      : null,
+    profiles: normalizeProfilesSection(safeConfig.profiles),
+  }
+}
+
+function readStoredConfigSnapshot() {
+  if (!existsSync(CONFIG_PATH)) return _emptyConfig()
+
+  try {
+    const raw = readFileSync(CONFIG_PATH, 'utf8').trim()
+    if (!raw) return _emptyConfig()
+    return normalizeConfigShape(JSON.parse(raw))
+  } catch {
+    return _emptyConfig()
+  }
+}
+
+function mergeOrderedUniqueStrings(primaryEntries, fallbackEntries) {
+  const merged = []
+  const seen = new Set()
+  for (const entry of [...normalizeFavoriteList(primaryEntries), ...normalizeFavoriteList(fallbackEntries)]) {
+    if (seen.has(entry)) continue
+    seen.add(entry)
+    merged.push(entry)
+  }
+  return merged
+}
+
+function mergeEndpointInstalls(diskEndpointInstalls, incomingEndpointInstalls) {
+  const merged = new Map()
+  for (const entry of normalizeEndpointInstalls(diskEndpointInstalls)) {
+    merged.set(`${entry.providerKey}::${entry.toolMode}`, entry)
+  }
+  for (const entry of normalizeEndpointInstalls(incomingEndpointInstalls)) {
+    merged.set(`${entry.providerKey}::${entry.toolMode}`, entry)
+  }
+  return [...merged.values()]
+}
+
+function mergeProfiles(diskProfiles, incomingProfiles, options = {}) {
+  const replaceProfileNames = new Set((options.replaceProfileNames || []).filter((name) => typeof name === 'string' && name.length > 0))
+  const removedProfileNames = new Set((options.removedProfileNames || []).filter((name) => typeof name === 'string' && name.length > 0))
+  const normalizedDiskProfiles = normalizeProfilesSection(diskProfiles)
+  const normalizedIncomingProfiles = normalizeProfilesSection(incomingProfiles)
+  const mergedProfiles = {}
+  const profileNames = new Set([
+    ...Object.keys(normalizedDiskProfiles),
+    ...Object.keys(normalizedIncomingProfiles),
+  ])
+
+  for (const profileName of profileNames) {
+    if (removedProfileNames.has(profileName)) continue
+
+    const diskProfile = normalizedDiskProfiles[profileName]
+    const incomingProfile = normalizedIncomingProfiles[profileName]
+    if (!incomingProfile) {
+      if (diskProfile) mergedProfiles[profileName] = cloneConfigValue(diskProfile)
+      continue
+    }
+
+    if (!diskProfile || replaceProfileNames.has(profileName)) {
+      mergedProfiles[profileName] = cloneConfigValue(incomingProfile)
+      continue
+    }
+
+    mergedProfiles[profileName] = {
+      apiKeys: { ...diskProfile.apiKeys, ...incomingProfile.apiKeys },
+      providers: { ...diskProfile.providers, ...incomingProfile.providers },
+      favorites: mergeOrderedUniqueStrings(incomingProfile.favorites, diskProfile.favorites),
+      settings: normalizeProfileSettings({
+        ...diskProfile.settings,
+        ...incomingProfile.settings,
+      }),
+    }
+  }
+
+  return mergedProfiles
+}
+
+/**
+ * 📖 buildPersistedConfig merges the latest disk snapshot with the in-memory config so
+ * 📖 stale writers do not accidentally wipe secrets, favorites, or profiles they did not touch.
+ *
+ * @param {object} incomingConfig
+ * @param {object} [diskConfig=_emptyConfig()]
+ * @param {{ replaceApiKeys?: boolean, replaceFavorites?: boolean, replaceEndpointInstalls?: boolean, replaceProfileNames?: string[], removedProfileNames?: string[] }} [options]
+ * @returns {object}
+ */
+export function buildPersistedConfig(incomingConfig, diskConfig = _emptyConfig(), options = {}) {
+  const normalizedIncoming = normalizeConfigShape(incomingConfig)
+  const normalizedDisk = normalizeConfigShape(diskConfig)
+  const merged = {
+    apiKeys: options.replaceApiKeys === true
+      ? cloneConfigValue(normalizedIncoming.apiKeys)
+      : { ...normalizedDisk.apiKeys, ...normalizedIncoming.apiKeys },
+    providers: { ...normalizedDisk.providers, ...normalizedIncoming.providers },
+    settings: cloneConfigValue(normalizedIncoming.settings),
+    favorites: options.replaceFavorites === true
+      ? [...normalizedIncoming.favorites]
+      : mergeOrderedUniqueStrings(normalizedIncoming.favorites, normalizedDisk.favorites),
+    telemetry: {
+      ...normalizedDisk.telemetry,
+      ...normalizedIncoming.telemetry,
+    },
+    // 📖 Managed endpoint installs sometimes need an exact snapshot so stale disk
+    // 📖 records do not come back after a fresh install/refresh pass.
+    endpointInstalls: options.replaceEndpointInstalls === true
+      ? cloneConfigValue(normalizedIncoming.endpointInstalls)
+      : mergeEndpointInstalls(normalizedDisk.endpointInstalls, normalizedIncoming.endpointInstalls),
+    activeProfile: normalizedIncoming.activeProfile,
+    profiles: mergeProfiles(normalizedDisk.profiles, normalizedIncoming.profiles, {
+      replaceProfileNames: options.replaceProfileNames,
+      removedProfileNames: options.removedProfileNames,
+    }),
+  }
+
+  if (merged.activeProfile && !merged.profiles[merged.activeProfile]) {
+    merged.activeProfile = null
+  }
+
+  return normalizeConfigShape(merged)
+}
+
+/**
+ * 📖 replaceConfigContents keeps long-lived in-memory config references fresh after a save.
+ * 📖 The TUI stores `state.config` by reference, so we mutate it in-place instead of swapping it.
+ *
+ * @param {object} targetConfig
+ * @param {object} nextConfig
+ * @returns {object}
+ */
+export function replaceConfigContents(targetConfig, nextConfig) {
+  const normalizedNextConfig = cloneConfigValue(normalizeConfigShape(nextConfig))
+
+  if (!isPlainObject(targetConfig)) return normalizedNextConfig
+
+  for (const key of Object.keys(targetConfig)) {
+    delete targetConfig[key]
+  }
+  Object.assign(targetConfig, normalizedNextConfig)
+  return targetConfig
+}
+
+/**
+ * 📖 persistApiKeysForProvider writes exactly one provider's key set back to disk using the
+ * 📖 latest config snapshot first, so editing one provider cannot erase favorites or other keys.
+ *
+ * @param {object} config
+ * @param {string} providerKey
+ * @returns {{ success: boolean, error?: string, backupCreated?: boolean }}
+ */
+export function persistApiKeysForProvider(config, providerKey) {
+  const latestConfig = readStoredConfigSnapshot()
+  const normalizedProviderValue = normalizeApiKeyValue(config?.apiKeys?.[providerKey])
+
+  latestConfig.activeProfile = typeof config?.activeProfile === 'string' && config.activeProfile.trim()
+    ? config.activeProfile.trim()
+    : null
+
+  if (normalizedProviderValue === null) delete latestConfig.apiKeys[providerKey]
+  else latestConfig.apiKeys[providerKey] = cloneConfigValue(normalizedProviderValue)
+
+  if (latestConfig.activeProfile) {
+    if (!latestConfig.profiles[latestConfig.activeProfile]) {
+      latestConfig.profiles[latestConfig.activeProfile] = config?.profiles?.[latestConfig.activeProfile]
+        ? cloneConfigValue(config.profiles[latestConfig.activeProfile])
+        : {
+            apiKeys: {},
+            providers: {},
+            favorites: [],
+            settings: _emptyProfileSettings(),
+          }
+    }
+
+    if (normalizedProviderValue === null) delete latestConfig.profiles[latestConfig.activeProfile].apiKeys[providerKey]
+    else latestConfig.profiles[latestConfig.activeProfile].apiKeys[providerKey] = cloneConfigValue(normalizedProviderValue)
+  }
+
+  const saveResult = saveConfig(latestConfig, {
+    replaceApiKeys: true,
+    replaceProfileNames: latestConfig.activeProfile ? [latestConfig.activeProfile] : [],
+  })
+
+  if (saveResult.success) replaceConfigContents(config, latestConfig)
+  return saveResult
+}
+
 /**
  * 📖 loadConfig: Read the JSON config from disk.
  *
@@ -182,31 +497,7 @@ export function loadConfig() {
 
     try {
       const raw = readFileSync(CONFIG_PATH, 'utf8').trim()
-      const parsed = JSON.parse(raw)
-      // 📖 Ensure the shape is always complete — fill missing or corrupted sections with defaults.
-      if (!parsed.apiKeys || typeof parsed.apiKeys !== 'object' || Array.isArray(parsed.apiKeys)) parsed.apiKeys = {}
-      if (!parsed.providers || typeof parsed.providers !== 'object' || Array.isArray(parsed.providers)) parsed.providers = {}
-      if (!parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings)) parsed.settings = {}
-      if (typeof parsed.settings.hideUnconfiguredModels !== 'boolean') parsed.settings.hideUnconfiguredModels = true
-      parsed.settings.proxy = normalizeProxySettings(parsed.settings.proxy)
-      // 📖 Favorites: list of "providerKey/modelId" pinned rows.
-      if (!Array.isArray(parsed.favorites)) parsed.favorites = []
-      parsed.favorites = parsed.favorites.filter((fav) => typeof fav === 'string' && fav.trim().length > 0)
-      if (!parsed.telemetry || typeof parsed.telemetry !== 'object') parsed.telemetry = { enabled: null, consentVersion: 0, anonymousId: null }
-      if (typeof parsed.telemetry.enabled !== 'boolean') parsed.telemetry.enabled = null
-      if (typeof parsed.telemetry.consentVersion !== 'number') parsed.telemetry.consentVersion = 0
-      if (typeof parsed.telemetry.anonymousId !== 'string' || !parsed.telemetry.anonymousId.trim()) parsed.telemetry.anonymousId = null
-      parsed.endpointInstalls = normalizeEndpointInstalls(parsed.endpointInstalls)
-      // 📖 Ensure profiles section exists (added in profile system)
-      if (!parsed.profiles || typeof parsed.profiles !== 'object') parsed.profiles = {}
-      for (const profile of Object.values(parsed.profiles)) {
-        if (!profile || typeof profile !== 'object') continue
-        profile.settings = profile.settings
-          ? { ..._emptyProfileSettings(), ...profile.settings, proxy: normalizeProxySettings(profile.settings.proxy) }
-          : _emptyProfileSettings()
-      }
-      if (parsed.activeProfile && typeof parsed.activeProfile !== 'string') parsed.activeProfile = null
-      return parsed
+      return normalizeConfigShape(JSON.parse(raw))
     } catch {
       // 📖 Corrupted JSON — return empty config (user will re-enter keys)
       return _emptyConfig()
@@ -247,21 +538,23 @@ export function loadConfig() {
  *   - Post-write validation to ensure file is valid JSON
  *
  * @param {{ apiKeys: Record<string,string>, providers: Record<string,{enabled:boolean}>, favorites?: string[], telemetry?: { enabled?: boolean | null, consentVersion?: number, anonymousId?: string | null } }} config
+ * @param {{ replaceApiKeys?: boolean, replaceFavorites?: boolean, replaceEndpointInstalls?: boolean, replaceProfileNames?: string[], removedProfileNames?: string[] }} [options]
  * @returns {{ success: boolean, error?: string, backupCreated?: boolean }}
  */
-export function saveConfig(config) {
+export function saveConfig(config, options = {}) {
   // 📖 Create backup of existing config before overwriting
   const backupCreated = createBackup()
+  const tempPath = `${CONFIG_PATH}.tmp-${process.pid}-${Date.now()}`
 
   try {
-    // 📖 Write the new config
-    const json = JSON.stringify(config, null, 2)
-    writeFileSync(CONFIG_PATH, json, { mode: 0o600 })
+    const persistedConfig = buildPersistedConfig(config, readStoredConfigSnapshot(), options)
+    const json = JSON.stringify(persistedConfig, null, 2)
+    writeFileSync(tempPath, json, { mode: 0o600 })
+    renameSync(tempPath, CONFIG_PATH)
 
     // 📖 Verify the write succeeded by reading back and validating
     try {
-      const written = readFileSync(CONFIG_PATH, 'utf8')
-      const parsed = JSON.parse(written)
+      const parsed = readStoredConfigSnapshot()
 
       // 📖 Basic sanity check - ensure apiKeys object exists
       if (!parsed || typeof parsed !== 'object') {
@@ -269,11 +562,11 @@ export function saveConfig(config) {
       }
 
       // 📖 Verify critical data wasn't lost - check ALL keys are preserved
-      if (config.apiKeys && Object.keys(config.apiKeys).length > 0) {
+      if (persistedConfig.apiKeys && Object.keys(persistedConfig.apiKeys).length > 0) {
         if (!parsed.apiKeys) {
           throw new Error('apiKeys object missing after write')
         }
-        const originalKeys = Object.keys(config.apiKeys).sort()
+        const originalKeys = Object.keys(persistedConfig.apiKeys).sort()
         const writtenKeys = Object.keys(parsed.apiKeys).sort()
         if (originalKeys.length > writtenKeys.length) {
           const lostKeys = originalKeys.filter(k => !writtenKeys.includes(k))
@@ -287,10 +580,11 @@ export function saveConfig(config) {
         }
       }
 
+      replaceConfigContents(config, persistedConfig)
       return { success: true, backupCreated }
     } catch (verifyError) {
       // 📖 Verification failed - this is critical!
-      const errorMsg = `Config verification failed: ${verifyError.message}`
+      let errorMsg = `Config verification failed: ${verifyError.message}`
       
       // 📖 Try to restore from backup if we have one
       if (backupCreated) {
@@ -306,7 +600,8 @@ export function saveConfig(config) {
     }
   } catch (writeError) {
     // 📖 Write failed - explicit error instead of silent failure
-    const errorMsg = `Failed to write config: ${writeError.message}`
+    let errorMsg = `Failed to write config: ${writeError.message}`
+    try { unlinkSync(tempPath) } catch { /* ignore temp cleanup failures */ }
     
     // 📖 Try to restore from backup if we have one
     if (backupCreated) {

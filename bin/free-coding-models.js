@@ -99,7 +99,7 @@ import { homedir } from 'os'
 import { join, dirname } from 'path'
 import { MODELS, sources } from '../sources.js'
 import { getAvg, getVerdict, getUptime, getP95, getJitter, getStabilityScore, sortResults, filterByTier, findBestModel, parseArgs, TIER_ORDER, VERDICT_ORDER, TIER_LETTER_MAP, scoreModelForTask, getTopRecommendations, TASK_TYPES, PRIORITY_TYPES, CONTEXT_BUDGETS, formatCtxWindow, labelFromId, getProxyStatusInfo, formatResultsAsJSON } from '../src/utils.js'
-import { loadConfig, saveConfig, getApiKey, getProxySettings, resolveApiKeys, addApiKey, removeApiKey, isProviderEnabled, saveAsProfile, loadProfile, listProfiles, deleteProfile, getActiveProfileName, setActiveProfile, _emptyProfileSettings } from '../src/config.js'
+import { loadConfig, saveConfig, getApiKey, getProxySettings, resolveApiKeys, addApiKey, removeApiKey, isProviderEnabled, saveAsProfile, loadProfile, listProfiles, deleteProfile, getActiveProfileName, setActiveProfile, _emptyProfileSettings, persistApiKeysForProvider } from '../src/config.js'
 import { buildMergedModels } from '../src/model-merger.js'
 import { ProxyServer } from '../src/proxy-server.js'
 import { loadOpenCodeConfig, saveOpenCodeConfig, syncToOpenCode, restoreOpenCodeBackup, cleanupOpenCodeProxyConfig } from '../src/opencode-sync.js'
@@ -307,7 +307,10 @@ async function main() {
       console.error(chalk.red(`  Unknown profile "${cliArgs.profileName}". Available: ${listProfiles(config).join(', ') || '(none)'}`))
       process.exit(1)
     }
-    saveConfig(config)
+    saveConfig(config, {
+      replaceApiKeys: true,
+      replaceFavorites: true,
+    })
   }
 
   // 📖 Check if any provider has a key — if not, run the first-time setup wizard
@@ -674,6 +677,52 @@ hideUnconfiguredModels: startupProfileSettings?.hideUnconfiguredModels === true 
     }
   }
 
+  // 📖 Define pingModel before JSON mode so `--json` can reuse the same provider-aware
+  // 📖 ping path as the interactive TUI without waiting for the PTY/render loop setup.
+  pingModel = async (r) => {
+    state.pendingPings += 1
+    r.isPinging = true
+
+    try {
+      const providerApiKey = getApiKey(state.config, r.providerKey) ?? null
+      const providerUrl = sources[r.providerKey]?.url ?? sources.nvidia.url
+      let { code, ms, quotaPercent } = await ping(providerApiKey, r.modelId, r.providerKey, providerUrl)
+
+      if ((quotaPercent === null || quotaPercent === undefined) && providerApiKey) {
+        const providerQuota = await getProviderQuotaPercentCached(r.providerKey, providerApiKey)
+        if (typeof providerQuota === 'number' && Number.isFinite(providerQuota)) {
+          quotaPercent = providerQuota
+        }
+      }
+
+      r.pings.push({ ms, code })
+
+      if (code === '200') {
+        r.status = 'up'
+      } else if (code === '000') {
+        r.status = 'timeout'
+      } else if (code === '401' || code === '403') {
+        r.status = providerApiKey ? 'auth_error' : 'noauth'
+        r.httpCode = code
+      } else {
+        r.status = 'down'
+        r.httpCode = code
+      }
+
+      if (typeof quotaPercent === 'number' && Number.isFinite(quotaPercent)) {
+        r.usagePercent = quotaPercent
+        for (const sibling of state.results) {
+          if (sibling.providerKey === r.providerKey && (sibling.usagePercent === undefined || sibling.usagePercent === null)) {
+            sibling.usagePercent = quotaPercent
+          }
+        }
+      }
+    } finally {
+      r.isPinging = false
+      state.pendingPings = Math.max(0, state.pendingPings - 1)
+    }
+  }
+
   // 📖 JSON output mode: skip TUI, output results as JSON after initial pings
   if (cliArgs.jsonMode) {
     console.log(chalk.cyan('  ⚡ Pinging models for JSON output...'))
@@ -745,14 +794,14 @@ hideUnconfiguredModels: startupProfileSettings?.hideUnconfiguredModels === true 
     const activeTier = TIER_CYCLE[state.tierFilterMode]
     const activeOrigin = ORIGIN_CYCLE[state.originFilterMode]
     state.results.forEach(r => {
+      // 📖 Favorites stay visible and pinned regardless of configured-only, tier, or provider filters.
+      if (r.isFavorite) {
+        r.hidden = false
+        return
+      }
       const unconfiguredHide = state.hideUnconfiguredModels && !getApiKey(state.config, r.providerKey)
       if (unconfiguredHide) {
         r.hidden = true
-        return
-      }
-      // 📖 Favorites stay visible regardless of tier/origin filters.
-      if (r.isFavorite) {
-        r.hidden = false
         return
       }
       // 📖 Apply both tier and origin filters — model is hidden if it fails either
@@ -826,6 +875,7 @@ hideUnconfiguredModels: startupProfileSettings?.hideUnconfiguredModels === true 
     resolveApiKeys,
     addApiKey,
     removeApiKey,
+    persistApiKeysForProvider,
     isProviderEnabled,
     listProfiles,
     loadProfile,
@@ -953,60 +1003,6 @@ hideUnconfiguredModels: startupProfileSettings?.hideUnconfiguredModels === true 
   }
 
   // ── Continuous ping loop — ping all models every N seconds forever ──────────
-
-  // 📖 Single ping function that updates result
-  // 📖 Uses per-provider API key and URL from sources.js
-  // 📖 If no API key is configured, pings without auth — a 401 still tells us latency + server is up
-  pingModel = async (r) => {
-    state.pendingPings += 1
-    r.isPinging = true
-
-    try {
-      const providerApiKey = getApiKey(state.config, r.providerKey) ?? null
-      const providerUrl = sources[r.providerKey]?.url ?? sources.nvidia.url
-      let { code, ms, quotaPercent } = await ping(providerApiKey, r.modelId, r.providerKey, providerUrl)
-
-      if ((quotaPercent === null || quotaPercent === undefined) && providerApiKey) {
-        const providerQuota = await getProviderQuotaPercentCached(r.providerKey, providerApiKey)
-        if (typeof providerQuota === 'number' && Number.isFinite(providerQuota)) {
-          quotaPercent = providerQuota
-        }
-      }
-
-      // 📖 Store ping result as object with ms and code
-      // 📖 ms = actual response time (even for errors like 429)
-      // 📖 code = HTTP status code ('200', '429', '500', '000' for timeout)
-      r.pings.push({ ms, code })
-
-      // 📖 Update status based on latest ping
-      if (code === '200') {
-        r.status = 'up'
-      } else if (code === '000') {
-        r.status = 'timeout'
-      } else if (code === '401' || code === '403') {
-        // 📖 Distinguish "no key configured" from "configured key rejected" so the
-        // 📖 Health column stays honest when Configured Only mode is enabled.
-        r.status = providerApiKey ? 'auth_error' : 'noauth'
-        r.httpCode = code
-      } else {
-        r.status = 'down'
-        r.httpCode = code
-      }
-
-      if (typeof quotaPercent === 'number' && Number.isFinite(quotaPercent)) {
-        r.usagePercent = quotaPercent
-        // Provider-level fallback: apply latest known quota to sibling rows on same provider.
-        for (const sibling of state.results) {
-          if (sibling.providerKey === r.providerKey && (sibling.usagePercent === undefined || sibling.usagePercent === null)) {
-            sibling.usagePercent = quotaPercent
-          }
-        }
-      }
-    } finally {
-      r.isPinging = false
-      state.pendingPings = Math.max(0, state.pendingPings - 1)
-    }
-  }
 
   // 📖 Initial ping of all models
   const initialPing = Promise.all(state.results.map(r => pingModel(r)))
