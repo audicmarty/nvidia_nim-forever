@@ -2,6 +2,11 @@
 
 ---
 
+## 0.3.15
+
+### Changed
+- Added vertical column separators (gentle dark orange) for clearer column separation and removed the horizontal separator line in the main TUI.
+
 ## 0.3.14
 
 ### Changed

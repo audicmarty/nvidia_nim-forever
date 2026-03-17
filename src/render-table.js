@@ -54,6 +54,10 @@ const ACTIVE_FILTER_BG_BY_TIER = {
   'C': [186, 104, 200],
 }
 
+// 📖 Vertical separator for columns – gentle dark orange
+const VERTICAL_SEPARATOR = chalk.rgb(255, 140, 0).dim('│');
+const COL_SEP = ` ${VERTICAL_SEPARATOR} `;
+
 const require = createRequire(import.meta.url)
 const { version: LOCAL_VERSION } = require('../package.json')
 
@@ -290,25 +294,9 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   const tokensH_c  = chalk.dim(tokensH.padEnd(W_TOKENS))
   // 📖 Usage column removed from UI – no header or separator for it.
   // Header without Usage column (column order: Rank, Tier, SWE%, CTX, Model, Provider, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Used)
-  lines.push('  ' + rankH_c + '  ' + tierH_c + '  ' + sweH_c + '  ' + ctxH_c + '  ' + modelH_c + '  ' + originH_c + '  ' + pingH_c + '  ' + avgH_c + '  ' + healthH_c + '  ' + verdictH_c + '  ' + stabH_c + '  ' + uptimeH_c + '  ' + tokensH_c)
+  lines.push('  ' + rankH_c + COL_SEP + tierH_c + COL_SEP + sweH_c + COL_SEP + ctxH_c + COL_SEP + modelH_c + COL_SEP + originH_c + COL_SEP + pingH_c + COL_SEP + avgH_c + COL_SEP + healthH_c + COL_SEP + verdictH_c + COL_SEP + stabH_c + COL_SEP + uptimeH_c + COL_SEP + tokensH_c)
 
-  // Separator line without Usage column
-  lines.push(
-    '  ' +
-    chalk.dim('─'.repeat(W_RANK)) + '  ' +
-    chalk.dim('─'.repeat(W_TIER)) + '  ' +
-    chalk.dim('─'.repeat(W_SWE)) + '  ' +
-    chalk.dim('─'.repeat(W_CTX)) + '  ' +
-    '─'.repeat(W_MODEL) + '  ' +
-    '─'.repeat(W_SOURCE) + '  ' +
-    chalk.dim('─'.repeat(W_PING)) + '  ' +
-    chalk.dim('─'.repeat(W_AVG)) + '  ' +
-    chalk.dim('─'.repeat(W_STATUS)) + '  ' +
-    chalk.dim('─'.repeat(W_VERDICT)) + '  ' +
-    chalk.dim('─'.repeat(W_STAB)) + '  ' +
-    chalk.dim('─'.repeat(W_UPTIME)) + '  ' +
-    chalk.dim('─'.repeat(W_TOKENS))
-  )
+
 
   if (sorted.length === 0) {
     lines.push('')
@@ -559,7 +547,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       : chalk.dim('0'.padEnd(W_TOKENS))
 
     // 📖 Build row with double space between columns (order: Rank, Tier, SWE%, CTX, Model, Provider, Latest Ping, Avg Ping, Health, Verdict, Stability, Up%, Used)
-    const row = '  ' + num + '  ' + tier + '  ' + sweCell + '  ' + ctxCell + '  ' + nameCell + '  ' + sourceCell + '  ' + pingCell + '  ' + avgCell + '  ' + status + '  ' + speedCell + '  ' + stabCell + '  ' + uptimeCell + '  ' + tokensCell
+    const row = '  ' + num + COL_SEP + tier + COL_SEP + sweCell + COL_SEP + ctxCell + COL_SEP + nameCell + COL_SEP + sourceCell + COL_SEP + pingCell + COL_SEP + avgCell + COL_SEP + status + COL_SEP + speedCell + COL_SEP + stabCell + COL_SEP + uptimeCell + COL_SEP + tokensCell
 
     if (isCursor) {
       lines.push(chalk.bgRgb(155, 55, 135)(row))
