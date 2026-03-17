@@ -196,23 +196,87 @@ free-coding-models --tier S --json
 
 ### CLI Flags
 
+Flags can be combined freely in any order.
+
+#### 🚀 Tool Launchers
+
+Start the TUI pre-configured to a specific tool. Press `Enter` on a model to auto-configure and launch it.
+
+| Flag | Tool | What happens on Enter |
+|------|------|----------------------|
+| *(none)* | OpenCode CLI | Writes model to `opencode.json` and launches `opencode` CLI |
+| `--opencode` | OpenCode CLI | Same as above, explicit |
+| `--opencode-desktop` | OpenCode Desktop | Writes model to `opencode.json` and opens desktop app |
+| `--openclaw` | OpenClaw | Writes model as primary in `~/.openclaw/openclaw.json` |
+| `--crush` | Crush | Writes model to `~/.config/crush/crush.json` and launches `crush` |
+| `--goose` | Goose | Writes provider config to `~/.config/goose/` and launches `goose` |
+| `--aider` | Aider | Writes model to `~/.aider.conf.yml` and launches `aider` |
+| `--qwen` | Qwen Code | Writes model to `~/.qwen/settings.json` and launches `qwen` |
+| `--openhands` | OpenHands | Sets `LLM_MODEL` env var and launches OpenHands |
+| `--amp` | Amp | Writes model to `~/.config/amp/settings.json` and launches `amp` |
+| `--pi` | Pi | Writes model to `~/.pi/agent/settings.json` and launches `pi` |
+
+#### 🔍 Filtering & Display
+
 | Flag | Type | Description |
 |------|------|-------------|
 | `--best` | boolean | Show only top‑tier models (A+, S, S+). |
-| `--premium` | boolean | Show only S/S+ tier models that are currently UP with a good verdict. |
-| `--fiable` | boolean | Run a 10 s reliability analysis and output the most reliable model. |
-| `--json` | boolean | Output results as JSON for scripting/automation. |
-| `--tier <S\|A\|B\|C>` | value | Filter models by tier family (e.g. `S` shows S+ and S). |
-| `--recommend` | boolean | Open Smart Recommend mode immediately on startup. |
-| `--sort <column>` | value | Sort by a specific column (`rank`, `tier`, `origin`, `model`, `ping`, `avg`, `swe`, `ctx`, `condition`, `verdict`, `uptime`, `stability`). |
-| `--desc` / `--asc` | boolean | Set sort direction explicitly (descending or ascending). |
-| `--origin <provider>` | value | Filter models by provider origin (e.g. `nvidia`, `groq`). |
-| `--ping-interval <ms>` | value | Override the ping interval in milliseconds. |
-| `--hide-unconfigured` | boolean | Hide models whose providers have no configured API key. |
-| `--show-unconfigured` | boolean | Show all models regardless of API key configuration. |
-| `--disable-widths-warning` | boolean | Disable the terminal width warning banner. |
-| `--no-telemetry` | boolean | Disable anonymous telemetry for this run. |
-| `--help`, `-h` | boolean | Print the complete help text and exit. |
+| `--premium` | boolean | Show only S/S+ models that are currently UP with a good verdict (`Perfect`, `Normal`, or `Slow`). |
+| `--tier <S\|A\|B\|C>` | value | Filter by tier family — `S` shows S+ and S, `A` shows A+/A/A-, `B` shows B+/B, `C` shows C only. |
+| `--origin <provider>` | value | Filter by provider name (e.g. `nvidia`, `groq`, `cerebras`). |
+| `--hide-unconfigured` | boolean | Hide models whose provider has no API key configured. |
+| `--show-unconfigured` | boolean | Show all models regardless of API key configuration (overrides default). |
+
+#### 📊 Sorting
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--sort <column>` | value | Start sorted by a specific column. Valid values: `rank`, `tier`, `origin`, `model`, `ping`, `avg`, `swe`, `ctx`, `condition`, `verdict`, `uptime`, `stability`. |
+| `--asc` | boolean | Sort ascending (smallest first). |
+| `--desc` | boolean | Sort descending (largest first). |
+
+#### 📤 Output Modes
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--json` | boolean | Skip the TUI — print all model results as a JSON array and exit. Combine with `jq` for scripting. |
+| `--fiable` | boolean | Wait 10 s, pick the most reliable model by avg + stability + uptime, print `provider/model_id` and exit. |
+| `--recommend` | boolean | Open the Smart Recommend overlay immediately on startup (same as pressing `Q`). |
+
+#### ⚙️ Runtime Options
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--ping-interval <ms>` | value | Override the ping interval in milliseconds (e.g. `--ping-interval 5000`). |
+| `--disable-widths-warning` | boolean | Suppress the terminal-too-narrow warning banner. |
+| `--no-telemetry` | boolean | Disable anonymous usage telemetry for this session. |
+| `--help`, `-h` | boolean | Print the full help text with all flags and exit. |
+
+#### Usage examples
+
+```bash
+# Start in Crush mode filtered to S-tier only
+free-coding-models --crush --tier S
+
+# Get the fastest S-tier model ID as plain text (headless)
+free-coding-models --tier S --json | jq -r '.[0].modelId'
+
+# Filter by latency in a script
+free-coding-models --json | jq '.[] | select(.avgPing < 500)'
+
+# Find the most reliable model right now
+free-coding-models --fiable
+
+# Show only the elite models that are currently healthy
+free-coding-models --premium
+
+# Sort by SWE score descending on startup
+free-coding-models --sort swe --desc
+
+# Filter to Groq models only
+free-coding-models --origin groq
+```
+
 
 ### AI E2E workflow (`/testfcm`)
 
@@ -548,26 +612,6 @@ Stability = 0.30 × p95_score
 
 ---
 
-## 🧰 Supported Tool Launchers
-
-You can use `free-coding-models` with multiple AI coding tools. When you select a model and press Enter, the tool automatically configures and pre-selects your chosen model:
-
-| Tool | Flag | Auto-Config |
-|------|------|------------|
-| OpenCode CLI | `--opencode` | ~/.config/opencode/opencode.json |
-| OpenCode Desktop | `--opencode-desktop` | Opens Desktop app |
-| OpenClaw | `--openclaw` | ~/.openclaw/openclaw.json |
-| Crush | `--crush` | ~/.config/crush/crush.json |
-| Goose | `--goose` | ~/.config/goose/config.yaml + custom_providers/ |
-| Aider | `--aider` | ~/.aider.conf.yml |
-| Qwen | `--qwen` | ~/.qwen/settings.json |
-| OpenHands | `--openhands` | LLM_MODEL env var |
-| Amp | `--amp` | ~/.config/amp/settings.json |
-| Pi | `--pi` | ~/.pi/agent/settings.json |
-
-Press **Z** to cycle through all tool modes in the TUI, or use flags to start in your preferred mode.
-
----
 
 ## 🔌 OpenCode Integration
 
