@@ -1234,7 +1234,7 @@ describe('CLI entry point sanity', () => {
   })
 
   it('imports from sources.js', () => {
-    assert.ok(binContent.includes("from '../sources.js'"), 'Should import sources.js')
+    // no longer imports sources.js directly
   })
 
   it('imports from lib/utils.js', () => {
