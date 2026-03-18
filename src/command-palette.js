@@ -15,11 +15,11 @@
  * @see src/overlays.js
  */
 
-// 📖 Hierarchical command tree with categories and subcategories
-const COMMAND_TREE = [
+// 📖 Base command tree template (will be enhanced with dynamic model list)
+const BASE_COMMAND_TREE = [
   {
     id: 'filters',
-    label: '🔍 Filters',
+    label: 'Filters',
     icon: '🔍',
     children: [
       {
@@ -27,15 +27,15 @@ const COMMAND_TREE = [
         label: 'Filter by tier',
         icon: '📊',
         children: [
-          { id: 'filter-tier-all', label: 'All tiers', shortcut: 'T', keywords: ['filter', 'tier', 'all'] },
-          { id: 'filter-tier-splus', label: 'S+ tier only', keywords: ['filter', 'tier', 's+'] },
-          { id: 'filter-tier-s', label: 'S tier only', keywords: ['filter', 'tier', 's'] },
-          { id: 'filter-tier-aplus', label: 'A+ tier only', keywords: ['filter', 'tier', 'a+'] },
-          { id: 'filter-tier-a', label: 'A tier only', keywords: ['filter', 'tier', 'a'] },
-          { id: 'filter-tier-aminus', label: 'A- tier only', keywords: ['filter', 'tier', 'a-'] },
-          { id: 'filter-tier-bplus', label: 'B+ tier only', keywords: ['filter', 'tier', 'b+'] },
-          { id: 'filter-tier-b', label: 'B tier only', keywords: ['filter', 'tier', 'b'] },
-          { id: 'filter-tier-c', label: 'C tier only', keywords: ['filter', 'tier', 'c'] },
+          { id: 'filter-tier-all', label: 'All tiers', tier: null, shortcut: 'T', description: 'Show all models', keywords: ['filter', 'tier', 'all'] },
+          { id: 'filter-tier-splus', label: 'S+ tier', tier: 'S+', description: 'Best coding models', keywords: ['filter', 'tier', 's+'] },
+          { id: 'filter-tier-s', label: 'S tier', tier: 'S', description: 'Excellent models', keywords: ['filter', 'tier', 's'] },
+          { id: 'filter-tier-aplus', label: 'A+ tier', tier: 'A+', description: 'Very good models', keywords: ['filter', 'tier', 'a+'] },
+          { id: 'filter-tier-a', label: 'A tier', tier: 'A', description: 'Good models', keywords: ['filter', 'tier', 'a'] },
+          { id: 'filter-tier-aminus', label: 'A- tier', tier: 'A-', description: 'Solid models', keywords: ['filter', 'tier', 'a-'] },
+          { id: 'filter-tier-bplus', label: 'B+ tier', tier: 'B+', description: 'Fair models', keywords: ['filter', 'tier', 'b+'] },
+          { id: 'filter-tier-b', label: 'B tier', tier: 'B', description: 'Basic models', keywords: ['filter', 'tier', 'b'] },
+          { id: 'filter-tier-c', label: 'C tier', tier: 'C', description: 'Limited models', keywords: ['filter', 'tier', 'c'] },
         ]
       },
       {
@@ -43,80 +43,127 @@ const COMMAND_TREE = [
         label: 'Filter by provider',
         icon: '🏢',
         children: [
-          { id: 'filter-provider-cycle', label: 'Cycle provider', shortcut: 'D', keywords: ['filter', 'provider', 'origin'] },
+          { id: 'filter-provider-cycle', label: 'Cycle provider', shortcut: 'D', description: 'Switch between providers', keywords: ['filter', 'provider', 'origin'] },
+          { id: 'filter-provider-all', label: 'All providers', providerKey: null, description: 'Show all providers', keywords: ['filter', 'provider', 'all'] },
+          { id: 'filter-provider-nvidia', label: 'NVIDIA NIM', providerKey: 'nvidiaNim', description: 'NVIDIA models', keywords: ['filter', 'provider', 'nvidia', 'nim'] },
+          { id: 'filter-provider-groq', label: 'Groq', providerKey: 'groq', description: 'Groq models', keywords: ['filter', 'provider', 'groq'] },
+          { id: 'filter-provider-cerebras', label: 'Cerebras', providerKey: 'cerebras', description: 'Cerebras models', keywords: ['filter', 'provider', 'cerebras'] },
+          { id: 'filter-provider-sambanova', label: 'SambaNova', providerKey: 'sambanova', description: 'SambaNova models', keywords: ['filter', 'provider', 'sambanova'] },
+          { id: 'filter-provider-openrouter', label: 'OpenRouter', providerKey: 'openrouter', description: 'OpenRouter models', keywords: ['filter', 'provider', 'openrouter'] },
+          { id: 'filter-provider-together', label: 'Together AI', providerKey: 'together', description: 'Together models', keywords: ['filter', 'provider', 'together'] },
+          { id: 'filter-provider-deepinfra', label: 'DeepInfra', providerKey: 'deepinfra', description: 'DeepInfra models', keywords: ['filter', 'provider', 'deepinfra'] },
+          { id: 'filter-provider-fireworks', label: 'Fireworks AI', providerKey: 'fireworks', description: 'Fireworks models', keywords: ['filter', 'provider', 'fireworks'] },
+          { id: 'filter-provider-hyperbolic', label: 'Hyperbolic', providerKey: 'hyperbolic', description: 'Hyperbolic models', keywords: ['filter', 'provider', 'hyperbolic'] },
+          { id: 'filter-provider-google', label: 'Google AI', providerKey: 'google', description: 'Google models', keywords: ['filter', 'provider', 'google'] },
+          { id: 'filter-provider-huggingface', label: 'Hugging Face', providerKey: 'huggingface', description: 'Hugging Face models', keywords: ['filter', 'provider', 'huggingface'] },
         ]
+      },
+      {
+        id: 'filter-model',
+        label: 'Filter by model',
+        icon: '🤖',
+        children: []
       },
       {
         id: 'filter-other',
         label: 'Other filters',
         icon: '⚙️',
         children: [
-          { id: 'filter-configured-toggle', label: 'Toggle configured-only', shortcut: 'E', keywords: ['filter', 'configured', 'keys'] },
+          { id: 'filter-configured-toggle', label: 'Toggle configured-only', shortcut: 'E', description: 'Show only configured providers', keywords: ['filter', 'configured', 'keys'] },
         ]
       },
     ]
   },
   {
     id: 'sort',
-    label: '📶 Sort',
+    label: 'Sort',
     icon: '📶',
     children: [
-      { id: 'sort-rank', label: 'Sort by rank', shortcut: 'R', keywords: ['sort', 'rank'] },
-      { id: 'sort-tier', label: 'Sort by tier', keywords: ['sort', 'tier'] },
-      { id: 'sort-provider', label: 'Sort by provider', shortcut: 'O', keywords: ['sort', 'origin', 'provider'] },
-      { id: 'sort-model', label: 'Sort by model', shortcut: 'M', keywords: ['sort', 'model', 'name'] },
-      { id: 'sort-latest-ping', label: 'Sort by latest ping', shortcut: 'L', keywords: ['sort', 'latest', 'ping'] },
-      { id: 'sort-avg-ping', label: 'Sort by avg ping', shortcut: 'A', keywords: ['sort', 'avg', 'average', 'ping'] },
-      { id: 'sort-swe', label: 'Sort by SWE score', shortcut: 'S', keywords: ['sort', 'swe', 'score'] },
-      { id: 'sort-ctx', label: 'Sort by context', shortcut: 'C', keywords: ['sort', 'context', 'ctx'] },
-      { id: 'sort-health', label: 'Sort by health', shortcut: 'H', keywords: ['sort', 'health', 'condition'] },
-      { id: 'sort-verdict', label: 'Sort by verdict', shortcut: 'V', keywords: ['sort', 'verdict'] },
-      { id: 'sort-stability', label: 'Sort by stability', shortcut: 'B', keywords: ['sort', 'stability'] },
-      { id: 'sort-uptime', label: 'Sort by uptime', shortcut: 'U', keywords: ['sort', 'uptime'] },
+      { id: 'sort-rank', label: 'Sort by rank', shortcut: 'R', description: 'Rank by SWE score', keywords: ['sort', 'rank'] },
+      { id: 'sort-tier', label: 'Sort by tier', description: 'Group by quality tier', keywords: ['sort', 'tier'] },
+      { id: 'sort-provider', label: 'Sort by provider', shortcut: 'O', description: 'Group by provider', keywords: ['sort', 'origin', 'provider'] },
+      { id: 'sort-model', label: 'Sort by model', shortcut: 'M', description: 'Alphabetical order', keywords: ['sort', 'model', 'name'] },
+      { id: 'sort-latest-ping', label: 'Sort by latest ping', shortcut: 'L', description: 'Recent response time', keywords: ['sort', 'latest', 'ping'] },
+      { id: 'sort-avg-ping', label: 'Sort by avg ping', shortcut: 'A', description: 'Average response time', keywords: ['sort', 'avg', 'average', 'ping'] },
+      { id: 'sort-swe', label: 'Sort by SWE score', shortcut: 'S', description: 'Coding ability score', keywords: ['sort', 'swe', 'score'] },
+      { id: 'sort-ctx', label: 'Sort by context', shortcut: 'C', description: 'Context window size', keywords: ['sort', 'context', 'ctx'] },
+      { id: 'sort-health', label: 'Sort by health', shortcut: 'H', description: 'Current model status', keywords: ['sort', 'health', 'condition'] },
+      { id: 'sort-verdict', label: 'Sort by verdict', shortcut: 'V', description: 'Overall assessment', keywords: ['sort', 'verdict'] },
+      { id: 'sort-stability', label: 'Sort by stability', shortcut: 'B', description: 'Reliability score', keywords: ['sort', 'stability'] },
+      { id: 'sort-uptime', label: 'Sort by uptime', shortcut: 'U', description: 'Success rate', keywords: ['sort', 'uptime'] },
     ]
   },
-  {
-    id: 'pages',
-    label: '📄 Pages',
-    icon: '📄',
-    children: [
-      { id: 'open-settings', label: 'Settings', shortcut: 'P', keywords: ['settings', 'config', 'api key'] },
-      { id: 'open-help', label: 'Help', shortcut: 'K', keywords: ['help', 'shortcuts', 'hotkeys'] },
-      { id: 'open-changelog', label: 'Changelog', shortcut: 'N', keywords: ['changelog', 'release'] },
-      { id: 'open-feedback', label: 'Feedback', shortcut: 'I', keywords: ['feedback', 'bug', 'request'] },
-      { id: 'open-recommend', label: 'Smart recommend', shortcut: 'Q', keywords: ['recommend', 'best model'] },
-      { id: 'open-install-endpoints', label: 'Install endpoints', keywords: ['install', 'endpoints', 'providers'] },
-    ]
-  },
-  {
-    id: 'actions',
-    label: '⚡ Actions',
-    icon: '⚡',
-    children: [
-      { id: 'action-cycle-theme', label: 'Cycle theme', shortcut: 'G', keywords: ['theme', 'dark', 'light', 'auto'] },
-      { id: 'action-cycle-tool-mode', label: 'Cycle tool mode', shortcut: 'Z', keywords: ['tool', 'mode', 'launcher'] },
-      { id: 'action-cycle-ping-mode', label: 'Cycle ping mode', shortcut: 'W', keywords: ['ping', 'cadence', 'speed', 'slow'] },
-      { id: 'action-toggle-favorite', label: 'Toggle favorite', shortcut: 'F', keywords: ['favorite', 'star'] },
-      { id: 'action-reset-view', label: 'Reset view', shortcut: 'Shift+R', keywords: ['reset', 'view', 'sort', 'filters'] },
-    ]
-  },
+  // 📖 Pages - directly at root level, not in submenu
+  { id: 'open-settings', label: 'Settings', shortcut: 'P', icon: '⚙️', type: 'page', description: 'API keys and preferences', keywords: ['settings', 'config', 'api key'] },
+  { id: 'open-help', label: 'Help', shortcut: 'K', icon: '❓', type: 'page', description: 'Show all shortcuts', keywords: ['help', 'shortcuts', 'hotkeys'] },
+  { id: 'open-changelog', label: 'Changelog', shortcut: 'N', icon: '📋', type: 'page', description: 'Version history', keywords: ['changelog', 'release'] },
+  { id: 'open-feedback', label: 'Feedback', shortcut: 'I', icon: '📝', type: 'page', description: 'Report bugs or requests', keywords: ['feedback', 'bug', 'request'] },
+  { id: 'open-recommend', label: 'Smart recommend', shortcut: 'Q', icon: '🎯', type: 'page', description: 'Find best model for task', keywords: ['recommend', 'best model'] },
+  { id: 'open-install-endpoints', label: 'Install endpoints', icon: '🔌', type: 'page', description: 'Install provider catalogs', keywords: ['install', 'endpoints', 'providers'] },
+  // 📖 Actions - directly at root level, not in submenu
+  { id: 'action-cycle-theme', label: 'Cycle theme', shortcut: 'G', icon: '🌗', type: 'action', description: 'Switch dark/light/auto', keywords: ['theme', 'dark', 'light', 'auto'] },
+  { id: 'action-cycle-tool-mode', label: 'Target Tool', shortcut: 'Z', icon: '🔄', type: 'action', description: 'Change target AI Coding CLI Tool.', keywords: ['tool', 'mode', 'launcher', 'target'] },
+  { id: 'action-cycle-ping-mode', label: 'Cycle ping mode', shortcut: 'W', icon: '⚡', type: 'action', description: 'Adjust ping speed', keywords: ['ping', 'cadence', 'speed', 'slow'] },
+  { id: 'action-toggle-favorite', label: 'Toggle favorite', shortcut: 'F', icon: '⭐', type: 'action', description: 'Pin to favorites', keywords: ['favorite', 'star'] },
+  { id: 'action-reset-view', label: 'Reset view', shortcut: 'Shift+R', icon: '🔄', type: 'action', description: 'Reset filters and sort', keywords: ['reset', 'view', 'sort', 'filters'] },
 ]
 
-export function buildCommandPaletteTree() {
-  return COMMAND_TREE
+/**
+ * 📖 Build the command palette tree with dynamic model filters.
+ * @param {Array} visibleModels - Optional list of visible models to create model filter entries
+ * @returns {Array} The command tree with model filters added
+ */
+export function buildCommandPaletteTree(visibleModels = []) {
+  // 📖 Clone the base tree
+  const tree = JSON.parse(JSON.stringify(BASE_COMMAND_TREE))
+  
+  // 📖 Find the filter-model category and add dynamic model entries
+  const filterModelCategory = tree.find(cat => cat.id === 'filters')
+    ?.children.find(sub => sub.id === 'filter-model')
+  
+  if (filterModelCategory && Array.isArray(visibleModels) && visibleModels.length > 0) {
+    // 📖 Add top 20 most-used or most relevant models
+    const topModels = visibleModels
+      .filter(m => !m.hidden && m.status !== 'noauth')
+      .slice(0, 20)
+    
+    for (const model of topModels) {
+      filterModelCategory.children.push({
+        id: `filter-model-${model.providerKey}-${model.modelId}`,
+        label: model.label,
+        modelId: model.modelId,
+        providerKey: model.providerKey,
+        keywords: ['filter', 'model', model.label.toLowerCase(), model.modelId.toLowerCase()],
+      })
+    }
+  }
+  
+  return tree
 }
 
 /**
  * 📖 Flatten the command tree into a list, respecting which nodes are expanded.
  * @param {Array} tree - The command tree
  * @param {Set} expandedIds - Set of IDs that are expanded
- * @returns {Array} Flat list with type markers ('category' | 'subcategory' | 'command')
+ * @returns {Array} Flat list with type markers ('category' | 'subcategory' | 'command' | 'page' | 'action')
  */
 export function flattenCommandTree(tree, expandedIds = new Set()) {
   const result = []
   
   function traverse(nodes, depth = 0) {
     for (const node of nodes) {
+      // 📖 Check if this is a direct page/action (not in a submenu)
+      if (node.type === 'page' || node.type === 'action') {
+        result.push({
+          ...node,
+          type: node.type,
+          depth: 0,
+          hasChildren: false,
+          isExpanded: false,
+        })
+        continue
+      }
+      
       const isExpanded = expandedIds.has(node.id)
       const hasChildren = Array.isArray(node.children) && node.children.length > 0
       
@@ -163,8 +210,10 @@ const ID_TO_TIER = {
 /**
  * 📖 Legacy function for backward compatibility - builds flat list from tree.
  * 📖 Expands all categories so every command is searchable by fuzzyMatchCommand.
+ * @param {Array} visibleModels - Optional list of visible models for model filter entries
  */
-export function buildCommandPaletteEntries() {
+export function buildCommandPaletteEntries(visibleModels = []) {
+  const tree = buildCommandPaletteTree(visibleModels)
   // 📖 Collect every node id that has children so flattenCommandTree traverses into them.
   const allIds = new Set()
   function collectIds(nodes) {
@@ -173,12 +222,16 @@ export function buildCommandPaletteEntries() {
       if (Array.isArray(n.children)) collectIds(n.children)
     }
   }
-  collectIds(COMMAND_TREE)
-  const flat = flattenCommandTree(COMMAND_TREE, allIds)
-  return flat.map((entry) => ({
-    ...entry,
-    tierValue: Object.prototype.hasOwnProperty.call(ID_TO_TIER, entry.id) ? ID_TO_TIER[entry.id] : undefined,
-  }))
+  collectIds(tree)
+  const flat = flattenCommandTree(tree, allIds)
+  return flat.map((entry) => {
+    // 📖 Copy tier and providerKey properties to tierValue for backward compatibility
+    const result = { ...entry }
+    if (entry.tier !== undefined) {
+      result.tierValue = entry.tier
+    }
+    return result
+  })
 }
 
 /**

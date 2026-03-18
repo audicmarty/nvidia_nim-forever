@@ -22,12 +22,14 @@ npm install -g free-coding-models
 free-coding-models
 ```
 
+create a free account on one of the [providers](#-list-of-free-ai-providers)
+
 </p>
 
 <p align="center">
   <a href="#-why-this-tool">Why</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="#-providers">Providers</a> •
+  <a href="#-list-of-free-ai-providers">Providers</a> •
   <a href="#-usage">Usage</a> •
   <a href="#-tui-keys">TUI Keys</a> •
   <a href="#-contributing">Contributing</a>
@@ -55,7 +57,9 @@ It then writes the model you pick directly into your coding tool's config — so
 
 ## ⚡ Quick Start
 
-**① Get a free API key** — you only need one to get started:
+### 🟢 List of Free AI Providers
+
+Create a free account on one provider below to get started:
 
 **160 coding models** across 20 providers, ranked by [SWE-bench Verified](https://www.swebench.com).
 
@@ -94,7 +98,7 @@ It then writes the model you pick directly into your coding tool's config — so
 | **A-/B+** | 30–40% | Smaller tasks, constrained infra |
 | **B/C** | < 30% | Code completion, edge/minimal setups |
 
-**② Install and run:**
+**① Install and run:**
 
 ```bash
 npm install -g free-coding-models
@@ -103,9 +107,15 @@ free-coding-models
 
 On first run, you'll be prompted to enter your API key(s). You can skip providers and add more later with **`P`**.
 
+Use ⚡️ Command Palette! with **Ctrl+P**.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/USE_%E2%9A%A1%EF%B8%8F%20COMMAND%20PALETTE-CTRL%2BP-22c55e?style=for-the-badge" alt="Use ⚡️ Command Palette with Ctrl+P">
+</p>
+
 Need to fix contrast because your terminal theme is fighting the TUI? Press **`G`** at any time to cycle **Auto → Dark → Light**. The switch recolors the full interface live: table, Settings, Help, Smart Recommend, Feedback, and Changelog.
 
-**③ Pick a model and launch your tool:**
+**② Pick a model and launch your tool:**
 
 ```
 ↑↓ navigate   →   Enter to launch
@@ -176,7 +186,7 @@ Press **`Z`** in the TUI to cycle between tools without restarting.
 | `E` | Toggle configured-only mode |
 | `F` | Favorite / unfavorite model |
 | `G` | Cycle global theme (`Auto → Dark → Light`) |
-| `Ctrl+P` | Open command palette (search + run actions) |
+| `Ctrl+P` | Open ⚡️ command palette (search + run actions) |
 | `R/S/C/M/O/L/A/H/V/B/U` | Sort columns |
 | `P` | Settings (API keys, providers, updates, theme) |
 | `Q` | Smart Recommend overlay |
@@ -200,7 +210,7 @@ Press **`Z`** in the TUI to cycle between tools without restarting.
 - **Configured-only default** — only shows providers you have keys for
 - **Keyless latency** — models ping even without an API key (show 🔑 NO KEY)
 - **Smart Recommend** — questionnaire picks the best model for your task type
-- **Command Palette** — `Ctrl+P` opens a searchable action launcher for filters, sorting, overlays, and quick toggles
+- **⚡️ Command Palette** — `Ctrl+P` opens a searchable action launcher for filters, sorting, overlays, and quick toggles
 - **Install Endpoints** — push a full provider catalog into any tool's config (`Y`)
 - **Missing tool bootstrap** — detect absent CLIs, offer one-click install, then continue the selected launch automatically
 - **Width guardrail** — shows a warning instead of a broken table in narrow terminals

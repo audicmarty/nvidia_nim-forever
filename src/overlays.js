@@ -572,18 +572,46 @@ export function createOverlayRenderers(state, deps) {
           ? (entry.isExpanded ? themeColors.infoBold('▼') : themeColors.dim('▶'))
           : themeColors.dim('•')
         
-        const rowLabel = entry.icon ? `${entry.icon} ${entry.label}` : entry.label
-        const plainLabel = truncatePlain(rowLabel, panelInnerWidth - indent.length - 4)
+        // 📖 Only use icon from entry, label should NOT include emoji
+        const iconPrefix = entry.icon ? `${entry.icon} ` : ''
+        const plainLabel = truncatePlain(entry.label, panelInnerWidth - indent.length - iconPrefix.length - 4)
         const label = entry.matchPositions ? highlightMatch(plainLabel, entry.matchPositions) : plainLabel
         
         let rowLine
         if (entry.type === 'category') {
-          rowLine = `${indent}${expandIndicator} ${themeColors.headerBold(label)}`
+          rowLine = `${indent}${expandIndicator} ${iconPrefix}${themeColors.headerBold(label)}`
         } else if (entry.type === 'subcategory') {
-          rowLine = `${indent}${expandIndicator} ${themeColors.textBold(label)}`
-        } else {
+          rowLine = `${indent}${expandIndicator} ${iconPrefix}${themeColors.textBold(label)}`
+        } else if (entry.type === 'page') {
+          // 📖 Pages are at root level with icon + label + shortcut + description
           const shortcut = entry.shortcut ? themeColors.dim(` (${entry.shortcut})`) : ''
-          rowLine = `${indent}  ${expandIndicator} ${label}${shortcut}`
+          const description = entry.description ? themeColors.dim(` — ${entry.description}`) : ''
+          rowLine = `${expandIndicator} ${iconPrefix}${themeColors.textBold(label)}${shortcut}${description}`
+        } else if (entry.type === 'action') {
+          // 📖 Actions are at root level with icon + label + shortcut + description
+          const shortcut = entry.shortcut ? themeColors.dim(` (${entry.shortcut})`) : ''
+          const description = entry.description ? themeColors.dim(` — ${entry.description}`) : ''
+          rowLine = `${expandIndicator} ${iconPrefix}${themeColors.textBold(label)}${shortcut}${description}`
+        } else {
+          // 📖 Regular commands in submenus
+          const shortcut = entry.shortcut ? themeColors.dim(` (${entry.shortcut})`) : ''
+          const description = entry.description ? themeColors.dim(` — ${entry.description}`) : ''
+          // 📖 Color tiers and providers
+          let coloredLabel = label
+          let prefixWithIcon = iconPrefix
+          
+          if (entry.providerKey && !entry.icon) {
+            // 📖 Model filter: add provider icon
+            const providerIcon = '🏢'
+            prefixWithIcon = `${providerIcon} `
+            coloredLabel = themeColors.provider(entry.providerKey, label, { bold: false })
+          } else if (entry.tier) {
+            coloredLabel = themeColors.tier(entry.tier, label)
+          } else if (entry.providerKey) {
+            coloredLabel = themeColors.provider(entry.providerKey, label, { bold: false })
+          }
+          
+          rowLine = `${indent}  ${expandIndicator} ${prefixWithIcon}${coloredLabel}${shortcut}${description}`
         }
 
         cursorLineByRow[idx] = panelLines.length
@@ -608,11 +636,11 @@ export function createOverlayRenderers(state, deps) {
 
     const query = state.commandPaletteQuery || ''
     const queryWithCursor = query.length > 0
-      ? themeColors.textBold(`${query}▏`)
-      : themeColors.dim('Search commands…') + themeColors.accentBold('▏')
+      ? `${query}${themeColors.accentBold('▏')}`
+      : themeColors.accentBold('▏') + themeColors.dim(' Search commands…')
 
     const headerLines = []
-    const title = themeColors.headerBold('⚡ Command Palette')
+    const title = themeColors.headerBold('⚡️ Command Palette')
     const titleLeft = ` ${title}`
     const titleRight = themeColors.dim('Esc')
     const titleWidth = Math.max(1, panelInnerWidth - 1 - displayWidth('Esc'))
@@ -723,7 +751,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push('')
     lines.push(`  ${heading('Controls')}`)
     lines.push(`  ${key('W')}  Toggle ping mode  ${hint('(speed 2s → normal 10s → slow 30s → forced 4s)')}`)
-    lines.push(`  ${key('Ctrl+P')}  Open command palette  ${hint('(search and run actions quickly)')}`)
+    lines.push(`  ${key('Ctrl+P')}  Open ⚡️ command palette  ${hint('(search and run actions quickly)')}`)
     lines.push(`  ${key('E')}  Toggle configured models only  ${hint('(enabled by default)')}`)
     lines.push(`  ${key('Z')}  Cycle tool mode  ${hint('(OpenCode → Desktop → OpenClaw → Crush → Goose → Pi → Aider → Qwen → OpenHands → Amp)')}`)
     lines.push(`  ${key('F')}  Toggle favorite on selected row  ${hint('(⭐ pinned at top, persisted)')}`)

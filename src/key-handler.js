@@ -654,7 +654,7 @@ export function createKeyHandler(ctx) {
   }
 
   function refreshCommandPaletteResults() {
-    const tree = buildCommandPaletteTree()
+    const tree = buildCommandPaletteTree(state.results || [])
     const flat = flattenCommandTree(tree, state.commandPaletteExpandedIds)
     state.commandPaletteResults = filterCommandPaletteEntries(flat, state.commandPaletteQuery)
 
@@ -708,7 +708,29 @@ export function createKeyHandler(ctx) {
     if (!entry?.id) return
 
     if (entry.id.startsWith('filter-tier-')) {
-      setTierFilterFromCommand(entry.tierValue ?? null)
+      setTierFilterFromCommand(entry.tier ?? null)
+      return
+    }
+
+    if (entry.id.startsWith('filter-provider-') && entry.id !== 'filter-provider-cycle') {
+      if (entry.providerKey === null || entry.providerKey === undefined) {
+        state.originFilterMode = 0 // All
+      } else {
+        state.originFilterMode = ORIGIN_CYCLE.findIndex(key => key === entry.providerKey) + 1
+        if (state.originFilterMode <= 0) state.originFilterMode = 0
+      }
+      applyTierFilter()
+      refreshVisibleSorted({ resetCursor: true })
+      persistUiSettings()
+      return
+    }
+
+    if (entry.id.startsWith('filter-model-')) {
+      if (entry.modelId && entry.providerKey) {
+        state.customTextFilter = `${entry.providerKey}/${entry.modelId}`
+        applyTierFilter()
+        refreshVisibleSorted({ resetCursor: true })
+      }
       return
     }
 

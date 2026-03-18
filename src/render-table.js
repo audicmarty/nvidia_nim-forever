@@ -637,8 +637,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     hotkey('K', ' Help')
   )
   // 📖 Line 2: command palette (highlighted as new), recommend, feedback, and extended hints.
-  // 📖 CTRL+P Command Palette uses neon-green-on-dark-green background to highlight the new feature.
-  const paletteLabel = chalk.bgRgb(0, 60, 0).rgb(57, 255, 20).bold(' NEW ! CTRL+P Command Palette ')
+  // 📖 CTRL+P ⚡️ Command Palette uses neon-green-on-dark-green background to highlight the feature.
+  const paletteLabel = chalk.bgRgb(0, 60, 0).rgb(57, 255, 20).bold(' NEW ! CTRL+P ⚡️ Command Palette ')
   lines.push(
     '  ' + paletteLabel + themeColors.dim(`  •  `) +
     hotkey('Q', ' Smart Recommend') + themeColors.dim(`  •  `) +
