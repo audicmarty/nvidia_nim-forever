@@ -471,6 +471,12 @@ export async function runApp(cliArgs, config) {
     changelogPhase: 'index',      // 📖 'index' (all versions) | 'details' (specific version)
     changelogCursor: 0,           // 📖 Selected row in index phase
     changelogSelectedVersion: null, // 📖 Which version to show details for
+    // 📖 Installed Models overlay state (Command Palette → Installed models)
+    installedModelsOpen: false,   // 📖 Whether the installed models overlay is active
+    installedModelsCursor: 0,     // 📖 Selected row (tool or model)
+    installedModelsScrollOffset: 0, // 📖 Vertical scroll offset for overlay viewport
+    installedModelsData: [],       // 📖 Cached scan results
+    installedModelsErrorMsg: null, // 📖 Error or status message
     // 📖 Custom text filter (Ctrl+P palette → type text → Enter). Ephemeral — not saved to config.
     customTextFilter: null,       // 📖 Active free-text filter string (null = off). Matches model name, ctx, provider key/name.
   }
@@ -951,7 +957,7 @@ export async function runApp(cliArgs, config) {
     refreshAutoPingMode()
     state.frame++
     // 📖 Cache visible+sorted models each frame so Enter handler always matches the display
-    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.commandPaletteOpen) {
+    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.installedModelsOpen && !state.commandPaletteOpen) {
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection, {
         pinFavorites: state.favoritesPinnedAndSticky,
@@ -1034,6 +1040,8 @@ export async function runApp(cliArgs, config) {
         ? overlays.renderInstallEndpoints()
       : state.toolInstallPromptOpen
         ? overlays.renderToolInstallPrompt()
+      : state.installedModelsOpen
+        ? overlays.renderInstalledModels()
       : state.incompatibleFallbackOpen
         ? overlays.renderIncompatibleFallback()
       : state.commandPaletteOpen

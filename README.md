@@ -229,6 +229,8 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 
 ## ⌨️ TUI Keys
 
+### Keyboard
+
 | Key | Action |
 |-----|--------|
 | `↑↓` | Navigate models |
@@ -250,6 +252,22 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 | `I` | Feedback / bug report |
 | `K` | Help overlay |
 | `Ctrl+C` | Exit |
+
+### Mouse
+
+| Action | Result |
+|--------|--------|
+| **Click column header** | Sort by that column |
+| **Click Tier header** | Cycle tier filter |
+| **Click CLI Tools header** | Cycle tool mode |
+| **Click model row** | Move cursor to model |
+| **Double-click model row** | Select and launch model |
+| **Right-click model row** | Toggle favorite |
+| **Scroll wheel** | Navigate table / overlays / palette |
+| **Click footer hotkey** | Trigger that action |
+| **Click command palette item** | Select item (double-click to confirm) |
+| **Click recommend option** | Select option (double-click to confirm) |
+| **Click outside modal** | Close command palette |
 
 → **[Stability score & column reference](./docs/stability.md)**
 

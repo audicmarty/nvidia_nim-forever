@@ -3,9 +3,35 @@
 
 ## [0.3.25] - 2026-03-19
 
+### Added
+- **Installed Models Manager** — View, launch, and disable models configured in external tools (Goose, Crush, Aider, Qwen, Pi, OpenHands, Amp)
+  - Access via Command Palette (Ctrl+P) → "Installed models"
+  - Scans all supported tool configs automatically on opening
+  - Displays all models per tool (e.g., Crush shows both large and small models)
+  - Actions: Launch (Enter), Disable (D) with backup, Reinstall (R)
+  - Soft delete: Comments out model entries and saves backups to ~/.free-coding-models-backups.json
+- **Full mouse support for the TUI** — Click, right-click, double-click, and scroll work throughout the interface
+  - **Click column headers** — Sort by any column (click Rank, Tier, SWE%, CTX, Model, Provider, etc.)
+  - **Click model rows** — Move cursor to any model (left-click)
+  - **Right-click model rows** — Toggle favorite (same as F key)
+  - **Double-click model rows** — Select model and launch (same as Enter)
+  - **Mouse wheel** — Scroll through the main table, overlays (Settings, Help, Changelog), and command palette results
+  - **Click CLI Tools header** — Cycle through tool modes (same as Z key)
+  - **Click Tier header** — Cycle through tier filters (same as T key)
+  - **Click footer hotkeys** — Trigger any visible hotkey from the footer
+  - **Command palette click** — Click inside to select items, double-click to confirm; click outside to close
+  - **Recommend questionnaire click** — Click on option rows to select, double-click to confirm
+- **Mouse unit tests** — 46 new tests covering SGR sequence parsing, double-click detection, modifiers, and COLUMN_SORT_MAP validation
+
 ### Changed
-- **Removed "CLI Tools" column** — The compat emoji column has been removed from the TUI table, freeing ~22 characters of horizontal space for other columns
-- **Cleaner table layout** — Responsive column hiding no longer needs to drop the compat column first on narrow terminals
+- **CLI Tools column redesigned** — Renamed from "Compatible with" to "CLI Tools", with left-aligned emoji display (compatible tools packed left instead of fixed slot positions)
+- **Sort arrow overflow fixed** — SWE%, CTX, Stability, and Uptime columns now properly fit within their widths when sorted (arrow now `↑SWE%` instead of `↑ SWE%`)
+- **Mouse sequence suppression** — SGR mouse sequences no longer leak into keypress handlers (prevents spurious sort/filter triggers when clicking)
+
+### Fixed
+- **Command palette scroll leak** — Mouse wheel no longer injects raw SGR sequence bytes into the command palette text input
+- **Double-action on model click** — Clicking a model row now only moves the cursor; it no longer simultaneously triggers column sorting
+- **Mouse event listener order** — Fixed race condition where readline emitted keypress events before mouse data was processed
 
 ## [0.3.24] - 2026-03-19
 

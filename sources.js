@@ -99,15 +99,13 @@ export const nvidiaNim = [
 // 📖 Free API keys available at https://console.groq.com/keys
 export const groq = [
   ['llama-3.3-70b-versatile',              'Llama 3.3 70B',      'A-', '39.5%', '128k'],
-  ['meta-llama/llama-4-scout-17b-16e-preview', 'Llama 4 Scout',  'A',  '44.0%', '10M'],
-  ['meta-llama/llama-4-maverick-17b-128e-preview', 'Llama 4 Maverick', 'S', '62.0%', '1M'],
-  ['deepseek-r1-distill-llama-70b',        'R1 Distill 70B',     'A',  '43.9%', '128k'],
-  ['qwen-qwq-32b',                         'QwQ 32B',            'A+', '50.0%', '131k'],
-  ['moonshotai/kimi-k2-instruct',          'Kimi K2 Instruct',   'S',  '65.8%', '131k'],
+  ['meta-llama/llama-4-scout-17b-16e-preview', 'Llama 4 Scout',  'A',  '44.0%', '131k'],
   ['llama-3.1-8b-instant',                 'Llama 3.1 8B',       'B',  '28.8%', '128k'],
   ['openai/gpt-oss-120b',                  'GPT OSS 120B',       'S',  '60.0%', '128k'],
   ['openai/gpt-oss-20b',                   'GPT OSS 20B',        'A',  '42.0%', '128k'],
   ['qwen/qwen3-32b',                       'Qwen3 32B',          'A+', '50.0%', '131k'],
+  ['groq/compound',                        'Groq Compound',      'A',  '45.0%', '131k'],
+  ['groq/compound-mini',                   'Groq Compound Mini', 'B+', '32.0%', '131k'],
 ]
 
 // 📖 Cerebras source - https://cloud.cerebras.ai
@@ -158,36 +156,43 @@ export const sambanova = [
 // 📖 API keys at https://openrouter.ai/keys
 export const openrouter = [
   ['qwen/qwen3-coder:free',                    'Qwen3 Coder 480B',   'S+', '70.6%', '262k'],
-  ['z-ai/glm-4.5-air:free',                    'GLM 4.5 Air',        'S+', '72.0%', '128k'],
-  ['google/gemma-3-27b-it:free',               'Gemma 3 27B',        'B',  '22.0%', '128k'],
+  ['minimax/minimax-m2.5:free',                'MiniMax M2.5',      'S+', '74.0%', '197k'],
+  ['z-ai/glm-4.5-air:free',                    'GLM 4.5 Air',        'S+', '72.0%', '131k'],
   ['stepfun/step-3.5-flash:free',              'Step 3.5 Flash',     'S+', '74.4%', '256k'],
-  ['qwen/qwen3-next-80b-a3b-instruct:free',    'Qwen3 80B Instruct', 'S',  '65.0%', '128k'],
-  ['openai/gpt-oss-120b:free',                 'GPT OSS 120B',       'S',  '60.0%', '128k'],
-  ['openai/gpt-oss-20b:free',                  'GPT OSS 20B',        'A',  '42.0%', '128k'],
+  ['nvidia/nemotron-3-super-120b-a12b:free',    'Nemotron 3 Super',  'A+', '56.0%', '262k'],
+  ['qwen/qwen3-next-80b-a3b-instruct:free',    'Qwen3 80B Instruct', 'S',  '65.0%', '131k'],
+  ['nousresearch/hermes-3-llama-3.1-405b:free',  'Hermes 3 405B',    'A',  '44.0%', '131k'],
+  ['openai/gpt-oss-120b:free',                 'GPT OSS 120B',       'S',  '60.0%', '131k'],
+  ['openai/gpt-oss-20b:free',                  'GPT OSS 20B',        'A',  '42.0%', '131k'],
   ['nvidia/nemotron-3-nano-30b-a3b:free',      'Nemotron Nano 30B',  'A',  '43.0%', '128k'],
-  ['meta-llama/llama-3.3-70b-instruct:free',   'Llama 3.3 70B',      'A-', '39.5%', '128k'],
+  ['meta-llama/llama-3.3-70b-instruct:free',   'Llama 3.3 70B',      'A-', '39.5%', '131k'],
   ['mistralai/mistral-small-3.1-24b-instruct:free', 'Mistral Small 3.1', 'B+', '30.0%', '128k'],
-  ['google/gemma-3-12b-it:free',               'Gemma 3 12B',        'C',  '15.0%', '128k'],
+  ['google/gemma-3-27b-it:free',               'Gemma 3 27B',        'B',  '22.0%', '131k'],
+  ['google/gemma-3-12b-it:free',               'Gemma 3 12B',        'C',  '15.0%', '131k'],
+  ['google/gemma-3n-e4b-it:free',              'Gemma 3n E4B',       'C',  '10.0%', '8k'],
 ]
 
 // 📖 Hugging Face Inference source - https://huggingface.co
 // 📖 OpenAI-compatible endpoint via router.huggingface.co/v1
 // 📖 Free monthly credits on developer accounts (~$0.10) — token at https://huggingface.co/settings/tokens
 export const huggingface = [
-  ['deepseek-ai/DeepSeek-V3-Coder',            'DeepSeek V3 Coder',  'S',  '62.0%', '128k'],
-  ['bigcode/starcoder2-15b',                   'StarCoder2 15B',     'B',  '25.0%', '16k'],
+  ['deepseek-ai/DeepSeek-V3-0324',             'DeepSeek V3 0324',   'S',  '62.0%', '128k'],
+  ['Qwen/Qwen2.5-Coder-32B-Instruct',          'Qwen2.5 Coder 32B',  'A',  '46.0%', '32k'],
 ]
 
 // 📖 Replicate source - https://replicate.com
 // 📖 Uses predictions endpoint (not OpenAI chat-completions) with token auth
 export const replicate = [
-  ['codellama/CodeLlama-70b-Instruct-hf',      'CodeLlama 70B',      'A-', '39.0%', '16k'],
+  ['deepseek-ai/DeepSeek-V3-0324',             'DeepSeek V3 0324',   'S',  '62.0%', '128k'],
+  ['meta/llama-3.3-70b-instruct',              'Llama 3.3 70B',      'A-', '39.5%', '128k'],
 ]
 
 // 📖 DeepInfra source - https://deepinfra.com
 // 📖 OpenAI-compatible endpoint: https://api.deepinfra.com/v1/openai/chat/completions
 export const deepinfra = [
-  ['mistralai/Mixtral-8x22B-Instruct-v0.1',    'Mixtral Code',       'B+', '32.0%', '64k'],
+  ['nvidia/Nemotron-3-Super',                  'Nemotron 3 Super',   'A+', '56.0%', '128k'],
+  ['deepseek-ai/DeepSeek-V3-0324',             'DeepSeek V3 0324',   'S',  '62.0%', '128k'],
+  ['Qwen/Qwen3-235B-A22B',                     'Qwen3 235B',         'S+', '70.0%', '128k'],
   ['meta-llama/Meta-Llama-3.1-70B-Instruct',   'Llama 3.1 70B',      'A-', '39.5%', '128k'],
 ]
 
@@ -197,6 +202,8 @@ export const deepinfra = [
 export const fireworks = [
   ['accounts/fireworks/models/deepseek-v3',    'DeepSeek V3',        'S',  '62.0%', '128k'],
   ['accounts/fireworks/models/deepseek-r1',    'DeepSeek R1',        'S',  '61.0%', '128k'],
+  ['accounts/fireworks/models/llama4-maverick-instruct-basic', 'Llama 4 Maverick', 'S', '62.0%', '1M'],
+  ['accounts/fireworks/models/qwen3-235b-a22b', 'Qwen3 235B',      'S+', '70.0%', '128k'],
 ]
 
 // 📖 Mistral Codestral source - https://codestral.mistral.ai
@@ -215,6 +222,7 @@ export const hyperbolic = [
   ['openai/gpt-oss-120b',                      'GPT OSS 120B',       'S',  '60.0%', '128k'],
   ['Qwen/Qwen3-235B-A22B',                     'Qwen3 235B',         'S+', '70.0%', '128k'],
   ['qwen/qwen3-next-80b-a3b-instruct',         'Qwen3 80B Instruct', 'S',  '65.0%', '128k'],
+  ['Qwen/Qwen3-Next-80B-A3B-Thinking',         'Qwen3 80B Thinking', 'S',  '68.0%', '128k'],
   ['deepseek-ai/DeepSeek-V3-0324',             'DeepSeek V3 0324',   'S',  '62.0%', '128k'],
   ['Qwen/Qwen2.5-Coder-32B-Instruct',          'Qwen2.5 Coder 32B',  'A',  '46.0%', '32k'],
   ['meta-llama/Llama-3.3-70B-Instruct',        'Llama 3.3 70B',      'A-', '39.5%', '128k'],
@@ -224,9 +232,10 @@ export const hyperbolic = [
 // 📖 Scaleway source - https://console.scaleway.com
 // 📖 1M free tokens — API keys at https://console.scaleway.com/iam/api-keys
 export const scaleway = [
-  ['devstral-2-123b-instruct-2512',            'Devstral 2 123B',    'S+', '72.2%', '256k'],
+  ['devstral-2-123b-instruct-2512',            'Devstral 2 123B',     'S+', '72.2%', '256k'],
+  ['qwen3.5-397b-a17b',                      'Qwen3.5 400B VLM',   'S',  '68.0%', '250k'],
+  ['mistral/mistral-large-3-675b-instruct-2512', 'Mistral Large 675B',  'A+', '58.0%', '250k'],
   ['qwen3-235b-a22b-instruct-2507',            'Qwen3 235B',         'S+', '70.0%', '128k'],
-  ['gpt-oss-120b',                             'GPT OSS 120B',       'S',  '60.0%', '128k'],
   ['qwen3-coder-30b-a3b-instruct',             'Qwen3 Coder 30B',    'A+', '55.0%', '32k'],
   ['llama-3.3-70b-instruct',                   'Llama 3.3 70B',      'A-', '39.5%', '128k'],
   ['deepseek-r1-distill-llama-70b',            'R1 Distill 70B',     'A',  '43.9%', '128k'],
@@ -272,6 +281,9 @@ export const siliconflow = [
 // 📖 Credits/promotions vary by account and region; verify current quota in console.
 export const together = [
   ['moonshotai/Kimi-K2.5',                     'Kimi K2.5',          'S+', '76.8%', '128k'],
+  ['Qwen/Qwen3.5-397B-A17B',                    'Qwen3.5 400B VLM',   'S',  '68.0%', '250k'],
+  ['MiniMaxAI/MiniMax-M2.5',                    'MiniMax M2.5',       'S+', '80.2%', '200k'],
+  ['zai-org/GLM-5',                             'GLM-5',              'S+', '77.8%', '128k'],
   ['Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',  'Qwen3 Coder 480B',   'S+', '70.6%', '256k'],
   ['deepseek-ai/DeepSeek-V3.1',                'DeepSeek V3.1',      'S',  '62.0%', '128k'],
   ['deepseek-ai/DeepSeek-R1',                  'DeepSeek R1',        'S',  '61.0%', '128k'],
@@ -285,7 +297,12 @@ export const together = [
 // 📖 https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions
 // 📖 Free plan includes daily neuron quota and provider-level request limits.
 export const cloudflare = [
+  ['@cf/moonshotai/kimi-k2.5',                'Kimi K2.5',         'S+', '76.8%', '256k'],
+  ['@cf/zhipu/glm-4.7-flash',               'GLM-4.7-Flash',     'S',  '59.2%', '131k'],
   ['@cf/openai/gpt-oss-120b',                  'GPT OSS 120B',       'S',  '60.0%', '128k'],
+  ['@cf/meta/llama-4-scout-17b-16e-instruct',  'Llama 4 Scout',    'A',  '44.0%', '131k'],
+  ['@cf/nvidia/nemotron-3-120b-a12b',           'Nemotron 3 Super', 'A+', '56.0%', '128k'],
+  ['@cf/qwen/qwen3-30b-a3b-fp8',               'Qwen3 30B MoE',    'A',  '45.0%', '128k'],
   ['@cf/qwen/qwen2.5-coder-32b-instruct',      'Qwen2.5 Coder 32B',  'A',  '46.0%', '32k'],
   ['@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', 'R1 Distill 32B', 'A',  '43.9%', '128k'],
   ['@cf/openai/gpt-oss-20b',                   'GPT OSS 20B',        'A',  '42.0%', '128k'],
@@ -350,7 +367,8 @@ export const iflow = [
 // 📖 Free tier: 5M tokens/day (beta) - Claude Sonnet 4 (72.7% SWE-bench)
 // 📖 Requires Atlassian account + Rovo Dev activated on your site
 export const rovo = [
-  ['anthropic/claude-sonnet-4',         'Claude Sonnet 4 🆕',   'S+', '72.7%', '200k'],
+  ['anthropic/claude-sonnet-4.6',       'Claude Sonnet 4.6',    'S+', '75.0%', '200k'],
+  ['anthropic/claude-opus-4.6',         'Claude Opus 4.6',      'S+', '80.0%', '200k'],
 ]
 
 // 📖 Gemini CLI source - https://github.com/google-gemini/gemini-cli

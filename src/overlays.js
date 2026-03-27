@@ -479,6 +479,114 @@ export function createOverlayRenderers(state, deps) {
     return cleared.join('\n')
   }
 
+  // ─── Installed Models Manager overlay renderer ─────────────────────────────
+  // 📖 renderInstalledModels displays all models configured in external tools
+  // 📖 Shows tool configs, model lists, and provides actions (Launch, Disable, Reinstall)
+  function renderInstalledModels() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+
+    lines.push('')
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.textBold('🗂️  Installed Models Manager')}`)
+    lines.push('')
+    lines.push(themeColors.dim('  — models configured in your tools'))
+
+    if (state.installedModelsErrorMsg) {
+      lines.push(`  ${themeColors.warning(state.installedModelsErrorMsg)}`)
+    }
+
+    if (state.installedModelsErrorMsg === 'Scanning...') {
+      lines.push(themeColors.dim('  Scanning tool configs, please wait...'))
+      const targetLine = 5
+      state.installedModelsScrollOffset = keepOverlayTargetVisible(
+        state.installedModelsScrollOffset,
+        targetLine,
+        lines.length,
+        state.terminalRows
+      )
+      const { visible, offset } = sliceOverlayLines(lines, state.installedModelsScrollOffset, state.terminalRows)
+      state.installedModelsScrollOffset = offset
+
+      overlayLayout.installedModelsCursorToLine = cursorLineByRow
+      overlayLayout.installedModelsScrollOffset = offset
+
+      const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+      const cleared = tintedLines.map((l) => l + EL)
+      return cleared.join('\n')
+    }
+
+    lines.push('')
+
+    const scanResults = state.installedModelsData || []
+
+    if (scanResults.length === 0) {
+      lines.push(themeColors.dim('  No tool configs found.'))
+      lines.push(themeColors.dim('  Install a tool (Goose, Crush, Aider, etc.) to get started.'))
+    } else {
+      let globalIdx = 0
+
+      for (const toolResult of scanResults) {
+        const { toolMode, toolLabel, toolEmoji, configPath, isValid, hasManagedMarker, models } = toolResult
+
+        lines.push('')
+        const isCursor = globalIdx === state.installedModelsCursor
+
+        const statusIcon = isValid ? themeColors.successBold('✅') : themeColors.errorBold('⚠️')
+        const toolHeader = `${bullet(isCursor)}${toolEmoji} ${themeColors.textBold(toolLabel)} ${statusIcon}`
+        cursorLineByRow[globalIdx++] = lines.length
+        lines.push(isCursor ? themeColors.bgCursor(toolHeader) : toolHeader)
+
+        const configShortPath = configPath.replace(process.env.HOME || homedir(), '~')
+        lines.push(`     ${themeColors.dim(configShortPath)}`)
+
+        if (!isValid) {
+          lines.push(themeColors.dim('     ⚠️  Config invalid or missing'))
+        } else if (models.length === 0) {
+          lines.push(themeColors.dim('     No models configured'))
+        } else {
+          const managedBadge = hasManagedMarker ? themeColors.info('• Managed by FCM') : themeColors.dim('• External config')
+          lines.push(`     ${themeColors.success(`${models.length} model${models.length > 1 ? 's' : ''} configured`)}  ${managedBadge}`)
+
+          for (const model of models) {
+            const isModelCursor = globalIdx === state.installedModelsCursor
+            const tierBadge = model.tier !== '-' ? themeColors.info(model.tier.padEnd(2)) : themeColors.dim('  ')
+            const externalBadge = model.isExternal ? themeColors.dim('[external]') : ''
+
+            const modelRow = `     • ${model.label} ${tierBadge} ${externalBadge}`
+            cursorLineByRow[globalIdx++] = lines.length
+            lines.push(isModelCursor ? themeColors.bgCursor(modelRow) : modelRow)
+
+            if (isModelCursor) {
+              lines.push(`        ${themeColors.dim('[Enter] Launch  [D] Disable')}`)
+            }
+          }
+        }
+      }
+    }
+
+    lines.push('')
+    lines.push(themeColors.dim('  ↑↓ Navigate  Enter=Launch  D=Disable  Esc=Close'))
+
+    const targetLine = cursorLineByRow[state.installedModelsCursor] ?? 0
+    state.installedModelsScrollOffset = keepOverlayTargetVisible(
+      state.installedModelsScrollOffset,
+      targetLine,
+      lines.length,
+      state.terminalRows
+    )
+    const { visible, offset } = sliceOverlayLines(lines, state.installedModelsScrollOffset, state.terminalRows)
+    state.installedModelsScrollOffset = offset
+
+    overlayLayout.installedModelsCursorToLine = cursorLineByRow
+    overlayLayout.installedModelsScrollOffset = offset
+
+    const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+    const cleared = tintedLines.map((l) => l + EL)
+    return cleared.join('\n')
+  }
+
   // ─── Missing-tool install confirmation overlay ────────────────────────────
   // 📖 renderToolInstallPrompt keeps the user inside the TUI long enough to
   // 📖 confirm the auto-install, then the key handler exits the alt screen and
@@ -1381,6 +1489,7 @@ export function createOverlayRenderers(state, deps) {
     renderRecommend,
     renderFeedback,
     renderChangelog,
+    renderInstalledModels,
     renderIncompatibleFallback,
     startRecommendAnalysis,
     stopRecommendAnalysis,

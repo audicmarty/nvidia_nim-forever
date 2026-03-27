@@ -35,6 +35,8 @@ import { getLastLayout, COLUMN_SORT_MAP } from './render-table.js'
 import { cycleThemeSetting, detectActiveTheme } from './theme.js'
 import { buildCommandPaletteTree, flattenCommandTree, filterCommandPaletteEntries } from './command-palette.js'
 import { WIDTH_WARNING_MIN_COLS } from './constants.js'
+import { scanAllToolConfigs, softDeleteModel } from './installed-models-manager.js'
+import { startExternalTool } from './tool-launchers.js'
 
 // 📖 Some providers need an explicit probe model because the first catalog entry
 // 📖 is not guaranteed to be accepted by their chat endpoint.
@@ -687,6 +689,21 @@ export function createKeyHandler(ctx) {
     state.changelogSelectedVersion = null
   }
 
+  function openInstalledModelsOverlay() {
+    state.installedModelsOpen = true
+    state.installedModelsCursor = 0
+    state.installedModelsScrollOffset = 0
+    state.installedModelsErrorMsg = 'Scanning...'
+
+    try {
+      const results = scanAllToolConfigs()
+      state.installedModelsData = results
+      state.installedModelsErrorMsg = null
+    } catch (err) {
+      state.installedModelsErrorMsg = err.message || 'Failed to scan tool configs'
+    }
+  }
+
   function cycleToolMode() {
     const modeOrder = getToolModeOrder()
     const currentIndex = modeOrder.indexOf(state.mode)
@@ -774,6 +791,7 @@ export function createKeyHandler(ctx) {
     return state.settingsOpen
       || state.installEndpointsOpen
       || state.toolInstallPromptOpen
+      || state.installedModelsOpen
       || state.recommendOpen
       || state.feedbackOpen
       || state.helpVisible
@@ -943,6 +961,7 @@ export function createKeyHandler(ctx) {
       case 'open-feedback': return openFeedbackOverlay()
       case 'open-recommend': return openRecommendOverlay()
       case 'open-install-endpoints': return openInstallEndpointsOverlay()
+      case 'open-installed-models': return openInstalledModelsOverlay()
       case 'action-cycle-theme': return cycleGlobalTheme()
       case 'action-cycle-tool-mode': return cycleToolMode()
       case 'action-cycle-ping-mode': {
@@ -1284,6 +1303,104 @@ export function createKeyHandler(ctx) {
 
         if (!shouldInstall || !selectedModel) return
         await installMissingToolAndLaunch(selectedModel, installPlan)
+      }
+
+      return
+    }
+
+    // ─── Installed Models overlay keyboard handling ───────────────────────────
+    if (state.installedModelsOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+
+      const scanResults = state.installedModelsData || []
+      let maxIndex = 0
+      for (const toolResult of scanResults) {
+        maxIndex += 1
+        maxIndex += toolResult.models.length
+      }
+      if (maxIndex > 0) maxIndex--
+
+      const pageStep = Math.max(1, (state.terminalRows || 1) - 4)
+
+      if (key.name === 'up' || (key.shift && key.name === 'tab')) {
+        state.installedModelsCursor = Math.max(0, state.installedModelsCursor - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'tab') {
+        state.installedModelsCursor = Math.min(maxIndex, state.installedModelsCursor + 1)
+        return
+      }
+      if (key.name === 'pageup') {
+        state.installedModelsCursor = Math.max(0, state.installedModelsCursor - pageStep)
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.installedModelsCursor = Math.min(maxIndex, state.installedModelsCursor + pageStep)
+        return
+      }
+      if (key.name === 'home') {
+        state.installedModelsCursor = 0
+        return
+      }
+      if (key.name === 'end') {
+        state.installedModelsCursor = maxIndex
+        return
+      }
+
+      if (key.name === 'escape') {
+        state.installedModelsOpen = false
+        state.installedModelsCursor = 0
+        return
+      }
+
+      if (key.name === 'return') {
+        let currentIdx = 0
+        for (const toolResult of scanResults) {
+          if (currentIdx === state.installedModelsCursor) {
+            return
+          }
+          currentIdx++
+          for (const model of toolResult.models) {
+            if (currentIdx === state.installedModelsCursor) {
+              const selectedModel = {
+                modelId: model.modelId,
+                providerKey: model.providerKey,
+                label: model.label,
+              }
+
+              state.installedModelsOpen = false
+              await startExternalTool(toolResult.toolMode, selectedModel, state.config)
+              return
+            }
+            currentIdx++
+          }
+        }
+      }
+
+      if (key.name === 'd') {
+        let currentIdx = 0
+        for (const toolResult of scanResults) {
+          currentIdx++
+          for (const model of toolResult.models) {
+            if (currentIdx === state.installedModelsCursor) {
+              softDeleteModel(toolResult.toolMode, model.modelId)
+                .then((result) => {
+                  if (result.success) {
+                    openInstalledModelsOverlay()
+                  } else {
+                    state.installedModelsErrorMsg = `Failed to disable: ${result.error}`
+                    setTimeout(() => { state.installedModelsErrorMsg = null }, 3000)
+                  }
+                })
+                .catch((err) => {
+                  state.installedModelsErrorMsg = `Failed to disable: ${err.message}`
+                  setTimeout(() => { state.installedModelsErrorMsg = null }, 3000)
+                })
+              return
+            }
+            currentIdx++
+          }
+        }
       }
 
       return
@@ -2327,6 +2444,22 @@ export function createMouseEventHandler(ctx) {
         }
         return
       }
+      if (state.installedModelsOpen) {
+        const scanResults = state.installedModelsData || []
+        let maxIndex = 0
+        for (const toolResult of scanResults) {
+          maxIndex += 1
+          maxIndex += toolResult.models.length
+        }
+        if (maxIndex > 0) maxIndex--
+
+        if (evt.type === 'scroll-up') {
+          state.installedModelsCursor = Math.max(0, (state.installedModelsCursor || 0) - 1)
+        } else {
+          state.installedModelsCursor = Math.min(maxIndex, (state.installedModelsCursor || 0) + 1)
+        }
+        return
+      }
 
       // 📖 Main table scroll: move cursor up/down with wrap-around
       const count = state.visibleSorted.length
@@ -2399,6 +2532,11 @@ export function createMouseEventHandler(ctx) {
     if (state.toolInstallPromptOpen) {
       // 📖 Tool install prompt: click closes (Escape equivalent)
       state.toolInstallPromptOpen = false
+      return
+    }
+
+    if (state.installedModelsOpen) {
+      state.installedModelsOpen = false
       return
     }
 

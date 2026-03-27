@@ -203,6 +203,7 @@ const BASE_COMMAND_TREE = [
   { id: 'open-feedback', label: 'Feedback', shortcut: 'I', icon: '📝', type: 'page', description: 'Report bugs or requests', keywords: ['feedback', 'bug', 'request'] },
   { id: 'open-recommend', label: 'Smart recommend', shortcut: 'Q', icon: '🎯', type: 'page', description: 'Find best model for task', keywords: ['recommend', 'best model'] },
   { id: 'open-install-endpoints', label: 'Install endpoints', icon: '🔌', type: 'page', description: 'Install provider catalogs', keywords: ['install', 'endpoints', 'providers'] },
+  { id: 'open-installed-models', label: 'Installed models', icon: '🗂️', type: 'page', description: 'View models configured in tools', keywords: ['installed', 'models', 'configured', 'tools', 'manager', 'goose', 'crush', 'aider'] },
 ]
 
 /**
