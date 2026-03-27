@@ -904,7 +904,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push('')
     lines.push(`  ${heading('Main TUI')}`)
     lines.push(`  ${heading('Navigation')}`)
-    lines.push(`  ${key('↑↓')}           Navigate rows`)
+    lines.push(`  ${key('↑↓ / J/K')}     Navigate rows  ${hint('(J/K = vim-style scroll)')}`)
     lines.push(`  ${key('Enter')}        Select model and launch`)
     lines.push(`              ${hint('If the active CLI is missing, FCM offers a one-click install prompt first.')}`)
     lines.push('')
@@ -923,7 +923,7 @@ export function createOverlayRenderers(state, deps) {
       // 📖 Profile system removed - API keys now persist permanently across all sessions
     lines.push(`  ${key('Shift+R')}  Reset view settings  ${hint('(tier filter, sort, provider filter → defaults)')}`)
     lines.push(`  ${key('N')}  Changelog  ${hint('(📋 browse all versions, Enter to view details)')}`)
-    lines.push(`  ${key('K')} / ${key('Esc')}  Show/hide this help`)
+    lines.push(`  ${key('Ctrl+H')} / ${key('Esc')}  Show/hide this help`)
     lines.push(`  ${key('Ctrl+C')}  Exit`)
     lines.push('')
     lines.push(`  ${heading('Settings (P)')}`)

@@ -1,6 +1,12 @@
 # Changelog
 ---
 
+## [0.3.27] - 2026-03-27
+
+### Fixed
+- **Auto-update now detects the correct package manager** — bun, pnpm, and yarn users no longer get duplicate npm installs (fixes #46)
+- Update banner in footer shows the correct install command for your package manager
+
 ## [0.3.26] - 2026-03-27
 
 ### Added

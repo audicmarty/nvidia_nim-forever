@@ -52,6 +52,7 @@ import { usagePlaceholderForProvider } from './ping.js'
 import { calculateViewport, sortResultsWithPinnedFavorites, padEndDisplay, displayWidth } from './render-helpers.js'
 import { getToolMeta, TOOL_METADATA, TOOL_MODE_ORDER, isModelCompatibleWithTool } from './tool-metadata.js'
 import { getColumnSpacing } from './ui-config.js'
+import { detectPackageManager, getManualInstallCmd } from './updater.js'
 
 const require = createRequire(import.meta.url)
 const { version: LOCAL_VERSION } = require('../package.json')
@@ -71,6 +72,7 @@ let _lastLayout = {
   hasAboveIndicator: false, // 📖 whether "... N more above ..." is shown
   hasBelowIndicator: false, // 📖 whether "... N more below ..." is shown
   footerHotkeys: [],  // 📖 Array of { key, row, xStart, xEnd } for footer click zones
+  updateBannerRow: 0, // 📖 1-based terminal row of the fluorescent update banner (0 = none)
 }
 export function getLastLayout() { return _lastLayout }
 
@@ -741,7 +743,9 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       { text: '  •  ', key: null },
       { text: 'P Settings', key: 'p' },
       { text: '  •  ', key: null },
-      { text: 'K Help', key: 'k' },
+      { text: 'J/K Navigate', key: null },
+      { text: '  •  ', key: null },
+      { text: 'Ctrl+H Help', key: 'ctrl+h' },
     ]
     const footerRow1 = lines.length + 1 // 📖 1-based terminal row (line hasn't been pushed yet)
     let xPos = 1
@@ -769,7 +773,9 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     themeColors.dim(`  •  `) +
     hotkey('P', ' Settings') +
     themeColors.dim(`  •  `) +
-    hotkey('K', ' Help')
+    themeColors.dim('J/K Navigate') +
+    themeColors.dim(`  •  `) +
+    themeColors.dim('Ctrl+H Help')
   )
 
   // 📖 Line 2: command palette, recommend, feedback, theme
@@ -803,7 +809,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     hotkey('G', ' Theme') + themeColors.dim(`  •  `) +
     hotkey('I', ' Feedback, bugs & requests')
   )
-  // 📖 Proxy status is now shown via the J badge in line 2 above — no need for a dedicated line
+  // 📖 Proxy status is now shown via the badge in line 2 above — no need for a dedicated line
   const footerLine =
     themeColors.footerLove('  Made with 💖 & ☕ by \x1b]8;;https://github.com/vava-nessa\x1b\\vava-nessa\x1b]8;;\x1b\\') +
     themeColors.dim('  •  ') +
@@ -823,12 +829,17 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   lines.push(footerLine)
 
   if (versionStatus.isOutdated) {
-    const outdatedMessage = `  ⚠ Update available: v${LOCAL_VERSION} -> v${versionStatus.latestVersion}. If auto-update did not complete, run: npm install -g free-coding-models@latest`
+    const updateMsg = `  🚀⬆️ UPDATE AVAILABLE — v${LOCAL_VERSION} → v${versionStatus.latestVersion}  •  Click here or press U to update  🚀⬆️  `
     const paddedBanner = terminalCols > 0
-      ? outdatedMessage + ' '.repeat(Math.max(0, terminalCols - displayWidth(outdatedMessage)))
-      : outdatedMessage
-    // 📖 Reserve a dedicated full-width red row so the warning cannot blend into the footer links.
-    lines.push(chalk.bgRed.white.bold(paddedBanner))
+      ? updateMsg + ' '.repeat(Math.max(0, terminalCols - displayWidth(updateMsg)))
+      : updateMsg
+    const fluoGreenBanner = chalk.bgRgb(57, 255, 20).rgb(0, 0, 0).bold(paddedBanner)
+    const updateBannerRow = lines.length + 1
+    _lastLayout.updateBannerRow = updateBannerRow
+    footerHotkeys.push({ key: 'update-click', row: updateBannerRow, xStart: 1, xEnd: Math.max(terminalCols, displayWidth(updateMsg)) })
+    lines.push(fluoGreenBanner)
+  } else {
+    _lastLayout.updateBannerRow = 0
   }
 
   // 📖 Final footer line: changelog + optional active text-filter badge + exit hint.

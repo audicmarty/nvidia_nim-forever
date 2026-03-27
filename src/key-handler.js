@@ -982,6 +982,10 @@ export function createKeyHandler(ctx) {
     if (!key) return
     noteUserActivity()
 
+    // 📖 Ctrl+C: always exit immediately, checked FIRST to prevent any other key binding from swallowing it.
+    // 📖 Also handles the raw \x03 byte as a fallback for terminals where readline doesn't set key.ctrl properly.
+    if ((key.ctrl && key.name === 'c') || str === '\x03') { exit(0); return }
+
     // 📖 Ctrl+P toggles the command palette from the main table only.
     if (key.ctrl && key.name === 'p') {
       if (state.commandPaletteOpen) {
@@ -1555,12 +1559,12 @@ export function createKeyHandler(ctx) {
     // 📖 Help overlay: full keyboard navigation + key swallowing while overlay is open.
     if (state.helpVisible) {
       const pageStep = Math.max(1, (state.terminalRows || 1) - 2)
-      if (key.name === 'escape' || key.name === 'k') {
+      if (key.name === 'escape' || (key.ctrl && key.name === 'h')) {
         state.helpVisible = false
         return
       }
-      if (key.name === 'up') { state.helpScrollOffset = Math.max(0, state.helpScrollOffset - 1); return }
-      if (key.name === 'down') { state.helpScrollOffset += 1; return }
+      if (key.name === 'up' || key.name === 'k') { state.helpScrollOffset = Math.max(0, state.helpScrollOffset - 1); return }
+      if (key.name === 'down' || key.name === 'j') { state.helpScrollOffset += 1; return }
       if (key.name === 'pageup') { state.helpScrollOffset = Math.max(0, state.helpScrollOffset - pageStep); return }
       if (key.name === 'pagedown') { state.helpScrollOffset += pageStep; return }
       if (key.name === 'home') { state.helpScrollOffset = 0; return }
@@ -2169,8 +2173,8 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Help overlay key: K = toggle help overlay
-    if (key.name === 'k') {
+    // 📖 Help overlay key: Ctrl+H = toggle help overlay
+    if (key.ctrl && key.name === 'h') {
       state.helpVisible = !state.helpVisible
       if (state.helpVisible) state.helpScrollOffset = 0
       return
@@ -2194,8 +2198,8 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    if (key.name === 'up') {
-      // 📖 Main list wrap navigation: top -> bottom on Up.
+    if (key.name === 'up' || key.name === 'k') {
+      // 📖 Main list wrap navigation: top -> bottom on Up / K (vim-style).
       const count = state.visibleSorted.length
       if (count === 0) return
       state.cursor = state.cursor > 0 ? state.cursor - 1 : count - 1
@@ -2203,17 +2207,12 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    if (key.name === 'down') {
-      // 📖 Main list wrap navigation: bottom -> top on Down.
+    if (key.name === 'down' || key.name === 'j') {
+      // 📖 Main list wrap navigation: bottom -> top on Down / J (vim-style).
       const count = state.visibleSorted.length
       if (count === 0) return
       state.cursor = state.cursor < count - 1 ? state.cursor + 1 : 0
       adjustScrollOffset(state)
-      return
-    }
-
-    if (key.name === 'c' && key.ctrl) { // Ctrl+C
-      exit(0)
       return
     }
 

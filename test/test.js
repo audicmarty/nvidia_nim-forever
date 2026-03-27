@@ -48,6 +48,7 @@ import { renderTable } from '../src/render-table.js'
 import { createOverlayRenderers } from '../src/overlays.js'
 import { buildProviderModelsUrl, parseProviderModelIds, listProviderTestModels, classifyProviderTestOutcome, buildProviderTestDetail } from '../src/key-handler.js'
 import { buildCliHelpText } from '../src/cli-help.js'
+import { detectPackageManager, getInstallArgs, getManualInstallCmd } from '../src/updater.js'
 import {
   buildToolEnv,
   prepareExternalToolLaunch,
@@ -884,7 +885,7 @@ describe('renderTable outdated footer banner', () => {
     )
 
     assert.match(output, new RegExp(`Update available: v${escapeRegex(localVersion)} -> v9\\.9\\.9`))
-    assert.match(output, /npm install -g free-coding-models@latest/)
+    assert.match(output, /free-coding-models@latest/)
     assert.match(output, /⚠ Update available:.*\x1B\[K\n.*N Changelog.*Ctrl\+C Exit/)
   })
 
@@ -3180,5 +3181,62 @@ describe('COLUMN_SORT_MAP', () => {
     for (const col of expected) {
       assert.ok(col in COLUMN_SORT_MAP, `missing column: ${col}`)
     }
+  })
+})
+
+describe('detectPackageManager', () => {
+  it('returns a valid package manager string', () => {
+    const pm = detectPackageManager()
+    assert.ok(['npm', 'bun', 'pnpm', 'yarn'].includes(pm), `unexpected pm: ${pm}`)
+  })
+})
+
+describe('getInstallArgs', () => {
+  it('returns npm install args by default', () => {
+    const { bin, args } = getInstallArgs('npm', '1.0.0')
+    assert.equal(bin, 'npm')
+    assert.deepEqual(args, ['i', '-g', 'free-coding-models@1.0.0', '--prefer-online'])
+  })
+
+  it('returns bun install args', () => {
+    const { bin, args } = getInstallArgs('bun', '1.0.0')
+    assert.equal(bin, 'bun')
+    assert.deepEqual(args, ['add', '-g', 'free-coding-models@1.0.0'])
+  })
+
+  it('returns pnpm install args', () => {
+    const { bin, args } = getInstallArgs('pnpm', '1.0.0')
+    assert.equal(bin, 'pnpm')
+    assert.deepEqual(args, ['add', '-g', 'free-coding-models@1.0.0'])
+  })
+
+  it('returns yarn install args', () => {
+    const { bin, args } = getInstallArgs('yarn', '1.0.0')
+    assert.equal(bin, 'yarn')
+    assert.deepEqual(args, ['global', 'add', 'free-coding-models@1.0.0'])
+  })
+
+  it('falls back to npm for unknown pm', () => {
+    const { bin, args } = getInstallArgs('unknown', '1.0.0')
+    assert.equal(bin, 'npm')
+    assert.deepEqual(args, ['i', '-g', 'free-coding-models@1.0.0', '--prefer-online'])
+  })
+})
+
+describe('getManualInstallCmd', () => {
+  it('returns npm command string', () => {
+    assert.equal(getManualInstallCmd('npm', '2.0.0'), 'npm i -g free-coding-models@2.0.0 --prefer-online')
+  })
+
+  it('returns bun command string', () => {
+    assert.equal(getManualInstallCmd('bun', '2.0.0'), 'bun add -g free-coding-models@2.0.0')
+  })
+
+  it('returns pnpm command string', () => {
+    assert.equal(getManualInstallCmd('pnpm', '2.0.0'), 'pnpm add -g free-coding-models@2.0.0')
+  })
+
+  it('returns yarn command string', () => {
+    assert.equal(getManualInstallCmd('yarn', '2.0.0'), 'yarn global add free-coding-models@2.0.0')
   })
 })

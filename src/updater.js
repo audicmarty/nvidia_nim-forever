@@ -12,11 +12,10 @@
  *   - `checkForUpdate()` — thin backward-compatible wrapper used at startup for the
  *     auto-update guard.  Returns `latestVersion` (string) or `null`.
  *
- *   - `runUpdate(latestVersion)` — runs `npm i -g free-coding-models@<version> --prefer-online`,
- *     retrying with `sudo` on EACCES/EPERM.  On success, relaunches the process with the
- *     same argv.  On failure, prints manual instructions and exits with code 1.
- *     Uses `require('child_process').execSync` inline because ESM dynamic import is async
- *     but `execSync` must block to give `stdio: 'inherit'` feedback in the terminal.
+ *   - `runUpdate(latestVersion)` — detects the active package manager (npm/bun/pnpm/yarn),
+ *     runs the correct global install command, retrying with `sudo` on EACCES/EPERM.
+ *     On success, relaunches the process with the same argv.  On failure, prints manual
+ *     instructions (using the correct PM command) and exits with code 1.
  *
  *   - `promptUpdateNotification(latestVersion)` — renders a small centered interactive menu
  *     that lets the user choose: Update Now / Read Changelogs / Continue without update.
@@ -29,14 +28,21 @@
  *     can be imported independently from the bin entry point.
  *   - The auto-update flow in `main()` skips update if `isDevMode` is detected (presence of
  *     a `.git` directory next to the package root) to avoid an infinite update loop in dev.
+ *   - `detectPackageManager()` checks the install path, script path, and runtime binary
+ *     to determine which package manager (npm/bun/pnpm/yarn) owns the installation.
+ *     All install commands, permission probes, and error messages use the detected PM.
  *
  * @functions
+ *   → detectPackageManager()             — Detect which PM owns the current installation
+ *   → getInstallArgs(pm, version)        — Build correct { bin, args } per package manager
+ *   → getManualInstallCmd(pm, version)   — Human-readable install command string for error messages
  *   → checkForUpdateDetailed()           — Fetch npm latest with explicit error info
  *   → checkForUpdate()                   — Startup wrapper, returns version string or null
- *   → runUpdate(latestVersion)           — Install new version via npm global + relaunch
+ *   → runUpdate(latestVersion)           — Install new version via detected PM + relaunch
  *   → promptUpdateNotification(version)  — Interactive pre-TUI update menu
  *
  * @exports
+ *   detectPackageManager, getInstallArgs, getManualInstallCmd,
  *   checkForUpdateDetailed, checkForUpdate, runUpdate, promptUpdateNotification
  *
  * @see bin/free-coding-models.js — calls checkForUpdate() at startup and runUpdate() on confirm
@@ -50,6 +56,50 @@ const require = createRequire(import.meta.url)
 const readline = require('readline')
 const pkg = require('../package.json')
 const LOCAL_VERSION = pkg.version
+
+/**
+ * 📖 detectPackageManager: figure out which package manager owns the current installation.
+ * 📖 Checks import.meta.url (package install path), process.argv[1] (script entry),
+ * 📖 and process.execPath (runtime binary) for signatures of bun, pnpm, or yarn.
+ * 📖 Falls back to 'npm' when no other signature is found.
+ * @returns {'npm' | 'bun' | 'pnpm' | 'yarn'}
+ */
+export function detectPackageManager() {
+  const sources = [import.meta.url, process.argv[1] || '', process.execPath || '']
+  const combined = sources.join(' ').toLowerCase()
+  if (combined.includes('.bun')) return 'bun'
+  if (combined.includes('pnpm')) return 'pnpm'
+  if (combined.includes('yarn')) return 'yarn'
+  return 'npm'
+}
+
+/**
+ * 📖 getInstallArgs: return the correct binary and argument list for a given PM.
+ * 📖 Each PM has different syntax for global install — this normalises them.
+ * @param {'npm' | 'bun' | 'pnpm' | 'yarn'} pm
+ * @param {string} version
+ * @returns {{ bin: string, args: string[] }}
+ */
+export function getInstallArgs(pm, version) {
+  const pkg = `free-coding-models@${version}`
+  switch (pm) {
+    case 'bun':   return { bin: 'bun',   args: ['add', '-g', pkg] }
+    case 'pnpm':  return { bin: 'pnpm',  args: ['add', '-g', pkg] }
+    case 'yarn':  return { bin: 'yarn',  args: ['global', 'add', pkg] }
+    default:      return { bin: 'npm',   args: ['i', '-g', pkg, '--prefer-online'] }
+  }
+}
+
+/**
+ * 📖 getManualInstallCmd: human-readable command string for error / fallback messages.
+ * @param {'npm' | 'bun' | 'pnpm' | 'yarn'} pm
+ * @param {string} version
+ * @returns {string}
+ */
+export function getManualInstallCmd(pm, version) {
+  const { bin, args } = getInstallArgs(pm, version)
+  return `${bin} ${args.join(' ')}`
+}
 
 /**
  * 📖 checkForUpdateDetailed: Fetch npm latest version with explicit error details.
@@ -79,26 +129,41 @@ export async function checkForUpdate() {
 }
 
 /**
- * 📖 detectGlobalInstallPermission: check whether npm global install paths are writable.
- * 📖 On sudo-based systems (Arch, many Linux/macOS setups), `npm i -g` will fail with EACCES
- * 📖 if the current user cannot write to the resolved global root/prefix.
- * 📖 We probe those paths ahead of time so the updater can go straight to an interactive
- * 📖 `sudo npm i -g ...` instead of printing a wall of permission errors first.
+ * 📖 detectGlobalInstallPermission: check whether the detected PM's global install paths are writable.
+ * 📖 Bun installs to ~/.bun/install/global/ (always user-writable) so sudo is never needed.
+ * 📖 For npm/pnpm/yarn we probe their global root/prefix paths and check writability.
+ * @param {'npm' | 'bun' | 'pnpm' | 'yarn'} pm
  * @returns {{ needsSudo: boolean, checkedPath: string|null }}
  */
-function detectGlobalInstallPermission() {
+function detectGlobalInstallPermission(pm) {
+  if (pm === 'bun') {
+    return { needsSudo: false, checkedPath: null }
+  }
+
   const { execFileSync } = require('child_process')
   const candidates = []
 
-  try {
-    const npmRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
-    if (npmRoot) candidates.push(npmRoot)
-  } catch {}
+  if (pm === 'pnpm') {
+    try {
+      const root = execFileSync('pnpm', ['root', '-g'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      if (root) candidates.push(root)
+    } catch {}
+  } else if (pm === 'yarn') {
+    try {
+      const dir = execFileSync('yarn', ['global', 'dir'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      if (dir) candidates.push(dir)
+    } catch {}
+  } else {
+    try {
+      const npmRoot = execFileSync('npm', ['root', '-g'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      if (npmRoot) candidates.push(npmRoot)
+    } catch {}
 
-  try {
-    const npmPrefix = execFileSync('npm', ['prefix', '-g'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
-    if (npmPrefix) candidates.push(npmPrefix)
-  } catch {}
+    try {
+      const npmPrefix = execFileSync('npm', ['prefix', '-g'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      if (npmPrefix) candidates.push(npmPrefix)
+    } catch {}
+  }
 
   for (const candidate of candidates) {
     try {
@@ -162,20 +227,21 @@ function relaunchCurrentProcess() {
 }
 
 /**
- * 📖 installUpdateCommand: run npm global install, optionally prefixed with sudo.
+ * 📖 installUpdateCommand: run global install using the detected package manager, optionally prefixed with sudo.
  * @param {string} latestVersion
  * @param {boolean} useSudo
  */
 function installUpdateCommand(latestVersion, useSudo) {
   const { execFileSync } = require('child_process')
-  const npmArgs = ['i', '-g', `free-coding-models@${latestVersion}`, '--prefer-online']
+  const pm = detectPackageManager()
+  const { bin, args } = getInstallArgs(pm, latestVersion)
 
   if (useSudo) {
-    execFileSync('sudo', ['npm', ...npmArgs], { stdio: 'inherit', shell: false })
+    execFileSync('sudo', [bin, ...args], { stdio: 'inherit', shell: false })
     return
   }
 
-  execFileSync('npm', npmArgs, { stdio: 'inherit', shell: false })
+  execFileSync(bin, args, { stdio: 'inherit', shell: false })
 }
 
 /**
@@ -189,19 +255,17 @@ export function runUpdate(latestVersion) {
   console.log(chalk.bold.cyan('  ⬆ Updating free-coding-models to v' + latestVersion + '...'))
   console.log()
 
-  const { needsSudo, checkedPath } = detectGlobalInstallPermission()
+  const pm = detectPackageManager()
+  const { needsSudo, checkedPath } = detectGlobalInstallPermission(pm)
   const sudoAvailable = process.platform !== 'win32' && hasSudoCommand()
 
   if (needsSudo && checkedPath && sudoAvailable) {
-    console.log(chalk.yellow(`  ⚠ Global npm path is not writable: ${checkedPath}`))
+    console.log(chalk.yellow(`  ⚠ Global ${pm} path is not writable: ${checkedPath}`))
     console.log(chalk.dim('  Re-running update with sudo so you can enter your password once.'))
     console.log()
   }
 
   try {
-    // 📖 Force install from npm registry (ignore local cache).
-    // 📖 If the global install path is not writable, go straight to sudo instead of
-    // 📖 letting npm print a long EACCES stack first.
     installUpdateCommand(latestVersion, needsSudo && sudoAvailable)
     console.log()
     console.log(chalk.green(`  ✅ Update complete! Version ${latestVersion} installed.`))
@@ -209,9 +273,10 @@ export function runUpdate(latestVersion) {
     relaunchCurrentProcess()
     return
   } catch (err) {
+    const manualCmd = getManualInstallCmd(pm, latestVersion)
     console.log()
     if (isPermissionError(err) && !needsSudo && sudoAvailable) {
-      console.log(chalk.yellow('  ⚠ Permission denied during npm global install. Retrying with sudo...'))
+      console.log(chalk.yellow(`  ⚠ Permission denied during ${pm} global install. Retrying with sudo...`))
       console.log()
       try {
         installUpdateCommand(latestVersion, true)
@@ -223,15 +288,15 @@ export function runUpdate(latestVersion) {
       } catch {
         console.log()
         console.log(chalk.red('  ✖ Update failed even with sudo. Try manually:'))
-        console.log(chalk.dim('    sudo npm i -g free-coding-models@' + latestVersion))
+        console.log(chalk.dim(`    sudo ${manualCmd}`))
         console.log()
       }
     } else if (isPermissionError(err) && !sudoAvailable && process.platform !== 'win32') {
       console.log(chalk.red('  ✖ Update failed due to permissions and `sudo` is not available in PATH.'))
-      console.log(chalk.dim(`    Try manually with your system's privilege escalation tool for free-coding-models@${latestVersion}.`))
+      console.log(chalk.dim(`    Try manually: ${manualCmd}`))
       console.log()
     } else {
-      console.log(chalk.red('  ✖ Update failed. Try manually: npm i -g free-coding-models@' + latestVersion))
+      console.log(chalk.red(`  ✖ Update failed. Try manually: ${manualCmd}`))
       console.log()
     }
   }
