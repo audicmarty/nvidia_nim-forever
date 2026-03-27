@@ -130,7 +130,9 @@ If the active CLI tool is missing, FCM now catches it before launch, offers a ti
 
 > 💡 You can also run `free-coding-models --goose --tier S` to pre-filter to S-tier models for Goose before the TUI even opens.
 
-
+<p align="center">
+  <img src="demo2.gif" alt="free-coding-models TUI demo" width="100%">
+</p>
 
 ## 🚀 Usage
 
