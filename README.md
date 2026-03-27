@@ -245,6 +245,7 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 | `G` | Cycle global theme (`Auto → Dark → Light`) |
 | `Ctrl+P` | Open ⚡️ command palette (search + run actions) |
 | `R/S/C/M/O/L/A/H/V/B/U` | Sort columns |
+| `Shift+U` | Update to latest version (when update available) |
 | `P` | Settings (API keys, providers, updates, theme) |
 | `Q` | Smart Recommend overlay |
 | `N` | Changelog |
@@ -265,6 +266,7 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 | **Right-click model row** | Toggle favorite |
 | **Scroll wheel** | Navigate table / overlays / palette |
 | **Click footer hotkey** | Trigger that action |
+| **Click update banner** | Install latest version and relaunch |
 | **Click command palette item** | Select item (double-click to confirm) |
 | **Click recommend option** | Select option (double-click to confirm) |
 | **Click outside modal** | Close command palette |
@@ -290,8 +292,10 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 - **OpenCode Zen models** — 8 free models exclusive to OpenCode CLI/Desktop, powered by the Zen AI gateway
 - **Width guardrail** — shows a warning instead of a broken table in narrow terminals
 - **Readable everywhere** — semantic theme palette keeps table rows, overlays, badges, and help screens legible in dark and light terminals
-- **Global theme switch** — `G` cycles `auto`, `dark`, and `light` live without restarting
+- **Global theme switch** — `G` cycles `auto`, `dark`, + `light` live without restarting
 - **Auto-retry** — timeout models keep getting retried
+- **Aggressive update nudging** — fluorescent green banner when an update is available, impossible to miss, Shift+U hotkey, command palette entry, background re-check every 5 min, mid-session updates the banner live without restarting
+- **Last release timestamp** — light pink footer shows `Last release: Mar 27, 2026, 09:42 PM` from npm so users know how fresh the data is
 
 ---
 

@@ -112,7 +112,7 @@ import { runFiableMode, filterByTierOrExit, fetchOpenRouterFreeModels } from '..
 import { PROVIDER_METADATA, ENV_VAR_NAMES, isWindows, isMac } from '../src/provider-metadata.js'
 import { parseTelemetryEnv, isTelemetryDebugEnabled, telemetryDebug, ensureTelemetryConfig, getTelemetryDistinctId, getTelemetrySystem, getTelemetryTerminal, isTelemetryEnabled, sendUsageTelemetry, sendBugReport } from '../src/telemetry.js'
 import { ensureFavoritesConfig, toFavoriteKey, syncFavoriteFlags, toggleFavoriteModel } from '../src/favorites.js'
-import { checkForUpdateDetailed, checkForUpdate, runUpdate, promptUpdateNotification } from '../src/updater.js'
+import { checkForUpdateDetailed, checkForUpdate, runUpdate, promptUpdateNotification, fetchLastReleaseDate } from './updater.js'
 import { promptApiKey } from '../src/setup.js'
 import { stripAnsi, maskApiKey, displayWidth, padEndDisplay, tintOverlayLines, keepOverlayTargetVisible, sliceOverlayLines, calculateViewport, sortResultsWithPinnedFavorites, adjustScrollOffset } from '../src/render-helpers.js'
 import { renderTable, PROVIDER_COLOR } from '../src/render-table.js'
@@ -295,6 +295,8 @@ export async function runApp(cliArgs, config) {
   // 📖 Dynamic OpenRouter free model discovery — fetch live free models from API
   // 📖 Replaces static openrouter entries in MODELS with fresh data.
   // 📖 Fallback: if fetch fails, the static list from sources.js stays intact + warning shown.
+  const lastReleaseDate = await fetchLastReleaseDate()
+  state.lastReleaseDate = lastReleaseDate
   const dynamicModels = await fetchOpenRouterFreeModels()
   if (dynamicModels) {
     // 📖 Remove all existing openrouter entries from MODELS
@@ -381,6 +383,7 @@ export async function runApp(cliArgs, config) {
     lastUserActivityAt: now,      // 📖 Any keypress refreshes this timer; inactivity can force slow mode.
     resumeSpeedOnActivity: false, // 📖 Set after idle slowdown so the next activity restarts a 60s speed burst.
     startupLatestVersion: latestVersion, // 📖 Startup auto-check result reused by the footer banner after "skip update".
+    lastReleaseDate: null,               // 📖 Human-readable last npm publish date (fetched asynchronously).
     versionAlertsEnabled: !isDevMode, // 📖 Dev checkouts should not tell contributors to upgrade the global npm package.
     mode,                         // 📖 'opencode' or 'openclaw' — controls Enter action
     tierFilterMode: 0,            // 📖 Index into TIER_CYCLE (0=All, 1=S+, 2=S, ...)
@@ -673,10 +676,10 @@ export async function runApp(cliArgs, config) {
 
   // 📖 Ensure we always leave alt screen cleanly (Ctrl+C, crash, normal exit)
   const exit = (code = 0) => {
-    // 📖 Save cache before exiting so next run starts faster
     saveCache(state.results, state.pingMode)
     clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
+    clearInterval(state.versionRecheckTimer)
     process.stdout.write(ALT_LEAVE)
     if (process.stdout.isTTY) {
       process.stdout.flush && process.stdout.flush()
@@ -743,6 +746,7 @@ export async function runApp(cliArgs, config) {
   const stopUi = ({ resetRawMode = false } = {}) => {
     if (ticker) clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
+    clearInterval(state.versionRecheckTimer)
     if (onKeyPress) process.stdin.removeListener('keypress', onKeyPress)
     if (onMouseData) process.stdin.removeListener('data', onMouseData)
     if (process.stdin.isTTY && resetRawMode) process.stdin.setRawMode(false)
@@ -996,7 +1000,8 @@ export async function runApp(cliArgs, config) {
           state.startupLatestVersion,
           state.versionAlertsEnabled,
           state.favoritesPinnedAndSticky,
-          state.customTextFilter
+          state.customTextFilter,
+          state.lastReleaseDate
         )
       }
       tableContent = state.commandPaletteFrozenTable
@@ -1030,7 +1035,8 @@ export async function runApp(cliArgs, config) {
         state.startupLatestVersion,
         state.versionAlertsEnabled,
         state.favoritesPinnedAndSticky,
-        state.customTextFilter
+        state.customTextFilter,
+        state.lastReleaseDate
       )
     }
 
@@ -1074,7 +1080,7 @@ export async function runApp(cliArgs, config) {
     pinFavorites: state.favoritesPinnedAndSticky,
   })
 
-      process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, null, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed, state.widthWarningShowCount, state.settingsUpdateState, state.settingsUpdateLatestVersion, false, state.startupLatestVersion, state.versionAlertsEnabled, state.favoritesPinnedAndSticky, state.customTextFilter))
+      process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, null, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed, state.widthWarningShowCount, state.settingsUpdateState, state.settingsUpdateLatestVersion, false, state.startupLatestVersion, state.versionAlertsEnabled, state.favoritesPinnedAndSticky, state.customTextFilter, state.lastReleaseDate))
   if (process.stdout.isTTY) {
     process.stdout.flush && process.stdout.flush()
   }
@@ -1148,6 +1154,19 @@ export async function runApp(cliArgs, config) {
 
   // 📖 Save cache after initial pings complete for faster next startup
   saveCache(state.results, state.pingMode)
+
+  // 📖 Background version re-check: poll npm registry every 5 minutes.
+  // 📖 If a new version appears (wasn't there at startup), update the banner live.
+  const VERSION_RECHECK_INTERVAL_MS = 5 * 60 * 1000
+  state.versionRecheckTimer = setInterval(async () => {
+    if (isDevMode || !state.versionAlertsEnabled) return
+    try {
+      const fresh = await checkForUpdate()
+      if (fresh) {
+        state.startupLatestVersion = fresh
+      }
+    } catch {}
+  }, VERSION_RECHECK_INTERVAL_MS)
 
   // 📖 Keep interface running forever - user can select anytime or Ctrl+C to exit
   // 📖 The pings continue running in background with dynamic interval

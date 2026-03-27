@@ -3,6 +3,15 @@
 
 ## [0.3.27] - 2026-03-27
 
+### Added
+- **Fluorescent green UPDATE AVAILABLE banner** — impossible-to-miss fluo green (🚀⬆️) banner at the bottom of the TUI when a new version is detected; click it to update instantly
+- **Command Palette update entry** — `⬆️ UPDATE NOW` is always the first result in Ctrl+P when an update is available
+- **Shift+U hotkey** — press Shift+U from the main table to trigger an immediate update
+- **Mouse-clickable update banner** — click the fluo green banner to install the latest version and relaunch
+- **Background version re-check every 5 minutes** — if a new version is published while the TUI is open, the banner appears live without restarting
+- **Aggressive pre-TUI update prompt** — fluorescent green header, and "Continue without update" warns that reminders will follow
+- **Last release date in footer** — light pink `Last release: Mar 27, 2026, 09:42 PM` shows when the package was last published to npm, so users know how fresh the model data is
+
 ### Fixed
 - **Auto-update now detects the correct package manager** — bun, pnpm, and yarn users no longer get duplicate npm installs (fixes #46)
 - Update banner in footer shows the correct install command for your package manager

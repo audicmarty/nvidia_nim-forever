@@ -884,9 +884,9 @@ describe('renderTable outdated footer banner', () => {
       true
     )
 
-    assert.match(output, new RegExp(`Update available: v${escapeRegex(localVersion)} -> v9\\.9\\.9`))
-    assert.match(output, /free-coding-models@latest/)
-    assert.match(output, /⚠ Update available:.*\x1B\[K\n.*N Changelog.*Ctrl\+C Exit/)
+    assert.match(output, new RegExp(`UPDATE AVAILABLE — v${escapeRegex(localVersion)} → v9\\.9\\.9`))
+    assert.match(output, /Click here or press Shift\+U to update/)
+    assert.match(output, /UPDATE AVAILABLE.*\x1B\[K\n.*N Changelog.*Ctrl\+C Exit/)
   })
 
   it('stays quiet when no newer version is known', () => {
@@ -895,7 +895,7 @@ describe('renderTable outdated footer banner', () => {
     ]
     const output = renderTable(results, 0, 0, null, 'avg', 'asc', 10_000, Date.now(), 'opencode', 0, 0, 20, 190)
 
-    assert.doesNotMatch(output, /Update available:/)
+    assert.doesNotMatch(output, /UPDATE AVAILABLE/)
   })
 
   it('shows the active custom text filter badge between changelog and exit hints', () => {
@@ -970,7 +970,7 @@ describe('renderTable outdated footer banner', () => {
       false
     )
 
-    assert.doesNotMatch(output, /Update available:/)
+    assert.doesNotMatch(output, /UPDATE AVAILABLE/)
   })
 
   it('skips the narrow-terminal overlay when terminal width is 80 columns or wider', () => {

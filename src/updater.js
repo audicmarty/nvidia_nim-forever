@@ -129,6 +129,32 @@ export async function checkForUpdate() {
 }
 
 /**
+ * 📖 fetchLastReleaseDate: Get the human-readable publish date of the latest npm release.
+ * 📖 Used in the TUI footer to show users how fresh the package is.
+ * @returns {Promise<string|null>} e.g. "Mar 27, 2026, 09:42 PM" or null on failure
+ */
+export async function fetchLastReleaseDate() {
+  try {
+    const res = await fetch('https://registry.npmjs.org/free-coding-models', { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const timeMap = data?.time
+    if (!timeMap) return null
+    const latestKey = data?.['dist-tags']?.latest
+    if (!latestKey || !timeMap[latestKey]) return null
+    const d = new Date(timeMap[latestKey])
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const hh = d.getHours()
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    const h12 = hh % 12 || 12
+    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}, ${h12}:${mm} ${ampm}`
+  } catch {
+    return null
+  }
+}
+
+/**
  * 📖 detectGlobalInstallPermission: check whether the detected PM's global install paths are writable.
  * 📖 Bun installs to ~/.bun/install/global/ (always user-writable) so sudo is never needed.
  * 📖 For npm/pnpm/yarn we probe their global root/prefix paths and check writability.
@@ -329,7 +355,7 @@ export async function promptUpdateNotification(latestVersion) {
       {
         label: 'Continue without update',
         icon: '▶',
-        description: 'Use current version',
+        description: '⚠ You will be reminded again in the TUI',
       },
     ]
 
@@ -343,8 +369,8 @@ export async function promptUpdateNotification(latestVersion) {
       const centerPad = ' '.repeat(Math.max(0, Math.floor((terminalWidth - maxWidth) / 2)))
 
       console.log()
-      console.log(centerPad + chalk.bold.red('  ⚠ UPDATE AVAILABLE'))
-      console.log(centerPad + chalk.red(`  Version ${latestVersion} is ready to install`))
+      console.log(centerPad + chalk.bold.rgb(57, 255, 20)('  🚀⬆️ UPDATE AVAILABLE'))
+      console.log(centerPad + chalk.rgb(57, 255, 20)(`  Version ${latestVersion} is ready to install`))
       console.log()
       console.log(centerPad + chalk.bold('  ⚡ Free Coding Models') + chalk.dim(` v${LOCAL_VERSION}`))
       console.log()

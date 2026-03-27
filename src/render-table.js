@@ -104,7 +104,7 @@ export const PROVIDER_COLOR = new Proxy({}, {
 })
 
 // ─── renderTable: mode param controls footer hint text (opencode vs openclaw) ─────────
-export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null) {
+export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null, lastReleaseDate = null) {
   // 📖 Filter out hidden models for display
   const visibleResults = results.filter(r => !r.hidden)
 
@@ -829,7 +829,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   lines.push(footerLine)
 
   if (versionStatus.isOutdated) {
-    const updateMsg = `  🚀⬆️ UPDATE AVAILABLE — v${LOCAL_VERSION} → v${versionStatus.latestVersion}  •  Click here or press U to update  🚀⬆️  `
+    const updateMsg = `  🚀⬆️ UPDATE AVAILABLE — v${LOCAL_VERSION} → v${versionStatus.latestVersion}  •  Click here or press Shift+U to update  🚀⬆️  `
     const paddedBanner = terminalCols > 0
       ? updateMsg + ' '.repeat(Math.max(0, terminalCols - displayWidth(updateMsg)))
       : updateMsg
@@ -883,13 +883,18 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   _lastLayout.footerHotkeys = footerHotkeys
 
+  const releaseLabel = lastReleaseDate
+    ? chalk.rgb(255, 182, 193)(`Last release: ${lastReleaseDate}`)
+    : ''
+
   lines.push(
     '  ' + themeColors.hotkey('N') + themeColors.dim(' Changelog') +
     (filterBadge
       ? themeColors.dim('  •  ') + filterBadge
       : '') +
     themeColors.dim('  •  ') +
-    themeColors.dim('Ctrl+C Exit')
+    themeColors.dim('Ctrl+C Exit') +
+    (releaseLabel ? themeColors.dim('  •  ') + releaseLabel : '')
   )
 
   // 📖 Append \x1b[K (erase to EOL) to each line so leftover chars from previous

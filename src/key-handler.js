@@ -843,6 +843,21 @@ export function createKeyHandler(ctx) {
       })
     }
 
+    // 📖 Inject a high-priority update entry at the top when a newer version is known.
+    const updateVersion = state.startupLatestVersion
+    if (updateVersion && state.versionAlertsEnabled) {
+      state.commandPaletteResults.unshift({
+        id: 'action-update-now',
+        label: `⬆️ UPDATE NOW — v${updateVersion} available (recommended!)`,
+        type: 'command',
+        depth: 0,
+        hasChildren: false,
+        isExpanded: false,
+        updateVersion,
+        keywords: ['update', 'upgrade', 'version', 'install'],
+      })
+    }
+
     if (state.commandPaletteCursor >= state.commandPaletteResults.length) {
       state.commandPaletteCursor = Math.max(0, state.commandPaletteResults.length - 1)
     }
@@ -868,6 +883,14 @@ export function createKeyHandler(ctx) {
 
   function executeCommandPaletteEntry(entry) {
     if (!entry?.id) return
+
+    // 📖 Update action: stop TUI cleanly and run the npm update + relaunch.
+    if (entry.id === 'action-update-now' && entry.updateVersion) {
+      closeCommandPalette()
+      stopUi({ resetRawMode: true })
+      runUpdate(entry.updateVersion)
+      return
+    }
 
     if (entry.id.startsWith('action-set-ping-') && entry.pingMode) {
       setPingMode(entry.pingMode, 'manual')
@@ -2104,6 +2127,13 @@ export function createKeyHandler(ctx) {
       return
     }
 
+    // 📖 Shift+U: trigger immediate update when a newer version is known.
+    if (key.name === 'u' && key.shift && state.startupLatestVersion && state.versionAlertsEnabled) {
+      stopUi({ resetRawMode: true })
+      runUpdate(state.startupLatestVersion)
+      return
+    }
+
     // 📖 Sorting keys: R=rank, O=origin, M=model, L=latest ping, A=avg ping, S=SWE-bench, C=context, H=health, V=verdict, B=stability, U=uptime, G=usage
     // 📖 T is reserved for tier filter cycling. Y toggles favorites display mode.
     // 📖 X clears the active custom text filter.
@@ -2690,6 +2720,12 @@ export function createMouseEventHandler(ctx) {
     if (layout.footerHotkeys && layout.footerHotkeys.length > 0) {
       const zone = layout.footerHotkeys.find(z => y === z.row && x >= z.xStart && x <= z.xEnd)
       if (zone) {
+        // 📖 Update banner click: stop TUI and run the npm update + relaunch.
+        if (zone.key === 'update-click' && state.startupLatestVersion && state.versionAlertsEnabled) {
+          stopUi({ resetRawMode: true })
+          runUpdate(state.startupLatestVersion)
+          return
+        }
         // 📖 Map the footer zone key to a synthetic keypress.
         // 📖 Most are single-character keys; special cases like ctrl+p need special handling.
         if (zone.key === 'ctrl+p') {
