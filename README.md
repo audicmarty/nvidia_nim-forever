@@ -9,6 +9,10 @@
 <h1 align="center">free-coding-models</h1>
 
 <p align="center">
+  🐦 Follow me on <a href="https://x.com/vavanessadev"><strong>X (@vavanessadev)</strong></a> 💖
+</p>
+
+<p align="center">
   <strong>Find the fastest free coding model in seconds</strong><br>
   <sub>Ping 174 models across 23 AI Free providers in real-time </sub><br><sub> Install Free API endpoints to your favorite AI coding tool: <br>📦 OpenCode, 🦞 OpenClaw, 💘 Crush, 🪿 Goose, 🛠 Aider, 🐉 Qwen Code, 🤲 OpenHands, ⚡ Amp, π Pi, 🦘 Rovo or ♊ Gemini in one keystroke</sub>
 </p>

@@ -882,11 +882,11 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     ? chalk.rgb(255, 182, 193)(`Last release: ${lastReleaseDate}`)
     : ''
 
-  const xSupport = chalk.rgb(255, 182, 193)('🐦 Support me on X: ') +
-    '\x1b]8;;https://x.com/vavanessa_dev\x1b\\' +
-    chalk.cyan('@vavanessa_dev') +
+  const xSupportBg = chalk.bgRgb(255, 0, 128).rgb(255, 255, 255).bold('🐦 Support me on X: ') +
+    '\x1b]8;;https://x.com/vavanessadev\x1b\\' +
+    chalk.bgRgb(255, 0, 128).rgb(255, 255, 0).bold('@vavanessadev') +
     '\x1b]8;;\x1b\\' +
-    chalk.rgb(255, 182, 193)(' 💖')
+    chalk.bgRgb(255, 0, 128).rgb(255, 255, 255).bold(' 💖')
 
   lines.push(
     '  ' + themeColors.hotkey('N') + themeColors.dim(' Changelog') +
@@ -896,7 +896,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     themeColors.dim('  •  ') +
     themeColors.dim('Ctrl+C Exit') +
     (releaseLabel ? themeColors.dim('  •  ') + releaseLabel : '') +
-    themeColors.dim('  •  ') + xSupport
+    themeColors.dim('  •  ') + xSupportBg
   )
 
   // 📖 Discord link at the very bottom of the TUI
