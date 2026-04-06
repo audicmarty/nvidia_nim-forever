@@ -1,6 +1,19 @@
 # Changelog
 ---
 
+# Changelog
+---
+
+## [0.3.36] - 2026-04-07
+
+### Changed
+- **Removed X/Twitter references** — no more `🐦 Follow me on X` links in README and TUI footer
+- **Discord link more prominent** in TUI footer (replaced X banner)
+
+- README cleaned up — removed X follow paragraph entirely
+
+- Now 238 models across 25 providers
+
 ## [0.3.35] - 2026-04-07
 
 ### Added
