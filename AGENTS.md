@@ -78,144 +78,112 @@ When new PRs are merged, add the contributor's GitHub handle to the footer in `b
 - @whit3rabbit
 - @PhucTruong-ctrl
 
-## Testing the TUI with terminalcp
+## Testing the TUI with agent-tui
 
-The project's TUI is built with raw ANSI escape codes + chalk. To visually test TUI behavior:
+The project's TUI is built with raw ANSI escape codes + chalk. To visually test TUI behavior, use **agent-tui** — a PTY-based TUI automation tool that lets the AI agent spawn, screenshot, and interact with the terminal app.
 
 ### Setup
 
-`terminalcp` is installed as a devDependency (`pnpm add -D @mariozechner/terminalcp`). To enable it in Claude Code, add this to `~/.claude/settings.json`:
+`agent-tui` is installed as a devDependency (`pnpm add -D agent-tui`). All commands run through `npx agent-tui`.
 
-```json
-{
-  "mcpServers": {
-    "terminalcp": {
-      "command": "pnpm",
-      "args": ["dlx", "@mariozechner/terminalcp", "--mcp"]
-    }
-  }
-}
+**One-time:** Start the daemon before any TUI testing session:
+
+```bash
+npx agent-tui daemon start
 ```
 
-It allows spawning the TUI, reading its output, and sending keystrokes.
+### Core Commands
 
-**Project reference:** See `.claude-mcp.json` for local MCP configuration details.
+All commands below use `npx agent-tui <command>`. The daemon manages sessions in the background.
 
-### Usage
-
-**Spawn the TUI:**
-```json
-{
-  "action": "start",
-  "command": "node bin/free-coding-models.js",
-  "name": "tui"
-}
-```
-
-**Read the current output:**
-```json
-{
-  "action": "stdout",
-  "id": "tui"
-}
-```
-
-**Send keystrokes:** Each keystroke is a separate call:
-```json
-{
-  "action": "stdin",
-  "id": "tui",
-  "data": "T"
-}
-```
-
-For arrow keys:
-- `↓` Down: `"\u001b[B"`
-- `↑` Up: `"\u001b[A"`
-- `Enter`: `"\r"`
-- `Ctrl+C` (exit): `"\u0003"`
-
-**Stop the TUI:**
-```json
-{
-  "action": "stop",
-  "id": "tui"
-}
-```
+| Command | What it does |
+|---------|-------------|
+| `npx agent-tui run --cols 120 --rows 40 -- node bin/free-coding-models.js` | Spawn the TUI in a virtual terminal |
+| `npx agent-tui run -- node /full/path/to/bin/free-coding-models.js --tier S` | Spawn with CLI flags (use full path) |
+| `npx agent-tui screenshot` | Capture current screen as text |
+| `npx agent-tui screenshot --strip-ansi` | Capture screen without ANSI colors |
+| `npx agent-tui screenshot --json` | Capture as JSON (includes session_id) |
+| `npx agent-tui press T` | Send a key press |
+| `npx agent-tui press ArrowDown ArrowDown Enter` | Send multiple keys |
+| `npx agent-tui press Ctrl+C` | Send Ctrl+C |
+| `npx agent-tui type "search text"` | Type literal text |
+| `npx agent-tui wait "Provider" -t 5000` | Wait for text to appear (5s timeout) |
+| `npx agent-tui wait --stable` | Wait for screen to stop changing |
+| `npx agent-tui kill` | Kill the current session |
+| `npx agent-tui sessions` | List active sessions |
+| `npx agent-tui sessions cleanup --all` | Clean up all dead sessions |
 
 ### Key Reference
 
 | Key | Action | Use Case |
 |-----|--------|----------|
-| **T** | Cycle tier filter | Test filtering logic (All → S+ → S → A+ → A → A- → B+ → B → C → All) |
-| **P** | Open Settings screen | Test API key config, enable/disable providers |
-| **Z** | Cycle mode | Test mode switching (OpenCode CLI → Desktop → OpenClaw) |
-| **R** | Sort by rank | Verify rank-based sorting |
-| **Y** | Sort by tier | Verify tier-based sorting |
-| **O** | Sort by origin | Verify origin-based sorting |
-| **M** | Sort by model name | Verify model name sorting |
-| **L** | Sort by latest ping | Verify ping sorting |
-| **A** | Sort by avg ping | Verify average ping sorting |
-| **S** | Sort by SWE score | Verify SWE score sorting |
-| **N** | Sort by context window | Verify context window sorting |
-| **H** | Sort by health/condition | Verify health-based sorting |
-| **V** | Sort by verdict | Verify verdict sorting |
-| **U** | Sort by uptime | Verify uptime sorting |
-| **↑/↓** | Navigate rows | Move cursor up/down |
-| **Enter** | Select model | Choose model |
-| **Ctrl+C** | Exit | Quit the TUI |
+| `T` | Cycle tier filter | Test filtering (All → S+ → S → A+ → A → A- → B+ → B → C → All) |
+| `P` | Open Settings screen | Test API key config, enable/disable providers |
+| `Z` | Cycle mode | Test mode switching (OpenCode CLI → Desktop → OpenClaw) |
+| `R` | Sort by rank | Verify rank-based sorting |
+| `Y` | Sort by tier | Verify tier-based sorting |
+| `O` | Sort by origin | Verify origin-based sorting |
+| `M` | Sort by model name | Verify model name sorting |
+| `L` | Sort by latest ping | Verify ping sorting |
+| `A` | Sort by avg ping | Verify average ping sorting |
+| `S` | Sort by SWE score | Verify SWE score sorting |
+| `N` | Sort by context window | Verify context window sorting |
+| `H` | Sort by health/condition | Verify health-based sorting |
+| `V` | Sort by verdict | Verify verdict sorting |
+| `U` | Sort by uptime | Verify uptime sorting |
+| `↑`/`↓` | Navigate rows | Move cursor up/down |
+| `Enter` | Select model | Choose model |
+| `Ctrl+C` | Exit | Quit the TUI |
 
 ### Example Test Flow
 
-```
-1. Spawn: {"action": "start", "command": "node bin/free-coding-models.js", "name": "tui"}
-2. Read: {"action": "stdout", "id": "tui"} → Verify table is visible
-3. Send T: {"action": "stdin", "id": "tui", "data": "T"}
-4. Read: {"action": "stdout", "id": "tui"} → Verify filter changed to S+
-5. Send Down: {"action": "stdin", "id": "tui", "data": "\u001b[B"}
-6. Read: {"action": "stdout", "id": "tui"} → Verify cursor moved
-7. Stop: {"action": "stop", "id": "tui"}
+```bash
+# 1. Ensure daemon is running
+npx agent-tui daemon start
+
+# 2. Spawn the TUI (use full path)
+npx agent-tui run --cols 120 --rows 40 -- node /Users/vava/Documents/GitHub/free-coding-models/bin/free-coding-models.js
+
+# 3. Wait for it to render, then screenshot
+npx agent-tui wait --stable
+npx agent-tui screenshot --strip-ansi
+
+# 4. Test tier filter — press T, wait, verify
+npx agent-tui press T
+npx agent-tui wait --stable
+npx agent-tui screenshot --strip-ansi
+
+# 5. Test navigation — press Down twice
+npx agent-tui press ArrowDown ArrowDown
+npx agent-tui wait --stable
+npx agent-tui screenshot --strip-ansi
+
+# 6. Clean up
+npx agent-tui kill
 ```
 
-### When Should the Agent Use terminalcp?
+### When Should the Agent Use agent-tui?
 
-Use `terminalcp` MCP when:
+Use `agent-tui` when:
 
 - **Visual Testing Needed** — Changes affect TUI rendering, layout, colors, or formatting
 - **Interaction Testing** — New keypress handlers, filters, or navigation logic
 - **Regression Detection** — Verify existing flows still work after code changes
 - **User-Facing Features** — Settings screen, mode switching, tier filtering
 
-**Do NOT use terminalcp** for:
+**Do NOT use agent-tui** for:
 - Unit test verification (use `pnpm test` instead)
 - Code-only logic changes (use tests for pure functions)
-- Build errors (use `pnpm build` or `pnpm start`)
+- Build errors (use `pnpm build:web` or `pnpm start`)
 
-### What terminalcp Can Do
+### Tips
 
-| Task | How | Why |
-|------|-----|-----|
-| **Verify TUI renders** | Spawn → read stdout → check for table, headers, rows | Catch ANSI formatting breaks, truncated text, rendering issues |
-| **Test filtering** | Send "T" → read output → verify S+ tier models visible | Ensure filter logic reflects in UI |
-| **Test sorting** | Send "R" → read output → verify rank order | Verify sort order updates dynamically |
-| **Test navigation** | Send arrow keys → read output → verify cursor position | Catch navigation handler bugs |
-| **Test mode switching** | Send "Z" → read output → verify mode text changed | Ensure multi-mode logic works end-to-end |
-| **Catch visual glitches** | Inspect output for duplicate rows, misaligned columns, missing text | Prevent users from seeing broken layouts |
-
-### Example: Verify a Feature with terminalcp
-
-If you add a new feature to the TUI (e.g., new sort key "X"), test it:
-
-```
-1. Spawn TUI
-2. Read initial state
-3. Send "X" keystroke
-4. Read output → verify new sort order in table
-5. Send Up/Down → verify cursor navigation still works with new data
-6. Stop TUI
-```
-
-This gives **visual verification** that your code changes actually work in the rendered output, not just in logic tests.
+- Always `npx agent-tui daemon start` before the first `run` — it's idempotent (no-op if already running)
+- Use `--strip-ansi` for screenshots you want to parse/log — removes color codes
+- Use `--json` for programmatic parsing of screenshot data
+- Use `npx agent-tui wait --stable` after key presses to avoid reading mid-render
+- Use `npx agent-tui sessions cleanup --all` if sessions get stuck
+- The daemon persists across test runs — no need to restart between sessions
 
 ---
 

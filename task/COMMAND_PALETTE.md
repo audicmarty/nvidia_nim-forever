@@ -300,7 +300,7 @@ Implementer une **Command Palette TUI** (style VS Code), ouverte avec **Ctrl+P**
 
 ---
 
-## Phase 10 - Tests manuels TUI (terminalcp)
+## Phase 10 - Tests manuels TUI (agent-tui)
 
 ### Scenarios minimaux
 - [ ] Ouvrir palette via `Ctrl+P` (visible au centre).
@@ -372,7 +372,7 @@ Implementer une **Command Palette TUI** (style VS Code), ouverte avec **Ctrl+P**
 - [ ] Aide/README/changelog a jour.
 - [ ] `pnpm test` green.
 - [ ] `pnpm start` sans runtime error.
-- [ ] Verification visuelle terminalcp validee.
+- [ ] Verification visuelle agent-tui validee.
 
 ---
 
