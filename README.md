@@ -39,6 +39,7 @@ create a free account on one of the [providers](#-list-of-free-ai-providers)
   <a href="#-features">✨ Features</a> •
   <a href="#-contributing">📋 Contributing</a> •
   <a href="#️-model-licensing--commercial-use">⚖️ Licensing</a> •
+  <a href="#-telemetry">📊 Telemetry</a> •
   <a href="#️-security--trust">🛡️ Security</a> •
   <a href="#-support">📧 Support</a> •
   <a href="#-license">📄 License</a>
@@ -366,6 +367,21 @@ For every model in this tool, **you own the generated output** — code, text, o
 5. **API-served models** (Claude, Gemini, Perplexity) grant full output ownership under their terms of service
 
 > ⚠️ **Disclaimer:** This is a summary, not legal advice. License terms can change. Always verify the current license on the model's official page before making legal decisions.
+
+---
+
+## 📊 Telemetry
+
+`free-coding-models` collects anonymous usage telemetry to help understand how the CLI is used and improve the product. No personal information, API keys, prompts, source code, file paths, or secrets are ever collected.
+
+The telemetry payload is limited to anonymous product analytics such as the app version, selected mode, operating system, terminal family, and a random anonymous install ID stored locally on your machine.
+
+Telemetry is enabled by default and can be disabled with any of the following:
+
+| Method | How |
+|--------|-----|
+| CLI flag | Run `free-coding-models --no-telemetry` |
+| Environment variable | Set `FREE_CODING_MODELS_TELEMETRY=0` (also supports `false` or `off`) |
 
 ---
 
