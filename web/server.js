@@ -11,6 +11,7 @@
  *   GET /styles.css    → Dashboard styles
  *   GET /app.js        → Dashboard client JS
  *   GET /api/models    → All model metadata (JSON)
+ *   GET /api/health    → Lightweight dashboard health probe
  *   GET /api/config    → Current config (sanitized — masked keys)
  *   GET /api/key/:prov → Reveal a provider's full API key
  *   GET /api/events    → SSE stream of live ping results
@@ -32,6 +33,7 @@ import {
 } from '../src/utils.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const SERVER_SIGNATURE = 'free-coding-models-web'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -215,6 +217,8 @@ function serveDistFile(res, pathname) {
 }
 
 function handleRequest(req, res) {
+  res.setHeader('X-FCM-Server', SERVER_SIGNATURE)
+
   // CORS for local dev
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -263,6 +267,11 @@ function handleRequest(req, res) {
     case '/api/models':
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(getModelsPayload()))
+      break
+
+    case '/api/health':
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, app: SERVER_SIGNATURE }))
       break
 
     case '/api/config':
@@ -335,6 +344,40 @@ function checkPortInUse(port) {
   })
 }
 
+export async function inspectExistingWebServer(port) {
+  const inUse = await checkPortInUse(port)
+  if (!inUse) return { inUse: false, isFcm: false }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 750)
+
+  try {
+    // 📖 Probe a tiny health route so we only reuse a port when the running
+    // 📖 process is actually the free-coding-models dashboard, not any random app.
+    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    })
+    const payload = await response.json().catch(() => null)
+    const signature = response.headers.get('x-fcm-server')
+    return {
+      inUse: true,
+      isFcm: signature === SERVER_SIGNATURE || payload?.app === SERVER_SIGNATURE,
+    }
+  } catch {
+    return { inUse: true, isFcm: false }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export async function findAvailablePort(startPort, maxAttempts = 20) {
+  for (let port = startPort; port < startPort + maxAttempts; port++) {
+    if (!(await checkPortInUse(port))) return port
+  }
+  throw new Error(`No free local port found between ${startPort} and ${startPort + maxAttempts - 1}`)
+}
+
 function openBrowser(url) {
   const cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'start'
@@ -346,11 +389,12 @@ function openBrowser(url) {
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export async function startWebServer(port = 3333, { open = true } = {}) {
-  const alreadyRunning = await checkPortInUse(port)
-  const url = `http://localhost:${port}`
+export async function startWebServer(port = 3333, { open = true, startPingLoop = true } = {}) {
+  const portStatus = await inspectExistingWebServer(port)
 
-  if (alreadyRunning) {
+  if (portStatus.inUse && portStatus.isFcm) {
+    const url = `http://localhost:${port}`
+
     console.log()
     console.log(`  ⚡ free-coding-models Web Dashboard already running`)
     console.log(`  🌐 ${url}`)
@@ -359,9 +403,21 @@ export async function startWebServer(port = 3333, { open = true } = {}) {
     return null
   }
 
-  const server = createServer(handleRequest)
+  let resolvedPort = port
+  if (portStatus.inUse && !portStatus.isFcm) {
+    resolvedPort = await findAvailablePort(port + 1)
+    console.log()
+    console.log(`  ⚠️ Port ${port} is already in use by another local app`)
+    console.log(`  ↪ Starting free-coding-models Web Dashboard on port ${resolvedPort} instead`)
+    console.log()
+  }
 
-  server.listen(port, () => {
+  const url = `http://localhost:${resolvedPort}`
+
+  const server = createServer(handleRequest)
+  let pingLoopTimer = null
+
+  server.listen(resolvedPort, () => {
     console.log()
     console.log(`  ⚡ free-coding-models Web Dashboard`)
     console.log(`  🌐 ${url}`)
@@ -373,10 +429,15 @@ export async function startWebServer(port = 3333, { open = true } = {}) {
   })
 
   async function schedulePingLoop() {
+    if (!server.listening) return
     await pingAllModels()
-    setTimeout(schedulePingLoop, 10_000)
+    pingLoopTimer = setTimeout(schedulePingLoop, 10_000)
   }
-  schedulePingLoop()
+
+  if (startPingLoop) schedulePingLoop()
+  server.on('close', () => {
+    if (pingLoopTimer) clearTimeout(pingLoopTimer)
+  })
 
   return server
 }

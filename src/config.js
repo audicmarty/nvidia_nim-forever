@@ -102,6 +102,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { syncShellEnv } from './shell-env.js'
 
 // 📖 New JSON config path — stores all providers' API keys + enabled state
 export const CONFIG_PATH = join(homedir(), '.free-coding-models.json')
@@ -484,6 +485,12 @@ export function saveConfig(config, options = {}) {
       }
 
       replaceConfigContents(config, persistedConfig)
+
+      // 📖 Keep shell env file in sync when enabled
+      if (persistedConfig.settings?.shellEnvEnabled) {
+        try { syncShellEnv(persistedConfig) } catch { /* non-critical */ }
+      }
+
       return { success: true, backupCreated }
     } catch (verifyError) {
       // 📖 Verification failed - this is critical!

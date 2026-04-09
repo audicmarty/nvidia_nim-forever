@@ -248,6 +248,13 @@ export const TOOL_BOOTSTRAP_METADATA = {
       },
     },
   },
+  xcode: {
+    binary: null,
+    docsUrl: 'https://developer.apple.com/documentation/Xcode/setting-up-coding-intelligence',
+    installUnsupported: {
+      default: 'Xcode Intelligence requires manual setup. Go to Xcode > Settings > Intelligence > Add a Chat Provider.',
+    },
+  },
   hermes: {
     binary: 'hermes',
     docsUrl: 'https://github.com/NousResearch/hermes-agent',

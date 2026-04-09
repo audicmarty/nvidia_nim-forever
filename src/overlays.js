@@ -120,6 +120,7 @@ export function createOverlayRenderers(state, deps) {
     const favoritesModeRowIdx = themeRowIdx + 1
     const cleanupLegacyProxyRowIdx = favoritesModeRowIdx + 1
     const changelogViewRowIdx = cleanupLegacyProxyRowIdx + 1
+    const shellEnvRowIdx = changelogViewRowIdx + 1
     const EL = '\x1b[K'
     const lines = []
     const cursorLineByRow = {}
@@ -272,6 +273,15 @@ export function createOverlayRenderers(state, deps) {
     cursorLineByRow[changelogViewRowIdx] = lines.length
     lines.push(state.settingsCursor === changelogViewRowIdx ? themeColors.bgCursorSettingsList(changelogViewRow) : changelogViewRow)
 
+    // 📖 Shell env toggle — expose API keys as shell environment variables
+    const shellEnvEnabled = state.config.settings?.shellEnvEnabled === true
+    const shellEnvStatus = shellEnvEnabled
+      ? themeColors.successBold('✅ Enabled — keys available in shell')
+      : themeColors.dim('❌ Disabled')
+    const shellEnvRow = `${bullet(state.settingsCursor === shellEnvRowIdx)}${themeColors.textBold('Shell Env Export').padEnd(44)} ${shellEnvStatus}`
+    cursorLineByRow[shellEnvRowIdx] = lines.length
+    lines.push(state.settingsCursor === shellEnvRowIdx ? themeColors.bgCursorSettingsList(shellEnvRow) : shellEnvRow)
+
     // 📖 Profile system removed - API keys now persist permanently across all sessions
 
     lines.push('')
@@ -313,7 +323,7 @@ export function createOverlayRenderers(state, deps) {
     // 📖 Mouse support: record layout so click handler can map Y → settingsCursor
     overlayLayout.settingsCursorToLine = { ...cursorLineByRow }
     overlayLayout.settingsScrollOffset = offset
-    overlayLayout.settingsMaxRow = changelogViewRowIdx
+    overlayLayout.settingsMaxRow = shellEnvRowIdx
 
     const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
     const cleared = tintedLines.map(l => l + EL)

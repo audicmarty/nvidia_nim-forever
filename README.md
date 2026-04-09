@@ -14,7 +14,7 @@
 
 <p align="center">
   <strong>Find the fastest free coding model in seconds</strong><br>
-  <sub>Ping 238 models across 25 AI Free providers in real-time </sub><br><sub> Install Free API endpoints to your favorite AI coding tool: <br>📦 OpenCode, 🦞 OpenClaw, 💘 Crush, 🪿 Goose, 🛠 Aider, 🐉 Qwen Code, 🤲 OpenHands, ⚡ Amp, 🔮 Hermes, ▶️ Continue, 🧠 Cline, π Pi, 🦘 Rovo or ♊ Gemini in one keystroke</sub>
+  <sub>Ping 238 models across 25 AI Free providers in real-time </sub><br>  <sub> Install Free API endpoints to your favorite AI coding tool: <br>📦 OpenCode, 🦞 OpenClaw, 💘 Crush, 🪿 Goose, 🛠 Aider, 🐉 Qwen Code, 🤲 OpenHands, ⚡ Amp, 🔮 Hermes, ▶️ Continue, 🧠 Cline, 🛠️ Xcode, π Pi, 🦘 Rovo or ♊ Gemini in one keystroke</sub>
 </p>
 
 
@@ -159,6 +159,9 @@ free-coding-models --goose --tier S
 # "I want NVIDIA's top models only"
 free-coding-models --origin nvidia --tier S
 
+# "I want the local web dashboard"
+free-coding-models --web
+
 # "Start with an elite-focused preset, then adjust filters live"
 free-coding-models --premium
 
@@ -168,6 +171,8 @@ free-coding-models --tier S --json | jq -r '.[0].modelId'
 # "I want to configure OpenClaw with Groq's fastest model"
 free-coding-models --openclaw --origin groq
 ```
+
+When launching the web dashboard, `free-coding-models` prefers `http://localhost:3333`. If that port is already used by another app, it now auto-picks the next free local port and prints the exact URL to open.
 
 ### Tool launcher flags
 
@@ -185,6 +190,7 @@ free-coding-models --openclaw --origin groq
 | `--hermes` | 🔮 Hermes |
 | `--continue` | ▶️ Continue CLI |
 | `--cline` | 🧠 Cline |
+| `--xcode` | 🛠️ Xcode Intelligence |
 | `--pi` | π Pi |
 | `--rovo` | 🦘 Rovo Dev CLI |
 | `--gemini` | ♊ Gemini CLI |

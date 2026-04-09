@@ -21,8 +21,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync, accessSync, constants, chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import { join, dirname } from 'node:path'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import chalk from 'chalk'
 
@@ -63,6 +64,16 @@ import { startOpenClaw } from '../src/openclaw.js'
 import { getConfiguredInstallableProviders, getInstallTargetModes, installProviderEndpoints } from '../src/endpoint-installer.js'
 import { cleanupLegacyProxyArtifacts } from '../src/legacy-proxy-cleanup.js'
 import {
+  buildEnvContent,
+  buildRcSourceLine,
+  getEnvFilePath,
+  ENV_FILE_MARKER,
+  detectShellInfo,
+  syncShellEnv,
+  ensureShellRcSource,
+  removeShellEnv,
+} from '../src/shell-env.js'
+import {
   buildFixTasks,
   classifyToolTranscript,
   createTestfcmRunId,
@@ -77,6 +88,7 @@ import {
   fuzzyMatchCommand,
   filterCommandPaletteEntries,
 } from '../src/command-palette.js'
+import { startWebServer, inspectExistingWebServer } from '../web/server.js'
 
 // ─── Helper: create a mock model result ──────────────────────────────────────
 // 📖 Builds a minimal result object matching the shape used by the main script
@@ -3129,8 +3141,119 @@ describe('MOUSE_ENABLE / MOUSE_DISABLE sequences', () => {
     })
     disableOrder.forEach((mode, i) => {
       assert.ok(MOUSE_DISABLE.indexOf(`?${mode}l`) >= 0)
-    })
   })
+})
+
+// ─── Shell Env tests ─────────────────────────────────────────────────────────
+describe('Shell Env', () => {
+  it('buildEnvContent generates export lines for bash/zsh', () => {
+    const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+    const content = buildEnvContent(config, 'bash')
+    assert.ok(content.includes("export NVIDIA_API_KEY='nvapi-test'"))
+    assert.ok(content.includes("export GROQ_API_KEY='gsk-abc123'"))
+    assert.ok(content.includes(ENV_FILE_MARKER))
+    assert.ok(content.startsWith('#!/bin/env sh'))
+  })
+
+  it('buildEnvContent generates set -gx lines for fish', () => {
+    const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+    const content = buildEnvContent(config, 'fish')
+    assert.ok(content.includes("set -gx NVIDIA_API_KEY 'nvapi-test'"))
+    assert.ok(content.includes("set -gx GROQ_API_KEY 'gsk-abc123'"))
+    assert.ok(!content.includes('export'))
+  })
+
+  it('buildEnvContent skips providers with no key', () => {
+    const config = { apiKeys: { nvidia: 'nvapi-test' } }
+    const content = buildEnvContent(config, 'bash')
+    assert.ok(content.includes('NVIDIA_API_KEY'))
+    assert.ok(!content.includes('GROQ_API_KEY'))
+    assert.ok(!content.includes('CEREBRAS_API_KEY'))
+  })
+
+  it('buildEnvContent uses first key from multi-key arrays', () => {
+    const config = { apiKeys: { groq: ['gsk-first', 'gsk-second'] } }
+    const content = buildEnvContent(config, 'bash')
+    assert.ok(content.includes("export GROQ_API_KEY='gsk-first'"))
+    assert.ok(!content.includes('gsk-second'))
+  })
+
+  it('buildEnvContent handles keys with single quotes', () => {
+    const config = { apiKeys: { nvidia: "nvapi-it's" } }
+    const content = buildEnvContent(config, 'bash')
+    assert.ok(content.includes("nvapi-it'\\''s"))
+  })
+
+  it('buildEnvContent returns minimal file for empty config', () => {
+    const config = { apiKeys: {} }
+    const content = buildEnvContent(config, 'bash')
+    assert.ok(content.includes(ENV_FILE_MARKER))
+    assert.ok(!content.includes('export'))
+  })
+
+  it('buildRcSourceLine generates bash/zsh source line with marker', () => {
+    const envPath = join(tmpdir(), '.free-coding-models.env')
+    const line = buildRcSourceLine(envPath, 'bash')
+    assert.ok(line.includes('.free-coding-models.env'))
+    assert.ok(line.includes(ENV_FILE_MARKER))
+    assert.ok(line.includes('[ -f '))
+    assert.ok(line.includes('. '))
+  })
+
+  it('buildRcSourceLine generates fish source line with marker', () => {
+    const envPath = join(tmpdir(), '.free-coding-models.env')
+    const line = buildRcSourceLine(envPath, 'fish')
+    assert.ok(line.includes('test -f'))
+    assert.ok(line.includes('source'))
+    assert.ok(line.includes(ENV_FILE_MARKER))
+  })
+
+  it('buildRcSourceLine uses ~/ relative path for home dir', () => {
+    const home = homedir()
+    const envPath = join(home, '.free-coding-models.env')
+    const line = buildRcSourceLine(envPath, 'zsh')
+    assert.ok(line.includes('~/.free-coding-models.env'))
+    assert.ok(!line.includes(home))
+  })
+
+  it('getEnvFilePath returns absolute path in home directory', () => {
+    const path = getEnvFilePath()
+    assert.ok(path.endsWith('.free-coding-models.env'))
+    assert.ok(path.includes('/'))
+  })
+
+  it('detectShellInfo returns a valid shell and rcPath', () => {
+    const info = detectShellInfo()
+    assert.ok(['zsh', 'bash', 'fish'].includes(info.shell))
+    assert.ok(info.rcPath.length > 0)
+    assert.ok(info.rcPath.includes('/'))
+  })
+
+  it('syncShellEnv writes env file and removes it when no keys', () => {
+    const tmpDir = join(tmpdir(), `fcm-test-shellenv-${Date.now()}`)
+    mkdirSync(tmpDir, { recursive: true })
+
+    const config = { apiKeys: { nvidia: 'nvapi-test' }, settings: { shellEnvEnabled: true } }
+    const result = syncShellEnv(config)
+    assert.ok(result.success)
+
+    // 📖 Clean up: remove env file if created
+    const envPath = getEnvFilePath()
+    if (existsSync(envPath)) {
+      try { rmSync(envPath) } catch { /* best effort */ }
+    }
+
+    // 📖 Test with empty config — should clean up
+    const emptyResult = syncShellEnv({ apiKeys: {} })
+    assert.ok(emptyResult.success)
+  })
+
+  it('ENV_FILE_MARKER is a stable identifier string', () => {
+    assert.ok(typeof ENV_FILE_MARKER === 'string')
+    assert.ok(ENV_FILE_MARKER.startsWith('#'))
+    assert.ok(ENV_FILE_MARKER.includes('free-coding-models'))
+  })
+})
 })
 
 describe('COLUMN_SORT_MAP', () => {
@@ -3244,5 +3367,74 @@ describe('getManualInstallCmd', () => {
 
   it('returns yarn command string', () => {
     assert.equal(getManualInstallCmd('yarn', '2.0.0'), 'yarn global add free-coding-models@2.0.0')
+  })
+})
+
+// 📖 Web server tests use real loopback ports so we can verify the startup
+// 📖 fallback behavior without depending on shell scripts or a browser.
+async function getFreePort() {
+  const server = createHttpServer()
+  await new Promise((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address ? address.port : null
+  await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()))
+  return port
+}
+
+async function closeServer(server) {
+  if (!server?.listening) return
+  await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()))
+}
+
+describe('web server startup', () => {
+  it('detects an existing free-coding-models web server via the health route', async () => {
+    const port = await getFreePort()
+    const server = await startWebServer(port, { open: false, startPingLoop: false })
+
+    try {
+      assert.ok(server)
+      assert.deepEqual(await inspectExistingWebServer(port), { inUse: true, isFcm: true })
+    } finally {
+      await closeServer(server)
+    }
+  })
+
+  it('falls back to another port when the requested one is occupied by another app', async () => {
+    const requestedPort = await getFreePort()
+    const foreignServer = createHttpServer((req, res) => {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('Not Found')
+    })
+    await new Promise((resolve) => foreignServer.listen(requestedPort, resolve))
+
+    const server = await startWebServer(requestedPort, { open: false, startPingLoop: false })
+
+    try {
+      assert.ok(server)
+      const address = server.address()
+      const actualPort = typeof address === 'object' && address ? address.port : null
+      assert.notEqual(actualPort, requestedPort)
+
+      const response = await fetch(`http://127.0.0.1:${actualPort}/api/health`)
+      assert.equal(response.status, 200)
+      assert.equal(response.headers.get('x-fcm-server'), 'free-coding-models-web')
+      assert.deepEqual(await response.json(), { ok: true, app: 'free-coding-models-web' })
+    } finally {
+      await closeServer(server)
+      await closeServer(foreignServer)
+    }
+  })
+
+  it('reuses the existing dashboard when it already owns the requested port', async () => {
+    const port = await getFreePort()
+    const server = await startWebServer(port, { open: false, startPingLoop: false })
+
+    try {
+      assert.ok(server)
+      const reused = await startWebServer(port, { open: false, startPingLoop: false })
+      assert.equal(reused, null)
+    } finally {
+      await closeServer(server)
+    }
   })
 })

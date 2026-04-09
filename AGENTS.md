@@ -189,18 +189,17 @@ Use `agent-tui` when:
 
 ## Changelog (MANDATORY)
 
-**⚠️ CRITICAL:** After every dev session (feature, fix, refactor), add a succinct entry to `CHANGELOG.md` BEFORE pushing:
+**⚠️ CRITICAL:** Every new version MUST REPLACE the entire `CHANGELOG.md` file with ONLY the content from THAT specific version. Do not append to a long history.
 
-- Use the current version from `package.json`
-- Add under the matching version header (or create a new one if the version was bumped)
-- If the current version is already published, do **not** add new entries under that published version: create the **next** version header (example: `0.1.63` already published → document new work under `0.1.64`)
-- List changes under `### Added`, `### Fixed`, or `### Changed` as appropriate
-- Keep entries short — one line per change is enough
-- Keep the top release section clean and user-facing so it can be reused directly in the GitHub Release notes screen (clear bullets, no internal noise)
-- Include ALL changes made during the session
-- Update CHANGELOG.md BEFORE committing and pushing
+- Check all commits, code changes, and work done since the last version bumped to ensure the changelog is **complete**.
+- Add necessary details, intentions, and explanations to the changelog entries. Provide clear, user-facing explanations of *why* changes were made and *how* they work.
+- Use the current version from `package.json` as the single header (e.g. `## [0.1.64] - YYYY-MM-DD`).
+- The `CHANGELOG.md` file should ONLY contain this single version's release notes.
+- List changes under `### Added`, `### Fixed`, or `### Changed` as appropriate.
+- Keep the structure clean so it can be reused directly in the GitHub Release notes screen.
+- Update `CHANGELOG.md` BEFORE committing and pushing.
 
-**Why this is critical:** The changelog is the only historical record of what was changed in each version. Without it, users cannot understand what changed between versions.
+**Why this is critical:** The changelog is used directly for GitHub release notes. It should only contain the comprehensive notes for the current release to avoid publishing the entire history over and over.
 
 ## Version Bump Workflow (/bump command)
 
@@ -212,8 +211,9 @@ When user requests `/bump`, `"push commit"`, or `"bump a new version now"`, exec
 - If multiple uncommitted version bumps exist, consolidate them into the next sequential version
 
 ### 2. Update Changelog
-- Merge all changes since last published version into single changelog entry
-- Use proper semantic versioning (no skipping versions)
+- Review all work done since the last published version
+- REWRITE the entire `CHANGELOG.md` file to contain ONLY the release notes for the new version
+- Include comprehensive details, intentions, and explanations for all changes
 - Ensure changelog is user-facing with clear bullet points
 
 ### 3. Update Documentation

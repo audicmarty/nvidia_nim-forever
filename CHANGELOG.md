@@ -1,21 +1,10 @@
 # Changelog
 ---
 
-## [0.3.40] - 2026-04-09
-
-### Fixed
-- **🔧 CI/CD** — Added `packageManager` field to `package.json` so `pnpm/action-setup@v4` can resolve the pnpm version
-
-## [0.3.39] - 2026-04-09
-
-### Fixed
-- **🔧 CI/CD** — Switched GitHub Actions from `npm ci` to `pnpm install --frozen-lockfile` (release + security-audit workflows)
-- Removed obsolete `package-lock.json` that was causing `EUSAGE` sync errors in CI
-
-## [0.3.38] - 2026-04-09
+## [0.3.41] - 2026-04-09
 
 ### Added
-- **🔮 Hermes Agent** — Configures Hermes via `hermes config set`, restarts the gateway, and launches `hermes chat`. Supports all OpenAI-compatible providers.
-- **▶️ Continue CLI** — Writes `~/.continue/config.yaml` with `provider: openai` + `apiBase` and launches `cn`.
-- **🧠 Cline CLI** — Writes `~/.cline/globalState.json` with OpenAI-compatible config and launches `cline`.
-- `--hermes`, `--continue`, `--cline` CLI flags, `Z` cycle entries, command palette actions, and Install Endpoints support for all three tools.
+- Added support for Xcode Intelligence (Xcode 26.3+) via the `--xcode` flag and manual configuration flow. The tool provides clear setup instructions and launches Xcode directly.
+- The `xcode` launcher mode has been registered in the tool metadata, enabling Xcode selection through the command palette, `Z` cycle, and CLI arguments.
+- Users can now use Xcode Intelligence with any of the 230+ supported OpenAI-compatible API endpoints.
+- Compatibility logic ensures Xcode mode accurately highlights supported models (compatible with all standard models).

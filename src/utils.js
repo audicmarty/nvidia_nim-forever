@@ -458,6 +458,7 @@ export function parseArgs(argv) {
   const hermesMode = flags.includes('--hermes')
   const continueMode = flags.includes('--continue')
   const clineMode = flags.includes('--cline')
+  const xcodeMode = flags.includes('--xcode')
   const geminiMode = flags.includes('--gemini')
   const noTelemetry = flags.includes('--no-telemetry')
   const jsonMode = flags.includes('--json')
@@ -501,6 +502,7 @@ export function parseArgs(argv) {
     hermesMode,
     continueMode,
     clineMode,
+    xcodeMode,
     rovoMode,
     geminiMode,
     noTelemetry,

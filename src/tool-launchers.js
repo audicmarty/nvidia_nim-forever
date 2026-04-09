@@ -462,7 +462,9 @@ function writeHermesConfig(model, apiKey, baseUrl, paths = getDefaultToolPaths()
   const hermesBin = resolveToolBinaryPath('hermes') || 'hermes'
 
   // 📖 Use `hermes config set` for each field — robust and dependency-free
-  spawnSync(hermesBin, ['config', 'set', 'model', model.modelId], { stdio: 'ignore' })
+  // 📖 Must use 'model.default' not 'model', otherwise it replaces the entire model: dict with a string
+  // 📖 and subsequent model.provider / model.base_url / model.api_key calls silently fail
+  spawnSync(hermesBin, ['config', 'set', 'model.default', model.modelId], { stdio: 'ignore' })
   spawnSync(hermesBin, ['config', 'set', 'model.provider', 'custom'], { stdio: 'ignore' })
   if (baseUrl) {
     spawnSync(hermesBin, ['config', 'set', 'model.base_url', baseUrl], { stdio: 'ignore' })
@@ -716,6 +718,18 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
     }
   }
 
+  if (mode === 'xcode') {
+    return {
+      command: 'open',
+      args: ['-a', 'Xcode'],
+      env,
+      apiKey,
+      baseUrl,
+      meta,
+      configArtifacts: [],
+    }
+  }
+
   if (mode === 'rovo') {
     const result = writeRovoConfig(model, join(homedir(), '.rovodev', 'config.yml'), paths)
     console.log(chalk.dim(`  📖 Rovo Dev CLI configured with model: ${model.modelId}`))
@@ -813,6 +827,21 @@ export async function startExternalTool(mode, model, config) {
   if (mode === 'cline') {
     console.log(chalk.dim(`  📖 Cline configured with model: ${model.modelId}`))
     return spawnCommand(resolveLaunchCommand(mode, launchPlan.command), launchPlan.args, launchPlan.env)
+  }
+
+  if (mode === 'xcode') {
+    const xcodeUrl = baseUrl ? baseUrl.replace(/\/v1$/, '').replace(/\/v1\/chat\/completions$/, '') : ''
+    console.log(chalk.bold.cyan('\n  🛠️  Xcode Intelligence Setup Instructions:'))
+    console.log(chalk.white('  1. Open Xcode and go to ') + chalk.bold('Xcode > Settings > Intelligence'))
+    console.log(chalk.white('  2. Click ') + chalk.bold('Add a Chat Provider') + chalk.white(' and select ') + chalk.bold('Internet Hosted'))
+    console.log(chalk.white('  3. Enter the following details:'))
+    console.log(chalk.dim('     URL: ') + chalk.green(xcodeUrl))
+    console.log(chalk.dim('     API Key: ') + chalk.green(apiKey || '<your_api_key>'))
+    console.log(chalk.dim('     API Key Header: ') + chalk.green('Authorization') + chalk.dim(' (or x-api-key)'))
+    console.log(chalk.dim('     Description: ') + chalk.green(`FCM - ${sources[model.providerKey]?.name || model.providerKey}`))
+    console.log(chalk.white(`  4. Click Add, then select `) + chalk.bold(model.modelId) + chalk.white(` from the list.\n`))
+    console.log(chalk.dim(`  📖 Attempting to launch Xcode...`))
+    return spawnCommand(launchPlan.command, launchPlan.args, launchPlan.env)
   }
 
   if (mode === 'rovo') {

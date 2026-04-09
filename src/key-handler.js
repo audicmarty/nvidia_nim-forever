@@ -33,6 +33,7 @@ import { loadConfig, replaceConfigContents } from './config.js'
 import { cleanupLegacyProxyArtifacts } from './legacy-proxy-cleanup.js'
 import { getLastLayout, COLUMN_SORT_MAP } from './render-table.js'
 import { cycleThemeSetting, detectActiveTheme } from './theme.js'
+import { syncShellEnv, ensureShellRcSource, removeShellEnv } from './shell-env.js'
 import { buildCommandPaletteTree, flattenCommandTree, filterCommandPaletteEntries } from './command-palette.js'
 import { WIDTH_WARNING_MIN_COLS } from './constants.js'
 import { scanAllToolConfigs, softDeleteModel } from './installed-models-manager.js'
@@ -551,6 +552,19 @@ export function createKeyHandler(ctx) {
   function cycleGlobalTheme() {
     const currentTheme = state.config.settings?.theme || 'auto'
     applyThemeSetting(cycleThemeSetting(currentTheme))
+  }
+
+  function toggleShellEnv() {
+    if (!state.config.settings) state.config.settings = {}
+    const currentlyEnabled = state.config.settings.shellEnvEnabled === true
+    state.config.settings.shellEnvEnabled = !currentlyEnabled
+    saveConfig(state.config)
+    if (!currentlyEnabled) {
+      syncShellEnv(state.config)
+      ensureShellRcSource()
+    } else {
+      removeShellEnv()
+    }
   }
 
   function resetInstallEndpointsOverlay() {
@@ -1828,8 +1842,9 @@ export function createKeyHandler(ctx) {
       const favoritesModeRowIdx = themeRowIdx + 1
       const cleanupLegacyProxyRowIdx = favoritesModeRowIdx + 1
       const changelogViewRowIdx = cleanupLegacyProxyRowIdx + 1
+      const shellEnvRowIdx = changelogViewRowIdx + 1
         // 📖 Profile system removed - API keys now persist permanently across all sessions
-      const maxRowIdx = changelogViewRowIdx
+      const maxRowIdx = shellEnvRowIdx
 
       // 📖 Edit/Add-key mode: capture typed characters for the API key
       if (state.settingsEditMode || state.settingsAddKeyMode) {
@@ -1993,6 +2008,12 @@ export function createKeyHandler(ctx) {
           return
         }
 
+        // 📖 Shell env row: Enter → toggle shell env export
+        if (state.settingsCursor === shellEnvRowIdx) {
+          toggleShellEnv()
+          return
+        }
+
         // 📖 Profile system removed - API keys now persist permanently across all sessions
 
         // 📖 Enter edit mode for the selected provider's key
@@ -2010,6 +2031,11 @@ export function createKeyHandler(ctx) {
           || state.settingsCursor === cleanupLegacyProxyRowIdx
           || state.settingsCursor === changelogViewRowIdx
         ) return
+        // 📖 Shell env toggle
+        if (state.settingsCursor === shellEnvRowIdx) {
+          toggleShellEnv()
+          return
+        }
         // 📖 Theme configuration cycle inside settings
         if (state.settingsCursor === themeRowIdx) {
           cycleGlobalTheme()

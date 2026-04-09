@@ -114,6 +114,7 @@ import { parseTelemetryEnv, isTelemetryDebugEnabled, telemetryDebug, ensureTelem
 import { ensureFavoritesConfig, toFavoriteKey, syncFavoriteFlags, toggleFavoriteModel } from '../src/favorites.js'
 import { checkForUpdateDetailed, checkForUpdate, runUpdate, promptUpdateNotification, fetchLastReleaseDate } from './updater.js'
 import { promptApiKey } from '../src/setup.js'
+import { syncShellEnv, ensureShellRcSource, promptShellEnvMigration, removeShellEnv } from '../src/shell-env.js'
 import { stripAnsi, maskApiKey, displayWidth, padEndDisplay, tintOverlayLines, keepOverlayTargetVisible, sliceOverlayLines, calculateViewport, sortResultsWithPinnedFavorites, adjustScrollOffset } from '../src/render-helpers.js'
 import { renderTable, PROVIDER_COLOR } from '../src/render-table.js'
 import { setOpenCodeModelData, startOpenCode, startOpenCodeDesktop } from '../src/opencode.js'
@@ -215,6 +216,31 @@ export async function runApp(cliArgs, config) {
       console.log()
       process.exit(1)
     }
+    // 📖 New users get shell env enabled by default
+    if (config.settings.shellEnvEnabled === undefined) {
+      config.settings.shellEnvEnabled = true
+      saveConfig(config)
+      syncShellEnv(config)
+      ensureShellRcSource()
+    }
+  }
+
+  // 📖 Shell env migration popup for existing users who haven't been asked yet
+  // 📖 Only show when user has keys but shellEnvEnabled is still undefined (never prompted)
+  if (hasAnyKey && config.settings.shellEnvEnabled === undefined) {
+    const choice = await promptShellEnvMigration(config)
+    if (choice === 'enable') {
+      if (!config.settings) config.settings = {}
+      config.settings.shellEnvEnabled = true
+      saveConfig(config)
+      syncShellEnv(config)
+      ensureShellRcSource()
+    } else if (choice === 'never') {
+      if (!config.settings) config.settings = {}
+      config.settings.shellEnvEnabled = false
+      saveConfig(config)
+    }
+    // 📖 'skip' leaves shellEnvEnabled undefined — will prompt again next launch
   }
 
   // 📖 Default mode: use the last persisted launcher choice when valid,
@@ -236,6 +262,7 @@ export async function runApp(cliArgs, config) {
       hermes: cliArgs.hermesMode,
       'continue': cliArgs.continueMode,
       cline: cliArgs.clineMode,
+      xcode: cliArgs.xcodeMode,
       pi: cliArgs.piMode,
       rovo: cliArgs.rovoMode,
       gemini: cliArgs.geminiMode,
