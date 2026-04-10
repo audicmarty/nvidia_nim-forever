@@ -2285,10 +2285,20 @@ export function createKeyHandler(ctx) {
     // 📖 W cycles the supported ping modes:
     // 📖 speed (2s) → normal (10s) → slow (30s) → forced (4s) → speed.
     // 📖 forced ignores auto speed/slow transitions until the user leaves it manually.
-    if (key.name === 'w') {
+    if (key.name === 'w' && !key.alt && !key.ctrl && !key.meta) {
       const currentIdx = PING_MODE_CYCLE.indexOf(state.pingMode)
       const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % PING_MODE_CYCLE.length : 0
       setPingMode(PING_MODE_CYCLE[nextIdx], 'manual')
+      return
+    }
+
+    // 📖 Alt+W: toggle footer visibility (collapse to single hint when hidden)
+    if (key.name === 'w' && key.alt && !key.ctrl && !key.meta) {
+      state.footerHidden = !state.footerHidden
+      if (!state.config.settings || typeof state.config.settings !== 'object') state.config.settings = {}
+      state.config.settings.footerHidden = state.footerHidden
+      saveConfig(state.config)
+      return
     }
 
     // 📖 E toggles hiding models whose provider has no configured API key.

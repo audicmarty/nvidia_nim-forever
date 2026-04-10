@@ -104,7 +104,7 @@ export const PROVIDER_COLOR = new Proxy({}, {
 })
 
 // ─── renderTable: mode param controls footer hint text (opencode vs openclaw) ─────────
-export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null, lastReleaseDate = null) {
+export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null, lastReleaseDate = null, footerHidden = false) {
   // 📖 Filter out hidden models for display
   const visibleResults = results.filter(r => !r.hidden)
 
@@ -780,7 +780,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   // 📖 Line 2: command palette, recommend, feedback, theme
   {
-    const cpText = ' NEW ! CTRL+P ⚡️ Command Palette '
+    const cpText = ' CTRL+P ⚡️ Command Palette '
     const parts = [
       { text: '  ', key: null },
       { text: cpText, key: 'ctrl+p' },
@@ -802,7 +802,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   // 📖 Line 2: command palette (highlighted as new), recommend, feedback, and extended hints.
   // 📖 CTRL+P ⚡️ Command Palette uses neon-green-on-dark-green background to highlight the feature.
-  const paletteLabel = chalk.bgRgb(0, 60, 0).rgb(57, 255, 20).bold(' NEW ! CTRL+P ⚡️ Command Palette ')
+  const paletteLabel = chalk.bgRgb(0, 60, 0).rgb(57, 255, 20).bold(' CTRL+P ⚡️ Command Palette ')
   lines.push(
     '  ' + paletteLabel + themeColors.dim(`  •  `) +
     hotkey('Q', ' Smart Recommend') + themeColors.dim(`  •  `) +
@@ -878,27 +878,35 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
 
   _lastLayout.footerHotkeys = footerHotkeys
 
-  const releaseLabel = lastReleaseDate
-    ? chalk.rgb(255, 182, 193)(`Last release: ${lastReleaseDate}`)
-    : ''
+  if (footerHidden) {
+    // 📖 Collapsed footer: single line with toggle hint
+    lines.push(
+      '  ' + themeColors.hotkey('Alt+W') + themeColors.dim(' Toggle Footer') +
+      themeColors.dim('  •  Ctrl+C Exit')
+    )
+  } else {
+    const releaseLabel = lastReleaseDate
+      ? chalk.rgb(255, 182, 193)(`Last release: ${lastReleaseDate}`)
+      : ''
 
-  lines.push(
-    '  ' + themeColors.hotkey('N') + themeColors.dim(' Changelog') +
-    (filterBadge
-      ? themeColors.dim('  •  ') + filterBadge
-      : '') +
-    themeColors.dim('  •  ') +
-    themeColors.dim('Ctrl+C Exit') +
-    (releaseLabel ? themeColors.dim('  •  ') + releaseLabel : '')
-  )
+    lines.push(
+      '  ' + themeColors.hotkey('N') + themeColors.dim(' Changelog') +
+      (filterBadge
+        ? themeColors.dim('  •  ') + filterBadge
+        : '') +
+      themeColors.dim('  •  ') +
+      themeColors.dim('Ctrl+C Exit') +
+      (releaseLabel ? themeColors.dim('  •  ') + releaseLabel : '')
+    )
 
-  // 📖 Discord link at the very bottom of the TUI
-  lines.push(
-    '  💬 ' +
-    themeColors.footerDiscord('\x1b]8;;https://discord.gg/ZTNFHvvCkU\x1b\\Join the Discord\x1b]8;;\x1b\\') +
-    themeColors.dim(' → ') +
-    themeColors.footerDiscord('https://discord.gg/ZTNFHvvCkU')
-  )
+    // 📖 Discord link at the very bottom of the TUI
+    lines.push(
+      '  💬 ' +
+      themeColors.footerDiscord('\x1b]8;;https://discord.gg/ZTNFHvvCkU\x1b\\Join the Discord\x1b]8;;\x1b\\') +
+      themeColors.dim(' → ') +
+      themeColors.footerDiscord('https://discord.gg/ZTNFHvvCkU')
+    )
+  }
 
   // 📖 Append \x1b[K (erase to EOL) to each line so leftover chars from previous
   // 📖 frames are cleared. Then pad with blank cleared lines to fill the terminal,

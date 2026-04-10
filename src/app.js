@@ -425,6 +425,7 @@ export async function runApp(cliArgs, config) {
     originFilterMode: 0,          // 📖 Index into ORIGIN_CYCLE (0=All, then providers)
     hideUnconfiguredModels: config.settings?.hideUnconfiguredModels === true, // 📖 Hide providers with no configured API key when true.
     favoritesPinnedAndSticky: config.settings?.favoritesPinnedAndSticky === true, // 📖 false by default: favorites follow normal sort/filter rules until Y enables pinned+sticky mode.
+    footerHidden: config.settings?.footerHidden === true, // 📖 true = footer is collapsed to a single toggle hint
       scrollOffset: 0,              // 📖 First visible model index in viewport
       terminalRows: process.stdout.rows || 24,  // 📖 Current terminal height
       terminalCols: process.stdout.columns || 80, // 📖 Current terminal width
@@ -1120,7 +1121,7 @@ export async function runApp(cliArgs, config) {
     pinFavorites: state.favoritesPinnedAndSticky,
   })
 
-      process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, null, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed, state.widthWarningShowCount, state.settingsUpdateState, state.settingsUpdateLatestVersion, false, state.startupLatestVersion, state.versionAlertsEnabled, state.favoritesPinnedAndSticky, state.customTextFilter, state.lastReleaseDate))
+      process.stdout.write(ALT_HOME + renderTable(state.results, state.pendingPings, state.frame, state.cursor, state.sortColumn, state.sortDirection, state.pingInterval, state.lastPingTime, state.mode, state.tierFilterMode, state.scrollOffset, state.terminalRows, state.terminalCols, state.originFilterMode, null, state.pingMode, state.pingModeSource, state.hideUnconfiguredModels, state.widthWarningStartedAt, state.widthWarningDismissed, state.widthWarningShowCount, state.settingsUpdateState, state.settingsUpdateLatestVersion, false, state.startupLatestVersion, state.versionAlertsEnabled, state.favoritesPinnedAndSticky, state.customTextFilter, state.lastReleaseDate, state.footerHidden))
   if (process.stdout.isTTY) {
     process.stdout.flush && process.stdout.flush()
   }

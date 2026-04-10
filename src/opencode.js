@@ -465,6 +465,20 @@ export async function startOpenCode(model, fcmConfig) {
         options: { baseURL: 'https://apis.iflow.cn/v1', apiKey: '{env:IFLOW_API_KEY}' },
         models: {}
       }
+    } else if (providerKey === 'chutes') {
+      config.provider.chutes = {
+        npm: '@ai-sdk/openai-compatible',
+        name: 'Chutes AI',
+        options: { baseURL: 'https://chutes.ai/v1', apiKey: '{env:CHUTES_API_KEY}' },
+        models: {}
+      }
+    } else if (providerKey === 'ovhcloud') {
+      config.provider.ovhcloud = {
+        npm: '@ai-sdk/openai-compatible',
+        name: 'OVHcloud AI',
+        options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', apiKey: '{env:OVH_AI_ENDPOINTS_ACCESS_TOKEN}' },
+        models: {}
+      }
     }
   }
 
@@ -722,6 +736,20 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
         npm: '@ai-sdk/openai-compatible',
         name: 'iFlow',
         options: { baseURL: 'https://apis.iflow.cn/v1', apiKey: '{env:IFLOW_API_KEY}' },
+        models: {}
+      }
+    } else if (providerKey === 'chutes') {
+      config.provider.chutes = {
+        npm: '@ai-sdk/openai-compatible',
+        name: 'Chutes AI',
+        options: { baseURL: 'https://chutes.ai/v1', apiKey: '{env:CHUTES_API_KEY}' },
+        models: {}
+      }
+    } else if (providerKey === 'ovhcloud') {
+      config.provider.ovhcloud = {
+        npm: '@ai-sdk/openai-compatible',
+        name: 'OVHcloud AI',
+        options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', apiKey: '{env:OVH_AI_ENDPOINTS_ACCESS_TOKEN}' },
         models: {}
       }
     }

@@ -1,13 +1,10 @@
-## [0.3.43] - 2026-04-09
+## [0.3.44] - 2026-04-10
 
 ### Added
-- Added new anonymous telemetry events for real product usage: `app_use` records which tool, provider, and model users actually launch, while `app_action` tracks a small set of high-signal in-app actions such as endpoint installs, API key save/remove flows, and shell env export toggles.
-- Added per-session telemetry linking with a generated `session_id`, so `app_start`, `app_use`, and action events can be analyzed together while still keeping users anonymous through the existing persistent install-scoped `distinct_id`.
-- Added launch outcome tracking with `app_use_result`, so the dashboard can distinguish successful launches from blocked flows like incompatible model/tool combinations or missing CLI installs.
+- Added **jcode** external tool support, integrating a new CLI tool across the codebase with command-palette description, tool metadata (label, emoji, flag, color), bootstrap metadata (binary, docs URL, install commands), and full launch wiring via `prepareExternalToolLaunch` and `startExternalTool`. CLI flag parsing for `--jcode` (jcodeMode) is also included.
 
 ### Changed
-- Extended the telemetry pipeline to support custom event properties on top of the shared anonymous metadata (`app`, `version`, `mode`, `system`, `terminal`) without introducing a second analytics path.
-- Updated the README telemetry section to explain that anonymous analytics now cover launched tool/provider/model metadata and a few product actions, while still explicitly excluding prompts, source code, file paths, API keys, and secrets.
+- Provider API keys are now synced into tool launches — `openclaw` imports `getApiKey` and `syncShellEnv`, accepts an env override in `spawnOpenClawCli`, and populates the child process env with the provider API key when launching the CLI. Tool launchers now use `model.providerKey` instead of hardcoded provider IDs, and `prepareExternalToolLaunch` includes provider and API key in launch args. This enables multi-provider support and ensures launched tools can authenticate using the configured key.
 
 ### Fixed
-- Added regression coverage for telemetry opt-out behavior and event payload shape, ensuring the new launch/action events stay disabled under `--no-telemetry` or `FREE_CODING_MODELS_TELEMETRY=0`.
+- README now includes a "Bonus Free Stuff" section with curated resources: community awesome-lists, AI-powered IDEs with free tiers, API providers with permanent free tiers, trial credit providers, and education/developer program freebies — accessible via a new navigation link.
