@@ -34,6 +34,7 @@ create a free account on one of the [providers](#-list-of-free-ai-providers)
   <a href="#-why-this-tool">💡 Why</a> •
   <a href="#-quick-start">⚡ Quick Start</a> •
   <a href="#-list-of-free-ai-providers">🟢 Providers</a> •
+  <a href="#-bonus-free-stuff">🎁 Bonus Free Stuff</a> •
   <a href="#-usage">🚀 Usage</a> •
   <a href="#-tui-keys">⌨️ TUI Keys</a> •
   <a href="#-features">✨ Features</a> •
@@ -102,6 +103,84 @@ Create a free account on one provider below to get started:
 | [Mistral Codestral](https://codestral.mistral.ai) | 1 | B+ | 30 req/min, 2000/day | `CODESTRAL_API_KEY` |
 
 > 💡 One key is enough. Add more at any time with **`P`** inside the TUI.
+
+---
+
+## 🎁 Bonus Free Stuff
+
+**Everything free that isn't in the CLI** — IDE extensions, coding agents, GitHub lists, trial credits, and more.
+
+### 📚 Awesome Lists (curated by the community)
+
+| Resource | What it is |
+|----------|------------|
+| [cheahjs/free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources) (18.4k ⭐) | Comprehensive list of free LLM API providers with rate limits |
+| [mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis) (2.1k ⭐) | Permanent free LLM API tiers organized by provider |
+| [inmve/free-ai-coding](https://github.com/inmve/free-ai-coding) (648 ⭐) | Pro-grade AI coding tools side-by-side — limits, models, CC requirements |
+| [amardeeplakshkar/awesome-free-llm-apis](https://github.com/amardeeplakshkar/awesome-free-llm-apis) | Additional free LLM API resources |
+
+### 🖥️ AI-Powered IDEs with Free Tiers
+
+| IDE | Free tier | Credit card |
+|-----|-----------|-------------|
+| [Qwen Code](https://github.com/QwenLM/qwen-code) | 2,000 requests/day | No |
+| [Rovo Dev CLI](https://www.atlassian.com/rovo) | 5M tokens/day (beta) | No |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | 100–250 requests/day | No |
+| [Jules](https://jules.google/) | 15 tasks/day | No |
+| [AWS Kiro](https://kiro.dev/) | 50 credits/month | No |
+| [Trae](https://trae.ai/) | 10 fast + 50 slow requests/month | No |
+| [Codeium](https://codeium.com/) | Unlimited forever, basic models | No |
+| [JetBrains AI Assistant](https://www.jetbrains.com/ai/) | Unlimited completions + local models | No |
+| [Continue.dev](https://www.continue.dev/) | Free VS Code/JetBrains extension, local models via Ollama | No |
+| [Warp](https://warp.dev/) | 150 credits/month (first 2 months), then 75/month | No |
+| [Amazon Q Developer](https://aws.amazon.com/q/developer/) | 50 agentic requests/month | Required |
+| [Windsurf](https://windsurf.com/) | 25 prompt credits/month | Required |
+| [Kilo Code](https://kilocode.ai/) | Up to $25 signup credits (one-time) | Required |
+| [Tabnine](https://www.tabnine.com/) | Basic completions + chat (limited) | Required |
+| [SuperMaven](https://supermaven.com/) | Basic suggestions, 1M token context | Required |
+
+### 🔑 API Providers with Permanent Free Tiers
+
+| Provider | Free limits | Notable models |
+|----------|-------------|----------------|
+| [OpenRouter](https://openrouter.ai/keys) | 50 req/day, 1K/day with $10 purchase | Qwen3-Coder, Llama 3.3 70B, Gemma 3 |
+| [Google AI Studio](https://aistudio.google.com/apikey) | 5–500 req/day (varies by model) | Gemini 2.5 Flash, Gemma 3 |
+| [NVIDIA NIM](https://build.nvidia.com) | 40 RPM | Llama 3.3 70B, Mistral Large, Qwen3 235B |
+| [Groq](https://console.groq.com/keys) | 1K–14.4K req/day (model-dependent) | Llama 3.3 70B, Llama 4 Scout, Kimi K2 |
+| [Cerebras](https://cloud.cerebras.ai/) | 30 RPM, 1M tokens/day | Qwen3-235B, Llama 3.1 70B, GPT-OSS 120B |
+| [Cohere](https://cohere.com/) | 20 RPM, 1K/month | Command R+, Aya Expanse 32B |
+| [Mistral La Plateforme](https://console.mistral.ai/) | 1 req/s, 1B tokens/month | Mistral Large 3, Small 3.1 |
+| [Cloudflare Workers AI](https://dash.cloudflare.com) | 10K neurons/day | Llama 3.3 70B, QwQ 32B, 47+ models |
+| [GitHub Models](https://github.com/marketplace/models) | Depends on Copilot tier | GPT-4o, DeepSeek-R1, Llama 3.3 |
+| [SiliconFlow](https://cloud.siliconflow.cn/account/ak) | 1K RPM, 50K TPM | Qwen3-8B, DeepSeek-R1, GLM-4.1V |
+| [HuggingFace](https://huggingface.com/settings/tokens) | ~$0.10/month credits | Llama 3.3 70B, Qwen2.5 72B |
+
+### 💰 Providers with Trial Credits
+
+| Provider | Credits | Duration |
+|----------|---------|----------|
+| [Hyperbolic](https://app.hyperbolic.ai/) | $1 free | Permanent |
+| [Fireworks](https://fireworks.ai/) | $1 | Permanent |
+| [Nebius](https://tokenfactory.nebius.com/) | $1 | Permanent |
+| [SambaNova Cloud](https://cloud.sambanova.ai/) | $5 | 3 months |
+| [AI21](https://studio.ai21.com/) | $10 | 3 months |
+| [Upstage](https://console.upstage.ai/) | $10 | 3 months |
+| [NLP Cloud](https://nlpcloud.com/home) | $15 | Permanent |
+| [Alibaba DashScope](https://bailian.console.alibabacloud.com/) | 1M tokens/model | 90 days |
+| [Scaleway](https://console.scaleway.com/generative-api/models) | 1M tokens | Permanent |
+| [Modal](https://modal.com) | $5/month | Monthly |
+| [Inference.net](https://inference.net) | $1 (+ $25 on survey) | Permanent |
+| [Novita](https://novita.ai/) | $0.5 | 1 year |
+
+### 🎓 Free with Education/Developer Programs
+
+| Program | What you get |
+|---------|--------------|
+| [GitHub Student Pack](https://education.github.com/pack) | Free Copilot Pro for students (verify with .edu email) |
+| [GitHub Copilot Free](https://code.visualstudio.com/blogs/2024/12/18/free-github-copilot) | 50 chat + 2,000 completions/month in VS Code |
+| [Copilot Pro for teachers/maintainers](https://docs.github.com/en/copilot/how-tos/manage-your-account/get-free-access-to-copilot-pro) | Free Copilot Pro for open source maintainers & educators |
+
+---
 
 ### Tier scale
 
