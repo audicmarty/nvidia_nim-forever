@@ -758,6 +758,19 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
     }
   }
 
+  if (mode === 'jcode') {
+    console.log(chalk.dim(`  📖 jcode will use model: ${model.modelId}`))
+    return {
+      command: 'jcode',
+      args: ['run', `"say hello"`],
+      env,
+      apiKey,
+      baseUrl,
+      meta,
+      configArtifacts: [],
+    }
+  }
+
   return {
     blocked: true,
     exitCode: 1,
@@ -851,6 +864,11 @@ export async function startExternalTool(mode, model, config) {
 
   if (mode === 'gemini') {
     console.log(chalk.dim(`  📖 Launching Gemini CLI...`))
+    return spawnCommand(resolveLaunchCommand(mode, launchPlan.command), launchPlan.args, launchPlan.env)
+  }
+
+  if (mode === 'jcode') {
+    console.log(chalk.dim(`  📖 Launching jcode...`))
     return spawnCommand(resolveLaunchCommand(mode, launchPlan.command), launchPlan.args, launchPlan.env)
   }
 

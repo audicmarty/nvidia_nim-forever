@@ -392,10 +392,10 @@ export function findBestModel(results) {
 //     --openhands, --amp, --pi, --no-telemetry, --json, --help/-h (case-insensitive)
 //   - Value flag: --tier <letter> (the next non-flag arg is the tier value)
 //
-// 📖 Returns:
+// Returns:
 //   { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openClawMode,
 //     aiderMode, crushMode, gooseMode, qwenMode, openHandsMode, ampMode,
-//     piMode, noTelemetry, jsonMode, helpMode, tierFilter }
+//     piMode, jcodeMode, noTelemetry, jsonMode, helpMode, tierFilter }
 //
 // 📖 Note: apiKey may be null here — the main CLI falls back to env vars and saved config.
 export function parseArgs(argv) {
@@ -460,6 +460,7 @@ export function parseArgs(argv) {
   const clineMode = flags.includes('--cline')
   const xcodeMode = flags.includes('--xcode')
   const geminiMode = flags.includes('--gemini')
+  const jcodeMode = flags.includes('--jcode')
   const noTelemetry = flags.includes('--no-telemetry')
   const jsonMode = flags.includes('--json')
   const helpMode = flags.includes('--help') || flags.includes('-h')
@@ -505,6 +506,7 @@ export function parseArgs(argv) {
     xcodeMode,
     rovoMode,
     geminiMode,
+    jcodeMode,
     noTelemetry,
     jsonMode,
     helpMode,

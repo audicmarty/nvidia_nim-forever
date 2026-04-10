@@ -41,6 +41,7 @@ export const TOOL_METADATA = {
   cline:             { label: 'Cline',             emoji: '🧠', flag: '--cline',            color: [100, 220, 180] },
   rovo:              { label: 'Rovo Dev CLI',      emoji: '🦘', flag: '--rovo',             color: [148, 163, 184], cliOnly: true },
   gemini:            { label: 'Gemini CLI',        emoji: '♊', flag: '--gemini',           color: [66, 165, 245],  cliOnly: true },
+  jcode:             { label: 'jcode',              emoji: '🪼', flag: '--jcode',             color: [255, 140, 0]  },
   xcode:             { label: 'Xcode Intelligence',emoji: '🛠️', flag: '--xcode',            color: [20, 126, 251] },
 }
 
@@ -62,16 +63,17 @@ export const COMPAT_COLUMN_SLOTS = [
   { emoji: '🧠', toolKeys: ['cline'],                        color: [100, 220, 180] },
   { emoji: '🦘', toolKeys: ['rovo'],                         color: [148, 163, 184] },
   { emoji: '♊', toolKeys: ['gemini'],                       color: [66, 165, 245] },
+  { emoji: '🪼', toolKeys: ['jcode'],                        color: [255, 140, 0]  },
   { emoji: '🛠️', toolKeys: ['xcode'],                        color: [20, 126, 251] },
 ]
 
 export const TOOL_MODE_ORDER = [
   'opencode',
+  'pi',
   'opencode-desktop',
   'openclaw',
   'crush',
   'goose',
-  'pi',
   'aider',
   'qwen',
   'openhands',
@@ -82,6 +84,7 @@ export const TOOL_MODE_ORDER = [
   'xcode',
   'rovo',
   'gemini',
+  'jcode',
 ]
 
 export function getToolMeta(mode) {

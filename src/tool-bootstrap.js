@@ -280,6 +280,20 @@ export const TOOL_BOOTSTRAP_METADATA = {
       },
     },
   },
+  jcode: {
+    binary: 'jcode',
+    docsUrl: 'https://github.com/1jehuang/jcode',
+    install: {
+      default: {
+        shellCommand: 'curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash',
+        summary: 'Install jcode via the official installer script.',
+      },
+      win32: {
+        shellCommand: 'irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 | iex',
+        summary: 'Install jcode via the official PowerShell installer.',
+      },
+    },
+  },
 }
 
 export function getToolBootstrapMeta(mode) {
