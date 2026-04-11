@@ -70,6 +70,7 @@ export const COMPAT_COLUMN_SLOTS = [
 export const TOOL_MODE_ORDER = [
   'opencode',
   'pi',
+  'jcode',
   'opencode-desktop',
   'openclaw',
   'crush',
@@ -84,7 +85,6 @@ export const TOOL_MODE_ORDER = [
   'xcode',
   'rovo',
   'gemini',
-  'jcode',
 ]
 
 export function getToolMeta(mode) {

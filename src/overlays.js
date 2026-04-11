@@ -922,7 +922,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${key('W')}  Toggle ping mode  ${hint('(speed 2s → normal 10s → slow 30s → forced 4s)')}`)
     lines.push(`  ${key('Ctrl+P')}  Open ⚡️ command palette  ${hint('(search and run actions quickly)')}`)
     lines.push(`  ${key('E')}  Toggle configured models only  ${hint('(enabled by default)')}`)
-    lines.push(`  ${key('Z')}  Cycle tool mode  ${hint('(📦 OpenCode → 📦 Desktop → 🦞 OpenClaw → 💘 Crush → 🪿 Goose → π Pi → 🛠 Aider → 🐉 Qwen → 🤲 OpenHands → ⚡ Amp → 🦘 Rovo → ♊ Gemini)')}`)
+    lines.push(`  ${key('Z')}  Cycle tool mode  ${hint('(📦 OpenCode → π Pi → 🪼 jcode → 📦 Desktop → 🦞 OpenClaw → 💘 Crush → 🪿 Goose → 🛠 Aider → 🐉 Qwen → 🤲 OpenHands → ⚡ Amp → 🦘 Rovo → ♊ Gemini)')}`)
     lines.push(`  ${key('F')}  Toggle favorite on selected row  ${hint('(⭐ persisted across sessions)')}`)
     lines.push(`  ${key('Y')}  Toggle favorites mode  ${hint('(Pinned + always visible ↔ Normal filter/sort behavior)')}`)
     lines.push(`  ${key('X')}  Clear active text filter  ${hint('(remove custom query applied from ⚡️ Command Palette)')}`)

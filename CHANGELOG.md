@@ -1,12 +1,5 @@
-## [0.3.45] - 2026-04-11
-
-### Added
-- Added **jcode** external tool support, integrating a new CLI tool across the codebase with command-palette description, tool metadata (label, emoji, flag, color), bootstrap metadata (binary, docs URL, install commands), and full launch wiring via `prepareExternalToolLaunch` and `startExternalTool`. CLI flag parsing for `--jcode` (jcodeMode) is also included.
-- Added **Alt+W** footer toggle — collapses the footer to a single-line hint showing only the toggle hotkey and exit command, giving more vertical space for the model table.
+## [0.3.46] - 2026-04-11
 
 ### Changed
-- Provider API keys are now synced into tool launches — `openclaw` imports `getApiKey` and `syncShellEnv`, accepts an env override in `spawnOpenClawCli`, and populates the child process env with the provider API key when launching the CLI. Tool launchers now use `model.providerKey` instead of hardcoded provider IDs, and `prepareExternalToolLaunch` includes provider and API key in launch args. This enables multi-provider support and ensures launched tools can authenticate using the configured key.
-- Command Palette label updated to remove "NEW !" badge — the feature is no longer new.
-
-### Fixed
-- README now includes a "Bonus Free Stuff" section with curated resources: community awesome-lists, AI-powered IDEs with free tiers, API providers with permanent free tiers, trial credit providers, and education/developer program freebies — accessible via a new navigation link.
+- **jcode** moved to 3rd position in the `Z` cycle order (was 17th/last) — now cycles as: OpenCode → Pi → jcode → OpenCode Desktop → OpenClaw → Crush → Goose → Aider → Qwen → OpenHands → Amp → Hermes → Continue → Cline → Xcode → Rovo → Gemini
+- **jcode launch wiring overhaul** — improved provider handling: NVIDIA now uses `OPENAI_API_KEY` env var instead of `OPENAI_API_BASE`, and all other providers now use `--provider openai-compatible` with explicit `OPENAI_BASE_URL` + `OPENAI_API_KEY` in the env, fixing multi-provider authentication for jcode launches

@@ -759,10 +759,12 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
   }
 
   if (mode === 'jcode') {
+    // 📖 jcode supports OpenAI-compatible providers via --provider openai-compatible
+    // 📖 For custom endpoints, it reads: OPENAI_BASE_URL, OPENAI_API_KEY env vars
     if (model.providerKey === 'nvidia') {
       const jcodeModelId = model.modelId.replace(/^nvidia\//, '').replace(/^openai\//, '')
       const nvidiaBaseUrl = 'https://integrate.api.nvidia.com/v1'
-      const nvidiaEnv = { ...env, OPENAI_BASE_URL: nvidiaBaseUrl, OPENAI_API_BASE: nvidiaBaseUrl }
+      const nvidiaEnv = { ...env, OPENAI_BASE_URL: nvidiaBaseUrl, OPENAI_API_KEY: apiKey }
       console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
       return {
         command: 'jcode',
@@ -774,11 +776,15 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
         configArtifacts: [],
       }
     }
-    console.log(chalk.dim(`  📖 jcode will use provider: ${model.providerKey} / model: ${model.modelId}`))
+    // 📖 For other providers, use --provider openai-compatible with base URL + API key in env
+    // 📖 jcode's openai-compatible provider reads OPENAI_BASE_URL and OPENAI_API_KEY
+    const jcodeEnv = { ...env, OPENAI_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey }
+    const jcodeModelId = model.modelId.replace(/^openai\//, '')
+    console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
     return {
       command: 'jcode',
-        args: ['repl', '--provider', model.providerKey, '--model', model.modelId],
-      env,
+      args: ['repl', '--provider', 'openai-compatible', '--model', jcodeModelId],
+      env: jcodeEnv,
       apiKey,
       baseUrl,
       meta,
