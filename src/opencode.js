@@ -337,6 +337,41 @@ export async function startOpenCode(model, fcmConfig) {
     return
   }
 
+  // 📖 Zen models are built-in to OpenCode — they use the native `opencode` provider prefix
+  // 📖 and don't need a custom provider entry in opencode.json.
+  if (providerKey === 'opencode-zen') {
+    const zenModelRef = `opencode/${ocModelId}`
+    console.log(chalk.green(`  Setting ${chalk.bold(model.label)} as default (Zen built-in)...`))
+    console.log(chalk.dim(`  Model: ${zenModelRef}`))
+    console.log()
+
+    const config = loadOpenCodeConfig()
+    const backupPath = `${getOpenCodeConfigPath()}.backup-${Date.now()}`
+
+    if (existsSync(getOpenCodeConfigPath())) {
+      copyFileSync(getOpenCodeConfigPath(), backupPath)
+      console.log(chalk.dim(`  Backup: ${backupPath}`))
+    }
+
+    config.model = zenModelRef
+    saveOpenCodeConfig(config)
+
+    const savedConfig = loadOpenCodeConfig()
+    console.log(chalk.dim(`  Config saved to: ${getOpenCodeConfigPath()}`))
+    console.log(chalk.dim(`  Default model in config: ${savedConfig.model || 'NOT SET'}`))
+    console.log()
+
+    if (savedConfig.model === config.model) {
+      console.log(chalk.green(`  Default model set to: ${zenModelRef}`))
+    } else {
+      console.log(chalk.yellow(`  Config might not have been saved correctly`))
+    }
+    console.log()
+
+    await spawnOpenCode(['--model', zenModelRef], providerKey, fcmConfig)
+    return
+  }
+
   console.log(chalk.green(`  Setting ${chalk.bold(model.label)} as default...`))
   console.log(chalk.dim(`  Model: ${modelRef}`))
   console.log()
@@ -607,6 +642,42 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
     console.log(chalk.dim('    Reason: ZAI requires a localhost proxy that only works with the CLI spawn.'))
     console.log(chalk.dim('    Use OpenCode CLI mode (default) to launch ZAI models.'))
     console.log()
+    return
+  }
+
+  // 📖 Zen models are built-in to OpenCode — remap to `opencode/<model-id>` and skip provider config.
+  if (providerKey === 'opencode-zen') {
+    const zenModelRef = `opencode/${ocModelId}`
+    console.log(chalk.green(`  Setting ${chalk.bold(model.label)} as default for OpenCode Desktop (Zen built-in)...`))
+    console.log(chalk.dim(`  Model: ${zenModelRef}`))
+    console.log()
+
+    const config = loadOpenCodeConfig()
+    const backupPath = `${getOpenCodeConfigPath()}.backup-${Date.now()}`
+
+    if (existsSync(getOpenCodeConfigPath())) {
+      copyFileSync(getOpenCodeConfigPath(), backupPath)
+      console.log(chalk.dim(`  Backup: ${backupPath}`))
+    }
+
+    config.model = zenModelRef
+    saveOpenCodeConfig(config)
+
+    const savedConfig = loadOpenCodeConfig()
+    console.log(chalk.dim(`  Config saved to: ${getOpenCodeConfigPath()}`))
+    console.log(chalk.dim(`  Default model in config: ${savedConfig.model || 'NOT SET'}`))
+    console.log()
+
+    if (savedConfig.model === config.model) {
+      console.log(chalk.green(`  Default model set to: ${zenModelRef}`))
+    } else {
+      console.log(chalk.yellow(`  Config might not have been saved correctly`))
+    }
+    console.log()
+    console.log(chalk.dim('  Opening OpenCode Desktop...'))
+    console.log()
+
+    await launchDesktop()
     return
   }
 

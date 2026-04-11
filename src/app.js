@@ -240,7 +240,7 @@ export async function runApp(cliArgs, config) {
       config.settings.shellEnvEnabled = false
       saveConfig(config)
     }
-    // 📖 'skip' leaves shellEnvEnabled undefined — will prompt again next launch
+    // 📖 'skip' (Ctrl+C) now also sets shellEnvEnabled = false — prompt won't reappear
   }
 
   // 📖 Default mode: use the last persisted launcher choice when valid,

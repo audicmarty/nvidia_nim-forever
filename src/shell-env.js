@@ -368,6 +368,10 @@ export async function promptShellEnvMigration(config) {
       if (key.ctrl && key.name === 'c') {
         if (process.stdin.isTTY) process.stdin.setRawMode(false)
         process.stdin.removeListener('keypress', onKey)
+        // 📖 User chose to skip — record this so the prompt never shows again on restart
+        if (!config.settings) config.settings = {}
+        config.settings.shellEnvEnabled = false
+        saveConfig(config)
         resolve('skip')
         return
       }

@@ -759,10 +759,25 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
   }
 
   if (mode === 'jcode') {
+    if (model.providerKey === 'nvidia') {
+      const jcodeModelId = model.modelId.replace(/^nvidia\//, '').replace(/^openai\//, '')
+      const nvidiaBaseUrl = 'https://integrate.api.nvidia.com/v1'
+      const nvidiaEnv = { ...env, OPENAI_BASE_URL: nvidiaBaseUrl, OPENAI_API_BASE: nvidiaBaseUrl }
+      console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
+      return {
+        command: 'jcode',
+        args: ['repl', '--provider', 'openai-compatible', '--model', jcodeModelId],
+        env: nvidiaEnv,
+        apiKey,
+        baseUrl: nvidiaBaseUrl,
+        meta,
+        configArtifacts: [],
+      }
+    }
     console.log(chalk.dim(`  📖 jcode will use provider: ${model.providerKey} / model: ${model.modelId}`))
     return {
       command: 'jcode',
-      args: ['run', '--provider', model.providerKey, '--model', model.modelId, '--api-key', apiKey],
+        args: ['repl', '--provider', model.providerKey, '--model', model.modelId],
       env,
       apiKey,
       baseUrl,
