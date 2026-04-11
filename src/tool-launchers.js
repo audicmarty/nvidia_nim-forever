@@ -761,14 +761,16 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
   if (mode === 'jcode') {
     // 📖 jcode supports OpenAI-compatible providers via --provider openai-compatible
     // 📖 For custom endpoints, it reads: OPENAI_BASE_URL, OPENAI_API_KEY env vars
+    // 📖 We use JCODE_MODEL env var instead of --model flag to bypass jcode's hardcoded
+    // 📖 model whitelist validation (which rejects custom models like gpt-oss-120b)
     if (model.providerKey === 'nvidia') {
       const jcodeModelId = model.modelId.replace(/^nvidia\//, '').replace(/^openai\//, '')
       const nvidiaBaseUrl = 'https://integrate.api.nvidia.com/v1'
-      const nvidiaEnv = { ...env, OPENAI_BASE_URL: nvidiaBaseUrl, OPENAI_API_KEY: apiKey }
+      const nvidiaEnv = { ...env, OPENAI_BASE_URL: nvidiaBaseUrl, OPENAI_API_KEY: apiKey, JCODE_MODEL: jcodeModelId }
       console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
       return {
         command: 'jcode',
-        args: ['repl', '--provider', 'openai-compatible', '--model', jcodeModelId],
+        args: ['repl', '--provider', 'openai-compatible'],
         env: nvidiaEnv,
         apiKey,
         baseUrl: nvidiaBaseUrl,
@@ -778,12 +780,12 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
     }
     // 📖 For other providers, use --provider openai-compatible with base URL + API key in env
     // 📖 jcode's openai-compatible provider reads OPENAI_BASE_URL and OPENAI_API_KEY
-    const jcodeEnv = { ...env, OPENAI_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey }
     const jcodeModelId = model.modelId.replace(/^openai\//, '')
+    const jcodeEnv = { ...env, OPENAI_BASE_URL: baseUrl, OPENAI_API_KEY: apiKey, JCODE_MODEL: jcodeModelId }
     console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
     return {
       command: 'jcode',
-      args: ['repl', '--provider', 'openai-compatible', '--model', jcodeModelId],
+      args: ['repl', '--provider', 'openai-compatible'],
       env: jcodeEnv,
       apiKey,
       baseUrl,

@@ -1,5 +1,4 @@
-## [0.3.46] - 2026-04-11
+## [0.3.47] - 2026-04-11
 
-### Changed
-- **jcode** moved to 3rd position in the `Z` cycle order (was 17th/last) — now cycles as: OpenCode → Pi → jcode → OpenCode Desktop → OpenClaw → Crush → Goose → Aider → Qwen → OpenHands → Amp → Hermes → Continue → Cline → Xcode → Rovo → Gemini
-- **jcode launch wiring overhaul** — improved provider handling: NVIDIA now uses `OPENAI_API_KEY` env var instead of `OPENAI_API_BASE`, and all other providers now use `--provider openai-compatible` with explicit `OPENAI_BASE_URL` + `OPENAI_API_KEY` in the env, fixing multi-provider authentication for jcode launches
+### Fixed
+- **jcode model validation freeze** — Fixed terminal freeze when launching jcode with custom models (e.g. GPT OSS 120B via NVIDIA NIM). jcode has a hardcoded model whitelist that rejected non-standard model names passed via `--model` flag, causing the REPL to start without a valid model and hang unresponsively. Now uses `JCODE_MODEL` env var instead, which bypasses the validation and allows any model name to work correctly.
