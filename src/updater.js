@@ -394,6 +394,8 @@ export async function promptUpdateNotification(latestVersion) {
     render()
 
     readline.emitKeypressEvents(process.stdin)
+    // 📖 Ensure stdin is flowing — the shell-env prompt may have paused it
+    process.stdin.resume()
     if (process.stdin.isTTY) process.stdin.setRawMode(true)
 
     const onKey = (_str, key) => {
