@@ -203,7 +203,7 @@ async function spawnOpenCode(args, providerKey, fcmConfig, existingZaiProxy = nu
       if (zaiProxy) zaiProxy.close()
       if (err.code === 'ENOENT') {
         console.error(chalk.red('\n  X Could not find "opencode" -- is it installed and in your PATH?'))
-        console.error(chalk.dim('    Install: npm i -g opencode   or see https://opencode.ai'))
+        console.error(chalk.dim('    Install: npm i -g opencode-ai   or see https://opencode.ai'))
         resolve(1)
       } else {
         reject(err)

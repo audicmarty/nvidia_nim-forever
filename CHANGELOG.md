@@ -1,3 +1,10 @@
+## [0.3.55] - 2026-04-18
+
+### Changed
+
+- **Direct Launch Attempt** — Tool launchers for OpenCode and Kilo now attempt to spawn the command directly instead of blocking with a pre-installation check. Installation instructions are now provided via the process error handler for a more seamless experience.
+- **Fixed OpenCode NPM Command** — Updated the suggested installation command for OpenCode to `npm install -g opencode-ai`.
+
 ## [0.3.54] - 2026-04-18
 
 ### Changed

@@ -307,7 +307,10 @@ export function createKeyHandler(ctx) {
   }
 
   function shouldCheckMissingTool(mode) {
-    return mode !== 'opencode-desktop'
+    // 📖 opencode-desktop doesn't have a binary check (it uses 'open -a').
+    // 📖 opencode-web, opencode, and kilo manage their own ENOENT errors in spawn handlers.
+    // 📖 xcode uses 'open -a Xcode' which doesn't need a binary path resolution.
+    return !['opencode-desktop', 'opencode-web', 'opencode', 'kilo', 'xcode'].includes(mode)
   }
 
   function getModelTelemetryFamily(providerKey) {
