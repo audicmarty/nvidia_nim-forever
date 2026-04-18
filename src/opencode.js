@@ -550,26 +550,10 @@ export async function startOpenCodeWeb(model, fcmConfig) {
   const ocModelId = getOpenCodeModelId(providerKey, model.modelId)
   const modelRef = `${providerKey}/${ocModelId}`
 
-  const launchWeb = async () => {
-    const { exec } = await import('child_process')
-    const url = 'https://opencode.ai'
-    let command
-    if (isMac) {
-      command = `open "${url}"`
-    } else if (isWindows) {
-      command = `start "${url}"`
-    } else {
-      command = `xdg-open "${url}"`
-    }
-    exec(command, (err) => {
-      if (err) {
-        console.error(chalk.red('  Could not open OpenCode WebUI'))
-        console.error(chalk.dim(`    Please visit ${url} manually`))
-      }
-    })
-  }
+  console.log(chalk.green(`  Setting ${chalk.bold(model.label)} as default...`))
+  console.log(chalk.dim(`  Model: ${modelRef}`))
+  console.log()
 
-  // 📖 Mirror OpenCode Desktop behavior: set the model in opencode.json
   const config = loadOpenCodeConfig()
   const backupPath = `${getOpenCodeConfigPath()}.backup-${Date.now()}`
 
@@ -599,8 +583,6 @@ export async function startOpenCodeWeb(model, fcmConfig) {
     }
   }
   // ... other providers are handled as they are selected
-
-  console.log(chalk.green(`  Setting ${chalk.bold(model.label)} as default (mirroring Desktop)...`))
   
   if (providerKey !== 'opencode-zen' && config.provider[providerKey]) {
     if (!config.provider[providerKey].models) config.provider[providerKey].models = {}
@@ -611,10 +593,10 @@ export async function startOpenCodeWeb(model, fcmConfig) {
   saveOpenCodeConfig(config)
 
   console.log(chalk.dim(`  Config saved to: ${getOpenCodeConfigPath()}`))
-  console.log(chalk.dim('  Opening OpenCode WebUI...'))
+  console.log(chalk.dim('  Starting OpenCode Web...'))
   console.log()
 
-  await launchWeb()
+  await spawnOpenCode(['web', '--model', modelRef], providerKey, fcmConfig)
 }
 
 // ─── Start OpenCode Desktop ───────────────────────────────────────────────────

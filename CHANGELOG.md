@@ -1,15 +1,20 @@
-## [0.3.53] - 2026-04-18
+## [0.3.54] - 2026-04-18
+
+### Changed
+
+- **Improved OpenCode WebUI Launch** — The `--opencode-web` flag now correctly spawns the `opencode web` command, providing a integrated browser-based coding experience with pre-configured model selection.
 
 ### Added
 
 - **Kilo CLI Support** — Added `--kilo` flag to launch the Kilo CLI with the selected model. Kilo is a fork of OpenCode and shares the same configuration structure (stored in `~/.config/kilo/opencode.json`).
-- **OpenCode WebUI Support** — Added `--opencode-web` flag to open the OpenCode WebUI dashboard after configuring the selected model.
 
-## [0.3.52] - 2026-04-18
+## [0.3.53] - 2026-04-18
 
 ### Added
 
-- **OpenCode WebUI Support** — Added `--opencode-web` flag to open the OpenCode WebUI dashboard after configuring the selected model. This mirrors the existing `--opencode-desktop` behavior.
+- **OpenCode WebUI Support** — Added `--opencode-web` flag to open the OpenCode WebUI dashboard after configuring the selected model.
+
+## [0.3.52] - 2026-04-18
 
 ## [0.3.51] - 2026-04-11
 
