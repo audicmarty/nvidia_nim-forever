@@ -16,7 +16,7 @@
 
 <p align="center">
   <strong>Find the fastest free coding model in seconds</strong><br>
-  <sub>Ping 238 models across 25 AI Free providers in real-time </sub><br>  <sub> Install Free API endpoints to your favorite AI coding tool: <br>📦 OpenCode, 📦 OpenCode Desktop, 📦 OpenCode WebUI, 🦞 OpenClaw, 💘 Crush, 🪿 Goose, 🛠 Aider, 🐉 Qwen Code, 🤲 OpenHands, ⚡ Amp, 🔮 Hermes, ▶️ Continue, 🧠 Cline, 🛠️ Xcode, π Pi, 🦘 Rovo or ♊ Gemini in one keystroke</sub>
+  <sub>Ping 238 models across 25 AI Free providers in real-time </sub><br>  <sub> Install Free API endpoints to your favorite AI coding tool: <br>📦 OpenCode, 📦 OpenCode Desktop, 📦 OpenCode WebUI, 🦞 OpenClaw, 💘 Crush, 🪿 Goose, 🛠 Aider, ⚡️ Kilo CLI, 🐉 Qwen Code, 🤲 OpenHands, ⚡ Amp, 🔮 Hermes, ▶️ Continue, 🧠 Cline, 🛠️ Xcode, π Pi, 🦘 Rovo or ♊ Gemini in one keystroke</sub>
 </p>
 
 
@@ -267,6 +267,7 @@ When launching the web dashboard, `free-coding-models` prefers `http://localhost
 | `--crush` | 💘 Crush |
 | `--goose` | 🪿 Goose |
 | `--aider` | 🛠 Aider |
+| `--kilo` | ⚡️ Kilo CLI |
 | `--qwen` | 🐉 Qwen Code |
 | `--openhands` | 🤲 OpenHands |
 | `--amp` | ⚡ Amp |

@@ -26,6 +26,7 @@ const TOOL_MODE_DESCRIPTIONS = {
   goose: 'Launch Goose and preselect the active model.',
   pi: 'Launch Pi with model/provider flags.',
   aider: 'Launch Aider configured on the selected model.',
+  kilo: 'Set model in shared config, then launch Kilo CLI.',
   qwen: 'Launch Qwen Code using the selected provider model.',
   openhands: 'Launch OpenHands with the selected model endpoint.',
   amp: 'Launch Amp with this model as active target.',

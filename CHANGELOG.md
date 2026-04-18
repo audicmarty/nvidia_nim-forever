@@ -1,3 +1,10 @@
+## [0.3.53] - 2026-04-18
+
+### Added
+
+- **Kilo CLI Support** — Added `--kilo` flag to launch the Kilo CLI with the selected model. Kilo is a fork of OpenCode and shares the same configuration structure (stored in `~/.config/kilo/opencode.json`).
+- **OpenCode WebUI Support** — Added `--opencode-web` flag to open the OpenCode WebUI dashboard after configuring the selected model.
+
 ## [0.3.52] - 2026-04-18
 
 ### Added

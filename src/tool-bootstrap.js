@@ -173,6 +173,16 @@ export const TOOL_BOOTSTRAP_METADATA = {
       },
     },
   },
+  kilo: {
+    binary: 'kilo',
+    docsUrl: 'https://kilo.ai/docs/cli',
+    install: {
+      default: {
+        shellCommand: 'npm install -g @kilocode/cli',
+        summary: 'Install Kilo CLI globally via npm.',
+      },
+    },
+  },
   qwen: {
     binary: 'qwen',
     docsUrl: 'https://qwenlm.github.io/qwen-code-docs/en/users/quickstart/',

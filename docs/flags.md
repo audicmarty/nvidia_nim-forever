@@ -18,6 +18,7 @@ Start the TUI pre-configured to a specific tool. Press `Enter` on a model to aut
 | `--crush` | Crush | Writes model to `~/.config/crush/crush.json` and launches `crush` |
 | `--goose` | Goose | Writes provider config to `~/.config/goose/` and launches `goose` |
 | `--aider` | Aider | Writes model to `~/.aider.conf.yml` and launches `aider` |
+| `--kilo` | Kilo CLI | Writes model to `~/.config/kilo/opencode.json` and launches `kilo` |
 | `--qwen` | Qwen Code | Writes model to `~/.qwen/settings.json` and launches `qwen` |
 | `--openhands` | OpenHands | Sets `LLM_MODEL` env var and launches OpenHands |
 | `--amp` | Amp | Writes model to `~/.config/amp/settings.json` and launches `amp` |

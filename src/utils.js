@@ -388,7 +388,7 @@ export function findBestModel(results) {
 // 📖 Argument types:
 //   - API key: first positional arg that does not look like a CLI flag (e.g., "nvapi-xxx")
 //   - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --opencode-web, --openclaw,
-//     --aider, --crush, --goose, --qwen,
+//     --aider, --crush, --goose, --qwen, --kilo,
 //     --openhands, --amp, --pi, --no-telemetry, --json, --help/-h (case-insensitive)
 //   - Value flag: --tier <letter> (the next non-flag arg is the tier value)
 //
@@ -452,6 +452,7 @@ export function parseArgs(argv) {
   const crushMode = flags.includes('--crush')
   const gooseMode = flags.includes('--goose')
   const qwenMode = flags.includes('--qwen')
+  const kiloMode = flags.includes('--kilo')
   const openHandsMode = flags.includes('--openhands')
   const ampMode = flags.includes('--amp')
   const piMode = flags.includes('--pi')
@@ -499,6 +500,7 @@ export function parseArgs(argv) {
     crushMode,
     gooseMode,
     qwenMode,
+    kiloMode,
     openHandsMode,
     ampMode,
     piMode,

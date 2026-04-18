@@ -14,6 +14,7 @@
  *   - Goose (~/.config/goose/config.yaml + custom_providers/*.json)
  *   - Crush (~/.config/crush/crush.json)
  *   - Aider (~/.aider.conf.yml)
+ *   - Kilo (~/.config/kilo/opencode.json)
  *   - Qwen (~/.qwen/settings.json)
  *   - Pi (~/.pi/agent/models.json + settings.json)
  *   - OpenHands (~/.fcm-openhands-env)
@@ -29,6 +30,7 @@
  *   → parseGooseConfig — Parse Goose YAML config
  *   → parseCrushConfig — Parse Crush JSON config
  *   → parseAiderConfig — Parse Aider YAML config
+ *   → parseKiloConfig — Parse Kilo JSON config
  *   → parseQwenConfig — Parse Qwen JSON config
  *   → parsePiConfig — Parse Pi JSON configs
  *   → parseOpenHandsConfig — Parse OpenHands env file
@@ -58,6 +60,7 @@ function getToolConfigPaths(homeDir = homedir()) {
     goose: join(homeDir, '.config', 'goose', 'config.yaml'),
     crush: join(homeDir, '.config', 'crush', 'crush.json'),
     aider: join(homeDir, '.aider.conf.yml'),
+    kilo: join(homeDir, '.config', 'kilo', 'opencode.json'),
     qwen: join(homeDir, '.qwen', 'settings.json'),
     piModels: join(homeDir, '.pi', 'agent', 'models.json'),
     piSettings: join(homeDir, '.pi', 'agent', 'settings.json'),
@@ -271,6 +274,43 @@ function parseAiderConfig(paths = getToolConfigPaths()) {
 }
 
 /**
+ * 📖 Parse Kilo config for model
+ */
+function parseKiloConfig(paths = getToolConfigPaths()) {
+  const configPath = paths.kilo
+  if (!existsSync(configPath)) {
+    return { isValid: false, models: [], configPath }
+  }
+
+  try {
+    const content = readFileSync(configPath, 'utf8')
+    const config = JSON.parse(content)
+
+    const models = []
+    if (config.model) {
+      models.push({
+        modelId: config.model,
+        label: config.model,
+        tier: '-',
+        sweScore: '-',
+        providerKey: 'external',
+        isExternal: true,
+        canLaunch: true,
+      })
+    }
+
+    return {
+      isValid: true,
+      hasManagedMarker: true, // Kilo CLI integration always uses modelRef format
+      models,
+      configPath,
+    }
+  } catch (err) {
+    return { isValid: false, models: [], configPath }
+  }
+}
+
+/**
  * 📖 Parse Qwen config for model
  */
 function parseQwenConfig(paths = getToolConfigPaths()) {
@@ -459,6 +499,8 @@ export function parseToolConfig(toolMode, paths = getToolConfigPaths()) {
       return parseCrushConfig(paths)
     case 'aider':
       return parseAiderConfig(paths)
+    case 'kilo':
+      return parseKiloConfig(paths)
     case 'qwen':
       return parseQwenConfig(paths)
     case 'pi':
@@ -476,7 +518,7 @@ export function parseToolConfig(toolMode, paths = getToolConfigPaths()) {
  * 📖 Scan all tool configs and return structured results
  */
 export function scanAllToolConfigs(paths = getToolConfigPaths()) {
-  const toolModes = ['goose', 'crush', 'aider', 'qwen', 'pi', 'openhands', 'amp']
+  const toolModes = ['goose', 'crush', 'aider', 'kilo', 'qwen', 'pi', 'openhands', 'amp']
 
   return toolModes.map((toolMode) => {
     const result = parseToolConfig(toolMode, paths)
@@ -499,6 +541,7 @@ function getToolEmoji(toolMode) {
     goose: '🪿',
     crush: '💘',
     aider: '🛠',
+    kilo: '⚡️',
     qwen: '🐉',
     pi: 'π',
     openhands: '🤲',
@@ -572,6 +615,15 @@ export function softDeleteModel(toolMode, modelId, paths = getToolConfigPaths())
       case 'aider':
         if (originalContent.includes(`model: openai/${modelId}`)) {
           newContent = originalContent.replace(/^model:.*$/m, '# model: (disabled by FCM)\n# model: openai/' + modelId)
+          modified = true
+        }
+        break
+
+      case 'kilo':
+        const kiloConfig = JSON.parse(originalContent)
+        if (kiloConfig.model === modelId) {
+          delete kiloConfig.model
+          newContent = JSON.stringify(kiloConfig, null, 2)
           modified = true
         }
         break

@@ -21,6 +21,7 @@ Every tool follows the same pattern:
 | Crush | `--crush` | `~/.config/crush/crush.json` |
 | Goose | `--goose` | `~/.config/goose/config.yaml` + `custom_providers/` |
 | Aider | `--aider` | `~/.aider.conf.yml` |
+| Kilo CLI | `--kilo` | `~/.config/kilo/opencode.json` |
 | Qwen Code | `--qwen` | `~/.qwen/settings.json` |
 | OpenHands | `--openhands` | `LLM_MODEL` env var |
 | Amp | `--amp` | `~/.config/amp/settings.json` |

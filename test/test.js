@@ -1386,6 +1386,7 @@ describe('parseArgs', () => {
       '--crush',
       '--goose',
       '--qwen',
+      '--kilo',
       '--openhands',
       '--amp',
       '--hermes',
@@ -1397,6 +1398,7 @@ describe('parseArgs', () => {
     assert.equal(result.crushMode, true)
     assert.equal(result.gooseMode, true)
     assert.equal(result.qwenMode, true)
+    assert.equal(result.kiloMode, true)
     assert.equal(result.openHandsMode, true)
     assert.equal(result.ampMode, true)
     assert.equal(result.hermesMode, true)

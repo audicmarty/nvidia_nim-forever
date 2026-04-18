@@ -118,6 +118,7 @@ import { syncShellEnv, ensureShellRcSource, promptShellEnvMigration, removeShell
 import { stripAnsi, maskApiKey, displayWidth, padEndDisplay, tintOverlayLines, keepOverlayTargetVisible, sliceOverlayLines, calculateViewport, sortResultsWithPinnedFavorites, adjustScrollOffset } from '../src/render-helpers.js'
 import { renderTable, PROVIDER_COLOR } from '../src/render-table.js'
 import { setOpenCodeModelData, startOpenCode, startOpenCodeDesktop, startOpenCodeWeb } from '../src/opencode.js'
+import { startKilo } from '../src/kilo.js'
 import { startOpenClaw } from '../src/openclaw.js'
 import { createOverlayRenderers } from '../src/overlays.js'
 import { createKeyHandler, createMouseEventHandler } from '../src/key-handler.js'
@@ -257,6 +258,7 @@ export async function runApp(cliArgs, config) {
       aider: cliArgs.aiderMode,
       crush: cliArgs.crushMode,
       goose: cliArgs.gooseMode,
+      kilo: cliArgs.kiloMode,
       qwen: cliArgs.qwenMode,
       openhands: cliArgs.openHandsMode,
       amp: cliArgs.ampMode,
@@ -874,6 +876,7 @@ export async function runApp(cliArgs, config) {
     startOpenClaw,
     startOpenCodeDesktop,
     startOpenCodeWeb,
+    startKilo,
     startOpenCode,
     startExternalTool,
     getToolModeOrder,
