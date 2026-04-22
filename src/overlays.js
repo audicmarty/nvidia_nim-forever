@@ -1497,6 +1497,150 @@ export function createOverlayRenderers(state, deps) {
     return cleared.join('\n')
   }
 
+  // ─── Router Set Manager overlay renderer ─────────────────────────────────────
+  // 📖 renderSetsManager: two-pane TUI for managing router model sets.
+  // 📖 Left pane: list of all sets (★ = active). Right pane: models in selected set.
+  // 📖 Keyboard-driven: N=new, D=duplicate, R=rename, Delete=remove, A=activate,
+  // 📖 Shift+Up/Down=reorder, Tab=switch pane, Esc=close.
+  // 📖 Phase 4 — Smart Model Router.
+  function renderSetsManager() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+
+    lines.push('')
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.textBold('📋 Router Set Manager')}  ${themeColors.dim('Shift+S from main table')}`)
+    lines.push('')
+
+    const setsData = state.setsData
+    const sets = setsData?.sets || {}
+    const activeSet = setsData?.activeSet || ''
+    const setNames = Object.keys(sets).sort()
+
+    if (state.setsError) {
+      lines.push(`  ${themeColors.warning(state.setsError)}`)
+      lines.push('')
+    }
+
+    // ── Edit mode banner ──────────────────────────────────────────────────────
+    if (state.setsEditMode) {
+      const editLabels = {
+        create: 'Creating new set — enter name and press Enter',
+        rename: `Renaming set — enter new name`,
+        duplicate: 'Duplicating set — enter new name',
+        'delete-confirm': `Deleting set — press Enter to confirm`,
+        'activate-confirm': `Activating set — press Enter to confirm`,
+      }
+      lines.push(`  ${themeColors.warningBold('⚠')}  ${themeColors.warning(editLabels[state.setsEditMode] || 'Edit mode')}`)
+      if (state.setsEditMode !== 'delete-confirm' && state.setsEditMode !== 'activate-confirm') {
+        lines.push(`  ${themeColors.info('> ')}${state.setsEditBuffer}${themeColors.cursorBlink('▋')}`)
+      }
+      lines.push('')
+    }
+
+    // ── Compute pane dimensions ───────────────────────────────────────────────
+    const cols = state.terminalCols || 80
+    const leftWidth = Math.min(30, Math.floor(cols * 0.3))
+    const rightStart = leftWidth + 3
+    const rightWidth = cols - rightStart - 4
+
+    // ── Build left pane: list of sets ────────────────────────────────────────
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+    const leftHeader = themeColors.dim(`  ${padEndDisplay('SETS', leftWidth)}  MODELS IN SET`)
+    lines.push(leftHeader)
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+
+    const leftPaneRowCount = setNames.length
+
+    // ── Edit mode: show input row instead of set list ────────────────────────
+    if (state.setsEditMode === 'create') {
+      const isCursor = state.setsActivePane !== 'sets'
+      const row = `${bullet(isCursor)}${themeColors.textBold('New set: ')}${state.setsEditBuffer}${themeColors.cursorBlink('▋')}`
+      cursorLineByRow[0] = lines.length
+      lines.push(isCursor ? themeColors.bgCursorInstall(row) : row)
+    } else {
+      // Normal list of sets
+      for (let i = 0; i < setNames.length; i++) {
+        const name = setNames[i]
+        const isActive = name === activeSet
+        const isCursor = i === state.setsCursor && state.setsActivePane === 'sets' && !state.setsEditMode
+        const activeTag = isActive ? themeColors.success('★ ') : '   '
+        const label = padEndDisplay(name, leftWidth - 3)
+        const row = `${bullet(isCursor)}${activeTag}${themeColors.textBold(label)}`
+        cursorLineByRow[i] = lines.length
+        lines.push(isCursor ? themeColors.bgCursorInstall(row) : themeColors.dim(row))
+      }
+      if (setNames.length === 0) {
+        lines.push(themeColors.dim('  (no sets — press N to create)'))
+      }
+    }
+
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+    lines.push('')
+
+    // ── Right pane: models in selected set ──────────────────────────────────
+    const selectedSetName = state.setsCursor < setNames.length ? setNames[state.setsCursor] : null
+    const selectedSet = selectedSetName ? (sets[selectedSetName] || null) : null
+    const models = selectedSet?.models || []
+
+    if (selectedSetName) {
+      lines.push(`  ${themeColors.textBold('Active set:')} ${themeColors.info(selectedSetName)}  ${themeColors.dim(`${models.length} model${models.length !== 1 ? 's' : ''}`)}`)
+    } else {
+      lines.push(`  ${themeColors.dim('(select a set to see its models)')}`)
+    }
+    lines.push('')
+
+    // ── Right pane: model list ───────────────────────────────────────────────
+    for (let i = 0; i < models.length; i++) {
+      const m = models[i]
+      const isCursor = i === state.setsCursor && state.setsActivePane === 'models' && !state.setsEditMode
+      const priorityStr = padEndDisplay(`#${m.priority}`, 4)
+      const providerStr = padEndDisplay(m.provider || '?', Math.min(14, Math.floor(rightWidth * 0.3)))
+      const modelStr = padEndDisplay(m.model || '?', Math.max(10, rightWidth - providerStr.length - 10))
+      const row = `${bullet(isCursor)}${priorityStr} ${providerStr}  ${modelStr}`
+      cursorLineByRow[setNames.length + 1 + i] = lines.length
+      lines.push(isCursor ? themeColors.bgCursorInstall(row) : row)
+    }
+    if (models.length === 0 && selectedSetName) {
+      lines.push(themeColors.dim('  (empty set — Shift+A to add a model)'))
+    }
+
+    lines.push('')
+
+    // ── Footer hints ────────────────────────────────────────────────────────
+    if (state.setsEditMode) {
+      lines.push(themeColors.dim('  Enter Confirm  •  Esc Cancel'))
+    } else {
+      const leftHints = [
+        ['N', 'New'],
+        ['D', 'Dup'],
+        ['R', 'Rename'],
+        ['⌫', 'Del'],
+      ]
+      const rightHints = [
+        ['Tab', 'Switch pane'],
+        ['⇧↑/⇧↓', 'Reorder'],
+        ['A', 'Activate'],
+        ['Esc', 'Close'],
+      ]
+      const leftStr = leftHints.map(([k, v]) => `${themeColors.hotkey(k)} ${themeColors.dim(v)}`).join('  ')
+      const rightStr = rightHints.map(([k, v]) => `${themeColors.hotkey(k)} ${themeColors.dim(v)}`).join('  ')
+      lines.push(`  ${themeColors.dim('Sets:')} ${leftStr}`)
+      lines.push(`  ${themeColors.dim('Models:')} ${rightStr}`)
+    }
+
+    // ── Scroll management ───────────────────────────────────────────────────
+    const targetLine = cursorLineByRow[state.setsCursor] ?? 0
+    state.setsScrollOffset = keepOverlayTargetVisible(state.setsScrollOffset, targetLine, lines.length, state.terminalRows)
+    const { visible, offset } = sliceOverlayLines(lines, state.setsScrollOffset, state.terminalRows)
+    state.setsScrollOffset = offset
+
+    const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+    const cleared = tintedLines.map((l) => l + EL)
+    return cleared.join('\n')
+  }
+
   return {
     renderSettings,
     renderInstallEndpoints,
@@ -1509,6 +1653,7 @@ export function createOverlayRenderers(state, deps) {
     renderInstalledModels,
     renderRouterDashboard,
     renderIncompatibleFallback,
+    renderSetsManager,
     startRecommendAnalysis,
     stopRecommendAnalysis,
     overlayLayout,  // 📖 Mouse support: exposes cursor-to-line maps for click handling

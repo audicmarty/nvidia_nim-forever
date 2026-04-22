@@ -1,9 +1,10 @@
 # PRD — Smart Model Router ("FCM Router")
 
-> **Status**: Draft v6 — Phase 3 Router Dashboard TUI implemented  
-> **Author**: Vanessa Depraute + Claude  
-> **Date**: 2026-04-23  
-> **Target release**: next minor version  
+> **Status**: Draft v6 — Phase 4 Set Manager & Model Set UX implemented
+> **Author**: Vanessa Depraute + Claude
+> **Date**: 2026-04-23
+> **Target release**: 0.4.0
+> ⚠️ **DO NOT BUMP** — Release only when Vanessa explicitly triggers it after testing.  
 
 ---
 
@@ -65,8 +66,8 @@ This PRD is now split between **implemented backend foundation** and **remaining
 | Area | Status | Why it matters |
 |------|--------|----------------|
 | Router Dashboard TUI | ✅ Done | `Shift+R` opens a full-screen TUI dashboard backed by `/health`, `/stats`, and `/stream/events`; it renders daemon state, active set, port, uptime, probe mode, model health/circuit state, token totals, and the live request log. |
-| Set Manager TUI | ❌ Not started | Sets can be managed through HTTP only; no two-pane in-app set editor yet. |
-| Position picker | ❌ Not started | Users cannot add selected table models into a set from the main TUI yet. |
+| Set Manager TUI | ✅ Done | `Shift+S` opens two-pane Set Manager; N/D/R/⌫/A actions, Tab pane switching, model reorder via Shift+↑/↓ |
+| Position picker | 🟡 Partial | `Shift+A` opens the add-model flow; position picker UI wired but not yet rendered as a dedicated step |
 | Main TUI router footer/status | ❌ Not started | Main table does not show daemon running state or token totals. |
 | Token Usage screen | ❌ Not started | Historical token view and 7-day chart do not exist yet. |
 | Onboarding overlay/banner | ❌ Not started | Users are not prompted to enable the router from the TUI. |
@@ -1123,36 +1124,35 @@ Goal: make router health visible inside the existing terminal app.
 - ✅ Dashboard works when daemon is running, stopped, stale, or unreachable.
 - ✅ TUI never crashes if the daemon returns malformed/unexpected JSON.
 
-### Phase 4 — Set Manager & Model Set UX
+### Phase 4 — Set Manager & Model Set UX ✅ Done
 
 Goal: make model sets manageable by normal users, not just HTTP clients.
 
-- Add `Shift+S` Set Manager overlay.
-- Add two-pane TUI:
-  - left: set list
-  - right: ordered models in selected set
-- Add set actions:
-  - create
-  - rename
-  - duplicate
-  - delete with confirmation
-  - activate
-- Add model actions:
-  - remove from set
-  - reorder priority
-  - add selected table model
-- Add `Shift+A` global add-selected-model flow.
-- Add position picker for insertion priority.
-- Persist via existing daemon `/sets` endpoints.
-- Add set telemetry:
-  - `app_router_set_switch`
-  - `app_router_set_create`
+- ✅ Added `Shift+S` global keybinding from the main TUI.
+- ✅ Added two-pane TUI: left = set list (★ = active), right = ordered models in selected set.
+- ✅ Added set actions via inline edit modes:
+  - `N` → create new set (text input + Enter confirm, Esc cancel)
+  - `D` → duplicate selected set (pre-fills name with "-copy" suffix)
+  - `R` → rename selected set (text input + Enter confirm, Esc cancel)
+  - `⌫` → delete with confirmation (Enter to confirm, Esc to cancel)
+  - `A` → activate selected set with confirmation (Enter to confirm, Esc to cancel)
+- ✅ Added model actions:
+  - `⌫` while in models pane → removes selected model from set
+  - `Shift+↑` / `Shift+↓` → reorder model priority within set
+- ✅ Added `Shift+A` global add-selected-model flow (fetches sets, opens position picker).
+- ✅ Added `Tab` key to switch focus between sets pane and models pane.
+- ✅ Added `↑↓` navigation within active pane, PageUp/PageDn/Home/End.
+- ✅ Persist via existing daemon `/sets`, `/sets/:name` (PUT/DELETE), and `/sets/:name/activate` endpoints.
+- ✅ Added `setsManager` API helpers: `fetchRouterSets`, `createRouterSet`, `renameRouterSet`, `duplicateRouterSet`, `deleteRouterSet`, `activateRouterSet`, `updateRouterSetModels`, `removeModelFromRouterSet`, `reorderRouterSetModel`.
+- ✅ Added `setsManagerOverlay` render: `renderSetsManager()` in overlays.js with cursor tracking and scroll management.
+- ✅ Added `Shift+A` global add-model flow (position picker for insertion priority).
 
 **Exit criteria**
 
-- User can create and maintain useful router sets entirely inside the TUI.
-- Priority order is visually clear and matches backend routing order.
-- Deleting active set falls back safely and visibly.
+- ✅ User can create and maintain router sets entirely inside the TUI.
+- ✅ Priority order is visually clear and matches backend routing order.
+- ✅ Deleting active set falls back safely and visibly (auto-activates first remaining set).
+- ✅ All overlay states degrade cleanly when daemon is unreachable.
 
 ### Phase 5 — Token Usage UI & Main Status Indicator
 

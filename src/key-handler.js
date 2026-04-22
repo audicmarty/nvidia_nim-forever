@@ -50,6 +50,14 @@ import {
   openRouterDashboardOverlay,
   restartRouterDashboardDaemon,
   toggleRouterDashboardProbePause,
+  fetchRouterSets,
+  createRouterSet,
+  renameRouterSet,
+  duplicateRouterSet,
+  deleteRouterSet,
+  activateRouterSet,
+  reorderRouterSetModel,
+  closeRouterSetsManagerOverlay,
 } from './router-dashboard.js'
 
 // 📖 Some providers need an explicit probe model because the first catalog entry
@@ -937,6 +945,77 @@ export function createKeyHandler(ctx) {
     }
   }
 
+  function openRouterSetsManagerOverlay() {
+    state.setsOpen = true
+    state.setsCursor = 0
+    state.setsScrollOffset = 0
+    state.setsActivePane = 'sets'
+    state.setsEditMode = null
+    state.setsEditBuffer = ''
+    state.setsError = null
+    state.setsLastFetchAt = 0
+    void fetchRouterSets(state, { fetchFn })
+  }
+
+  function openRouterAddModelOverlay() {
+    const selected = state.visibleSorted[state.cursor]
+    if (!selected) return
+    state.setsAddPositionPickerOpen = true
+    state.setsAddPositionCursor = -1 // -1 = append at end
+    state.setsAddModelSearch = ''
+    // 📖 The position picker is a mini overlay — render via setsOpen with special flag
+    state.setsOpen = true
+    state.setsCursor = 0
+    state.setsScrollOffset = 0
+    state.setsActivePane = 'models'
+    state.setsEditMode = 'add-position-picker'
+    state.setsEditBuffer = ''
+    state.setsError = null
+    void fetchRouterSets(state, { fetchFn })
+  }
+
+  // 📖 Handles all Set Manager edit mode confirmations (create/rename/duplicate/delete/activate).
+  async function handleSetsEditConfirm(localState, selectedSetName, allSetNames) {
+    const mode = localState.setsEditMode
+    const buffer = localState.setsEditBuffer.trim()
+    localState.setsEditMode = null
+    localState.setsEditBuffer = ''
+
+    if (mode === 'create') {
+      if (!buffer) { localState.setsError = 'Set name cannot be empty'; return }
+      const result = await createRouterSet(localState, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to create set'
+      return
+    }
+    if (mode === 'rename') {
+      if (!buffer || !selectedSetName) { localState.setsError = 'Invalid rename'; return }
+      if (allSetNames.includes(buffer) && buffer !== selectedSetName) { localState.setsError = 'A set with that name already exists'; return }
+      const result = await renameRouterSet(localState, selectedSetName, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to rename set'
+      return
+    }
+    if (mode === 'duplicate') {
+      if (!buffer || !selectedSetName) { localState.setsError = 'Invalid duplicate'; return }
+      if (allSetNames.includes(buffer)) { localState.setsError = 'A set with that name already exists'; return }
+      const result = await duplicateRouterSet(localState, selectedSetName, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to duplicate set'
+      return
+    }
+    if (mode === 'delete-confirm') {
+      if (!selectedSetName) return
+      const result = await deleteRouterSet(localState, selectedSetName, { fetchFn })
+      if (!result.ok) { localState.setsError = result.error || 'Failed to delete set'; return }
+      localState.setsCursor = Math.max(0, localState.setsCursor - 1)
+      return
+    }
+    if (mode === 'activate-confirm') {
+      if (!selectedSetName) return
+      const result = await activateRouterSet(localState, selectedSetName, { fetchFn })
+      if (!result.ok) { localState.setsError = result.error || 'Failed to activate set'; return }
+      return
+    }
+  }
+
   function cycleToolMode() {
     const modeOrder = getToolModeOrder()
     const currentIndex = modeOrder.indexOf(state.mode)
@@ -1401,6 +1480,152 @@ export function createKeyHandler(ctx) {
         toggleRouterDashboardProbePause(state)
         return
       }
+      return
+    }
+
+    // 📖 Router Set Manager overlay: N=new set, D=duplicate, R=rename, Delete=delete,
+    // 📖 Tab=switch pane, Enter=confirm, Shift+Up/Down=reorder, A=activate, Esc=cancel/close.
+    if (state.setsOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+
+      const setsData = state.setsData
+      const sets = setsData?.sets || {}
+      const setNames = Object.keys(sets).sort()
+      const selectedSetName = state.setsCursor < setNames.length ? setNames[state.setsCursor] : null
+      const models = selectedSetName ? (sets[selectedSetName]?.models || []) : []
+      const leftPaneMax = state.setsEditMode === 'create' ? 0 : Math.max(0, setNames.length - 1)
+      const rightPaneMax = Math.max(0, models.length - 1)
+
+      // ── Edit mode: text input ────────────────────────────────────────────
+      if (state.setsEditMode) {
+        if (key.name === 'escape') {
+          state.setsEditMode = null
+          state.setsEditBuffer = ''
+          return
+        }
+        if (key.name === 'return') {
+          await handleSetsEditConfirm(state, selectedSetName, setNames)
+          return
+        }
+        if (key.name === 'backspace') {
+          state.setsEditBuffer = state.setsEditBuffer.slice(0, -1)
+          return
+        }
+        if (key.ctrl || key.meta) return
+        const char = key.ctrl ? '' : (key.str || '').slice(-1)
+        if (char && char.length === 1 && !key.ctrl && !key.meta) {
+          state.setsEditBuffer += char
+        }
+        return
+      }
+
+      // ── Escape: close overlay ──────────────────────────────────────────────
+      if (key.name === 'escape') {
+        closeRouterSetsManagerOverlay(state)
+        return
+      }
+
+      // ── Tab: switch focus between left (sets) and right (models) panes ────
+      if (key.name === 'tab') {
+        state.setsActivePane = state.setsActivePane === 'sets' ? 'models' : 'sets'
+        return
+      }
+
+      // ── Navigation: up/down within active pane ─────────────────────────────
+      const maxCursor = state.setsActivePane === 'sets' ? leftPaneMax : rightPaneMax
+      if (key.name === 'up' || key.name === 'k') {
+        state.setsCursor = Math.max(0, state.setsCursor - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.setsCursor = Math.min(maxCursor, state.setsCursor + 1)
+        return
+      }
+      if (key.name === 'pageup') {
+        state.setsCursor = Math.max(0, state.setsCursor - Math.max(1, (state.terminalRows || 10) - 4))
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.setsCursor = Math.min(maxCursor, state.setsCursor + Math.max(1, (state.terminalRows || 10) - 4))
+        return
+      }
+      if (key.name === 'home') {
+        state.setsCursor = 0
+        return
+      }
+      if (key.name === 'end') {
+        state.setsCursor = maxCursor
+        return
+      }
+
+      // ── N: create new set ─────────────────────────────────────────────────
+      if (key.name === 'n') {
+        state.setsEditMode = 'create'
+        state.setsEditBuffer = ''
+        state.setsActivePane = 'sets'
+        state.setsCursor = 0
+        return
+      }
+
+      // ── D: duplicate selected set ─────────────────────────────────────────
+      if (key.name === 'd') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'duplicate'
+        state.setsEditBuffer = `${selectedSetName}-copy`
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── R: rename selected set ─────────────────────────────────────────────
+      if (key.name === 'r') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'rename'
+        state.setsEditBuffer = selectedSetName
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── Delete / Backspace: delete selected set or remove model ───────────
+      if (key.name === 'delete' || key.name === 'backspace') {
+        if (state.setsActivePane === 'sets') {
+          if (!selectedSetName) return
+          state.setsEditMode = 'delete-confirm'
+          state.setsActivePane = 'sets'
+          return
+        } else {
+          // Remove model from set
+          const m = models[state.setsCursor]
+          if (!m || !selectedSetName) return
+          const result = await removeModelFromRouterSet(state, selectedSetName, m.provider, m.model)
+          if (!result.ok) state.setsError = result.error || 'Failed to remove model'
+          return
+        }
+      }
+
+      // ── A: activate selected set ──────────────────────────────────────────
+      if (key.name === 'a') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'activate-confirm'
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── Shift+Up / Shift+Down: reorder model priority ─────────────────────
+      if (key.shift && (key.name === 'up' || key.name === 'arrowup')) {
+        const m = models[state.setsCursor]
+        if (!m || !selectedSetName) return
+        const result = await reorderRouterSetModel(state, selectedSetName, m.provider, m.model, 'up')
+        if (!result.ok) state.setsError = result.error || 'Failed to reorder'
+        return
+      }
+      if (key.shift && (key.name === 'down' || key.name === 'arrowdown')) {
+        const m = models[state.setsCursor]
+        if (!m || !selectedSetName) return
+        const result = await reorderRouterSetModel(state, selectedSetName, m.provider, m.model, 'down')
+        if (!result.ok) state.setsError = result.error || 'Failed to reorder'
+        return
+      }
+
       return
     }
 
@@ -2433,6 +2658,18 @@ export function createKeyHandler(ctx) {
     // 📖 Shift+R: open the Smart Model Router dashboard from the main table.
     if (key.name === 'r' && key.shift && !key.ctrl && !key.meta) {
       openRouterDashboardOverlay(state)
+      return
+    }
+
+    // 📖 Shift+S: open the Router Set Manager overlay.
+    if (key.name === 's' && key.shift && !key.ctrl && !key.meta) {
+      openRouterSetsManagerOverlay()
+      return
+    }
+
+    // 📖 Shift+A: add the selected model from the main table to a router set.
+    if (key.name === 'a' && key.shift && !key.ctrl && !key.meta) {
+      openRouterAddModelOverlay()
       return
     }
 

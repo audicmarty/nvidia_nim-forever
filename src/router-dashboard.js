@@ -30,6 +30,9 @@
  * @exports toggleRouterDashboardProbePause, stopRouterDashboardClient
  * @exports renderRouterDashboard, normalizeRouterDashboardSnapshot
  * @exports parseRouterDashboardSseFrame, formatRouterDuration
+ * @exports fetchRouterSets, createRouterSet, renameRouterSet, duplicateRouterSet
+ * @exports deleteRouterSet, activateRouterSet, updateRouterSetModels
+ * @exports addModelToRouterSet, removeModelFromRouterSet, reorderRouterSetModel
  *
  * @see ./router-daemon.js — daemon endpoints consumed by this screen
  * @see ./overlays.js — overlay factory that mounts this renderer
@@ -501,6 +504,14 @@ export function closeRouterDashboardOverlay(state) {
   stopRouterDashboardClient(state)
 }
 
+export function closeRouterSetsManagerOverlay(state) {
+  state.setsOpen = false
+  state.setsScrollOffset = 0
+  state.setsEditMode = null
+  state.setsEditBuffer = ''
+  state.setsAddPositionPickerOpen = false
+}
+
 export async function cycleRouterDashboardActiveSet(state, options = {}) {
   const fetchFn = options.fetchFn || globalThis.fetch
   const baseUrl = state.routerDashboardBaseUrl
@@ -569,6 +580,159 @@ export function restartRouterDashboardDaemon(state) {
 
 export function toggleRouterDashboardProbePause(state) {
   setDashboardNotice(state, 'info', 'Probe pause/resume needs backend support and remains disabled for now.')
+}
+
+// ── Set Manager helpers (Phase 4) ──────────────────────────────────────────────
+
+const SETS_FETCH_INTERVAL_MS = 5000
+
+function isSetsDataStale(lastFetchAt) {
+  return Date.now() - lastFetchAt > SETS_FETCH_INTERVAL_MS
+}
+
+export async function fetchRouterSets(state, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) {
+    return { ok: false, error: 'Daemon not reachable', sets: null }
+  }
+  const result = await fetchJson(`${baseUrl}/sets`, { fetchFn })
+  if (!result.ok) return { ok: false, error: result.error, sets: null }
+  const payload = result.data
+  if (!isRecord(payload) || !isRecord(payload.sets)) {
+    return { ok: false, error: 'Unexpected /sets payload', sets: null }
+  }
+  state.setsData = payload
+  state.setsLastFetchAt = Date.now()
+  return { ok: true, error: null, sets: payload }
+}
+
+export async function createRouterSet(state, name, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const result = await fetchJson(`${baseUrl}/sets`, {
+    method: 'POST',
+    body: JSON.stringify({ name, models: [] }),
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function renameRouterSet(state, oldName, newName, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const result = await fetchJson(`${baseUrl}/sets/${encodeURIComponent(oldName)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name: newName }),
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function duplicateRouterSet(state, sourceName, newName, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const sets = state.setsData?.sets
+  if (!sets || !sets[sourceName]) return { ok: false, error: 'Source set not found' }
+  const models = sets[sourceName].models || []
+  const result = await fetchJson(`${baseUrl}/sets`, {
+    method: 'POST',
+    body: JSON.stringify({ name: newName, models }),
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function deleteRouterSet(state, name, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const result = await fetchJson(`${baseUrl}/sets/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function activateRouterSet(state, name, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const result = await fetchJson(`${baseUrl}/sets/${encodeURIComponent(name)}/activate`, {
+    method: 'POST',
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function updateRouterSetModels(state, setName, models, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const result = await fetchJson(`${baseUrl}/sets/${encodeURIComponent(setName)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ models }),
+    fetchFn,
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await fetchRouterSets(state, { fetchFn })
+  return { ok: true }
+}
+
+export async function addModelToRouterSet(state, setName, provider, model, priority, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const sets = state.setsData?.sets
+  if (!sets || !sets[setName]) return { ok: false, error: 'Set not found' }
+  const currentModels = sets[setName].models || []
+  const modelEntry = { provider, model, priority: Number(priority) || currentModels.length + 1 }
+  const result = await updateRouterSetModels(state, setName, [...currentModels, modelEntry], { fetchFn })
+  return result
+}
+
+export async function removeModelFromRouterSet(state, setName, provider, model, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const sets = state.setsData?.sets
+  if (!sets || !sets[setName]) return { ok: false, error: 'Set not found' }
+  const currentModels = (sets[setName].models || []).filter(
+    (m) => !(m.provider === provider && m.model === model)
+  )
+  return updateRouterSetModels(state, setName, currentModels, { fetchFn })
+}
+
+export async function reorderRouterSetModel(state, setName, provider, model, direction, options = {}) {
+  const fetchFn = options.fetchFn || globalThis.fetch
+  const baseUrl = state.routerDashboardBaseUrl
+  if (!baseUrl) return { ok: false, error: 'Daemon not reachable' }
+  const sets = state.setsData?.sets
+  if (!sets || !sets[setName]) return { ok: false, error: 'Set not found' }
+  const currentModels = [...(sets[setName].models || [])]
+  const idx = currentModels.findIndex((m) => m.provider === provider && m.model === model)
+  if (idx < 0) return { ok: false, error: 'Model not in set' }
+  const newIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (newIdx < 0 || newIdx >= currentModels.length) return { ok: false, error: 'Already at edge' }
+  const [moved] = currentModels.splice(idx, 1)
+  currentModels.splice(newIdx, 0, moved)
+  for (let i = 0; i < currentModels.length; i++) {
+    currentModels[i] = { ...currentModels[i], priority: i + 1 }
+  }
+  return updateRouterSetModels(state, setName, currentModels, { fetchFn })
 }
 
 function requestLogRows(state, snapshot) {

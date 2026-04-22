@@ -543,6 +543,19 @@ export async function runApp(cliArgs, config) {
     routerDashboardEventError: null,
     routerDashboardNotice: null,
     routerDashboardNoticeTimer: null,
+    // 📖 Set Manager overlay state (Shift+S opens it). Two-pane: left=sets, right=models in selected set.
+    setsOpen: false,              // 📖 Whether the Set Manager overlay is active
+    setsData: null,               // 📖 Cached { activeSet, sets } from GET /sets
+    setsError: null,              // 📖 Error message if sets fetch failed
+    setsCursor: 0,                // 📖 Selected row in active pane
+    setsScrollOffset: 0,          // 📖 Vertical scroll offset for overlay viewport
+    setsActivePane: 'sets',       // 📖 'sets' | 'models' — which pane has keyboard focus
+    setsEditMode: null,           // 📖 null | 'create' | 'rename' | 'duplicate' | 'delete-confirm' | 'activate-confirm'
+    setsEditBuffer: '',           // 📖 Typed text while in edit modes (new name, rename)
+    setsAddPositionPickerOpen: false, // 📖 True when Shift+A triggered the position picker for adding a model
+    setsAddPositionCursor: 0,     // 📖 Cursor position in the add-model position picker
+    setsAddModelSearch: '',       // 📖 Search filter when adding models from catalog
+    setsLastFetchAt: 0,           // 📖 Timestamp of last GET /sets to avoid hammering the API
     // 📖 Custom text filter (Ctrl+P palette → type text → Enter). Ephemeral — not saved to config.
     customTextFilter: null,       // 📖 Active free-text filter string (null = off). Matches model name, ctx, provider key/name.
   }
@@ -1133,6 +1146,8 @@ export async function runApp(cliArgs, config) {
         ? overlays.renderInstalledModels()
       : state.routerDashboardOpen
         ? overlays.renderRouterDashboard()
+      : state.setsOpen
+        ? overlays.renderSetsManager()
       : state.incompatibleFallbackOpen
         ? overlays.renderIncompatibleFallback()
       : state.commandPaletteOpen
