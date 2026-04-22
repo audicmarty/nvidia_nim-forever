@@ -15,6 +15,10 @@ import { runApp } from '../src/app.js';
 
 // Global error handlers to ensure terminal is restored if something crashes catastrophically
 process.on('uncaughtException', (err) => {
+  if (process.argv.some(arg => arg === '--daemon')) {
+    console.error(err);
+    return;
+  }
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled exception occurred.'));
   console.error(err);
@@ -23,6 +27,10 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  if (process.argv.some(arg => arg === '--daemon')) {
+    console.error(reason);
+    return;
+  }
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled promise rejection occurred.'));
   console.error(reason);
@@ -38,6 +46,31 @@ async function main() {
     console.log(buildCliHelpText({ chalk, title: 'free-coding-models' }));
     console.log();
     process.exit(0);
+  }
+
+  // 📖 Router daemon lifecycle flags run before the TUI so automation and
+  // 📖 editor integrations can manage the local OpenAI-compatible endpoint.
+  if (cliArgs.daemonMode || cliArgs.daemonBackgroundMode || cliArgs.daemonStopMode || cliArgs.daemonStatusMode) {
+    const {
+      getRouterDaemonStatus,
+      runRouterDaemon,
+      startRouterDaemonBackground,
+      stopRouterDaemon,
+    } = await import('../src/router-daemon.js');
+
+    if (cliArgs.daemonMode) {
+      await runRouterDaemon();
+      return;
+    }
+
+    const result = cliArgs.daemonBackgroundMode
+      ? await startRouterDaemonBackground()
+      : cliArgs.daemonStopMode
+        ? await stopRouterDaemon()
+        : await getRouterDaemonStatus();
+
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(result.ok ? 0 : 1);
   }
 
   // Validate --tier early, before entering alternate screen

@@ -1,8 +1,8 @@
 # PRD — Smart Model Router ("FCM Router")
 
-> **Status**: Draft v3  
+> **Status**: Draft v4 — partially implemented  
 > **Author**: Vanessa Depraute + Claude  
-> **Date**: 2026-04-22  
+> **Date**: 2026-04-23  
 > **Target release**: next minor version  
 
 ---
@@ -26,6 +26,73 @@ The TUI gains a new **Router Dashboard** screen for full live monitoring — cir
 ### Core Principle
 
 > Install once, code forever. The router adapts — the user doesn't have to.
+
+---
+
+## 2.1 Current Implementation Status
+
+This PRD is now split between **implemented backend foundation** and **remaining product phases**. The first implementation pass landed the daemon and API core, but not the full TUI product experience yet.
+
+### Implemented In Current Branch
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Daemon lifecycle | ✅ Done | `--daemon`, `--daemon-bg`, `--daemon-status`, and `--daemon-stop` exist. Background daemon uses PID/port files and graceful SIGTERM shutdown. |
+| Port discovery | ✅ Done | Daemon prefers `19280`, falls back through `19289`, and writes `~/.free-coding-models-daemon.port`. |
+| Logging | ✅ Done | Writes `~/.free-coding-models-daemon.log` with 5 MB rotation and `error/warn/info/debug` levels. |
+| Router config schema | ✅ Done | `router` config is normalized and preserved by `src/config.js`; unrelated config saves no longer drop router data. |
+| Default router set | ✅ Done | First daemon start auto-creates `fast-coding` from configured providers, falling back to top catalog models if no keys exist. |
+| Config + env API keys | ✅ Done | Daemon reads config keys first and environment variables as fallback; config reload runs every 60s. |
+| OpenAI-compatible reverse proxy | ✅ Done | `/v1/chat/completions` rewrites URL, auth header, and `model`; request body fields are otherwise passed through. |
+| Named set endpoint | ✅ Done | `/v1/sets/:name/chat/completions` routes through a named set. |
+| Virtual model list | ✅ Done | `/v1/models` returns `fcm` and `fcm:<set-name>` virtual models. |
+| Set API backend | ✅ Done | Backend supports `GET /sets`, `POST /sets`, `PUT /sets/:name`, `DELETE /sets/:name`, and `POST /sets/:name/activate`. |
+| Health probes | ✅ Backend done | Cold-start burst, rolling probe windows, staggered steady probing, Eco/Balanced/Aggressive intervals. |
+| Circuit breaker | ✅ Backend done | CLOSED / HALF_OPEN / OPEN states, exponential cooldown, auth errors separated from transient failures. |
+| Scoring | ✅ Backend done | Score uses latency, uptime, and user priority. Cold start falls back to priority order. |
+| Request failover | ✅ Backend done | Non-streaming failover and streaming failover before first byte are implemented. Partial streamed responses are not retried after bytes are sent. |
+| Stale model detection | ✅ Backend done | Set entries missing from `sources.js` are marked stale and skipped. |
+| Stats endpoints | ✅ Done | `/health`, `/stats`, `/stats/tokens`, `/stats/tokens/daily/:date`, and `/stream/events` exist. |
+| Token tracking | ✅ Partial | Non-streaming OpenAI `usage` fields are tracked daily/all-time. Streaming token extraction is still not tracked. |
+| SSE events | ✅ Backend done | Emits `request`, `probe`, `circuit`, and `set_change` events. No TUI consumer yet. |
+| Telemetry | ✅ Partial | Daemon start/stop, failover, circuit-open, and all-down events are wired. Error/self-restart telemetry is still incomplete. |
+| Tests | ✅ Done | Unit coverage added for CLI flags, router config normalization/persistence, default set creation, and error payload shape. Manual smoke tested daemon start/status/stop. |
+| Documentation | ✅ Done | README, flags docs, config docs, changelog, and this PRD reflect the current router foundation. |
+
+### Not Implemented Yet
+
+| Area | Status | Why it matters |
+|------|--------|----------------|
+| Router Dashboard TUI | ❌ Not started | Users cannot monitor daemon health, logs, circuit states, or token usage inside the TUI yet. |
+| Set Manager TUI | ❌ Not started | Sets can be managed through HTTP only; no two-pane in-app set editor yet. |
+| Position picker | ❌ Not started | Users cannot add selected table models into a set from the main TUI yet. |
+| Main TUI router footer/status | ❌ Not started | Main table does not show daemon running state or token totals. |
+| Token Usage screen | ❌ Not started | Historical token view and 7-day chart do not exist yet. |
+| Onboarding overlay/banner | ❌ Not started | Users are not prompted to enable the router from the TUI. |
+| `FCM Router` install target | ❌ Not started | Existing endpoint installer cannot yet write router config into OpenCode/Goose/Aider/etc. |
+| Auto-start on boot | ❌ Not started | No launchd/systemd setup or Settings toggle yet. |
+| Command palette router actions | ❌ Not started | Router commands are not searchable inside Ctrl+P yet. |
+| Full upstream hardening | ⚠️ Partial | Core retry/failover works, but malformed upstream JSON, HTML maintenance pages, client disconnect aborts, detailed quota header parsing, and restart endpoint need more hardening. |
+| Full npm release verification | ❌ Not done | Implementation was tested locally, but no version bump, publish, or global npm tarball verification was performed. |
+
+### Current Usable Slice
+
+Users can manually start the router and configure tools by hand:
+
+```bash
+free-coding-models --daemon-bg
+free-coding-models --daemon-status
+```
+
+Tool config:
+
+| Field | Value |
+|-------|-------|
+| Base URL | `http://localhost:19280/v1` |
+| Model | `fcm` |
+| API key | `fcm-local` |
+
+This is enough to validate the backend router behavior before building the full TUI/dashboard UX.
 
 ---
 
@@ -962,63 +1029,241 @@ The router integrates with the existing PostHog telemetry system (anonymous, opt
 
 ---
 
-## 13. Implementation Phases
+## 13. Development Phases From Here
 
-### Phase 1 — Foundation
-- Daemon process lifecycle (spawn, PID file, port discovery, reconnect)
-- CLI flags (`--daemon`, `--daemon-bg`, `--daemon-stop`, `--daemon-status`)
-- Daemon logging (`~/.free-coding-models-daemon.log` with rotation)
-- API key management (config file primary + env var fallback, 60s re-read)
-- Reverse proxy with request rewriting (URL, auth header, model field)
-- Basic HTTP server with `/v1/chat/completions` proxy
-- Single set support (no multi-set yet)
-- Simple priority-based routing (no scoring yet, just user order)
-- Cold start burst probing
-- Config schema (`router` key in existing config)
-- Error handling: process-level safety net (uncaughtException, unhandledRejection), HTTP input validation, atomic file writes, graceful degradation levels 0-5
-- Basic telemetry (`app_daemon_start`, `app_daemon_stop`)
+The original PRD mixed backend, TUI, onboarding, and release work into broad phases. The plan below reflects what is already implemented and what should be tackled next without stepping on itself.
 
-### Phase 2 — Smart Routing
-- Health probe engine with 3 intensity modes (Eco / Balanced / Aggressive)
-- Zero-token eco probes via `/v1/models` endpoint
-- Circuit breaker (3-state, exponential backoff)
-- Scoring algorithm (latency + uptime + priority)
-- Request-level failover (non-streaming first, then streaming)
-- Stream stall detection
-- Upstream proxy error handling (DNS, TLS, malformed response, HTML maintenance pages)
-- Request ID propagation (UUID per request, in logs + errors + SSE events)
-- Quota exhaustion detection in error messages (429 → show which models are quota-exhausted)
-- Memory safeguards (ring buffers, hard caps on all data structures, concurrent request limit)
-- Self-restart on repeated uncaught exceptions (Level 5 degradation)
-- Failover telemetry (`app_router_failover`, `app_router_circuit_open`, `app_router_all_down`)
-- Error telemetry (`app_router_error`, `app_router_self_restart`)
+### Phase 1 — Backend Foundation ✅ Done
 
-### Phase 3 — Multi-Set & Named Endpoints
-- Multiple named sets CRUD
-- `/v1/sets/:name/chat/completions` routing
-- Set Manager overlay in TUI (two-pane, reorder, CRUD)
-- Position picker for adding models to sets
-- Set telemetry (`app_router_set_switch`, `app_router_set_create`)
+Shipped in the first implementation pass.
 
-### Phase 4 — Dashboard & Token Tracking
-- Token usage tracking (`usage.total_tokens` extraction)
-- Token persistence file with daily granularity
-- Router Dashboard TUI screen (health table, live log, token counters, probe monitoring)
-- Main TUI footer status indicator (router status + token counts in K/M with 2 decimals)
-- Stale model detection and 💀 STALE state in dashboard
-- Probe intensity toggle (I key) with visual cost estimate
-- Token Usage screen (historical view, 7-day chart)
-- SSE event stream for live updates
+- ✅ Daemon process lifecycle: foreground, background, status, stop.
+- ✅ PID file, port file, port fallback scan, and status discovery.
+- ✅ Router logging with rotation.
+- ✅ Router config schema under `router`.
+- ✅ Config normalization that preserves router sets across unrelated saves.
+- ✅ API key lookup: config first, env fallback.
+- ✅ Config reload every 60s.
+- ✅ OpenAI-compatible `/v1/chat/completions` reverse proxy.
+- ✅ `/v1/models` virtual model list.
+- ✅ Default `fast-coding` set creation.
+- ✅ Graceful shutdown with in-flight drain and token flush.
+- ✅ Basic daemon telemetry.
+- ✅ README/config/flags/changelog documentation.
 
-### Phase 5 — Onboarding, Auto-Start & Polish
-- New user onboarding overlay
-- Existing user upgrade notification banner
-- "FCM Router" as install target in endpoint installer
-- Daemon auto-start on boot (launchd/systemd) with Settings toggle
-- Auto-start telemetry (`app_router_autostart_toggle`)
-- Install telemetry (`app_router_install`)
-- Command palette integration (router commands searchable)
-- Documentation and README update
+### Phase 2 — Backend Hardening & Compliance 🔜 Next
+
+Goal: make the router backend robust enough that the TUI can trust it without defensive hacks.
+
+- Add mock-upstream integration tests for:
+  - success routing
+  - non-streaming failover
+  - streaming failover before first byte
+  - partial streaming failure behavior
+  - auth errors
+  - all-models-down `503`
+  - malformed JSON / HTML upstream response
+  - timeout and connection refused
+- Implement client-disconnect upstream abort.
+- Detect and retry upstream HTML maintenance pages as `503`.
+- Harden malformed upstream JSON handling for non-streaming responses.
+- Extract `Retry-After` and rate-limit/quota headers where providers expose them.
+- Add more precise quota-exhausted reporting in `503` payloads.
+- Implement `/daemon/restart` or remove it from the advertised API until ready.
+- Decide whether auth failures should skip all same-provider candidates during one request.
+- Finish error telemetry:
+  - `app_router_error`
+  - `app_router_self_restart`
+- Review daemon process safety:
+  - current implementation logs repeated uncaught exceptions and exits for external restart
+  - original PRD says self-respawn; choose one behavior and document it.
+- Add package sanity test that `src/router-daemon.js` is included by the existing `files` field.
+
+**Exit criteria**
+
+- Router backend has deterministic integration tests with local fake providers.
+- No advertised backend endpoint is stubbed or misleading.
+- Backend behavior matches sections 8-10 of this PRD, or this PRD is updated with explicit deviations.
+
+### Phase 3 — Router Dashboard TUI
+
+Goal: make router health visible inside the existing terminal app.
+
+- Add `Shift+R` global keybinding.
+- Add Router Dashboard overlay.
+- Connect dashboard to:
+  - `GET /health`
+  - `GET /stats`
+  - `GET /stream/events`
+- Render:
+  - daemon state
+  - active set
+  - port
+  - uptime
+  - request count
+  - probe mode
+  - model health/circuit table
+  - token summary
+  - live request log
+- Add local dashboard keys:
+  - `S` switch active set
+  - `I` cycle probe intensity
+  - `R` restart daemon, if Phase 2 keeps `/daemon/restart`
+  - `C` clear local dashboard request log
+  - `P` pause/resume probes, if backend support is added
+  - `Esc` back
+- Use `agent-tui` visual tests for dashboard layout and key handling.
+
+**Exit criteria**
+
+- User can inspect daemon/router state without leaving the TUI.
+- Dashboard works when daemon is running, stopped, stale, or unreachable.
+- TUI never crashes if the daemon returns malformed/unexpected JSON.
+
+### Phase 4 — Set Manager & Model Set UX
+
+Goal: make model sets manageable by normal users, not just HTTP clients.
+
+- Add `Shift+S` Set Manager overlay.
+- Add two-pane TUI:
+  - left: set list
+  - right: ordered models in selected set
+- Add set actions:
+  - create
+  - rename
+  - duplicate
+  - delete with confirmation
+  - activate
+- Add model actions:
+  - remove from set
+  - reorder priority
+  - add selected table model
+- Add `Shift+A` global add-selected-model flow.
+- Add position picker for insertion priority.
+- Persist via existing daemon `/sets` endpoints.
+- Add set telemetry:
+  - `app_router_set_switch`
+  - `app_router_set_create`
+
+**Exit criteria**
+
+- User can create and maintain useful router sets entirely inside the TUI.
+- Priority order is visually clear and matches backend routing order.
+- Deleting active set falls back safely and visibly.
+
+### Phase 5 — Token Usage UI & Main Status Indicator
+
+Goal: expose token tracking and router state where users naturally look.
+
+- Add main footer/status line:
+  - running/down indicator
+  - active set
+  - model count
+  - today tokens
+  - all-time tokens
+- Add token formatting:
+  - `< 1,000` raw
+  - `K` with 2 decimals
+  - `M` with 2 decimals
+- Add `Shift+T` Token Usage screen.
+- Render:
+  - today total/prompt/completion/request counts
+  - all-time totals
+  - top models today
+  - last 7 days chart
+- Decide whether streaming token usage should remain unknown or be estimated.
+
+**Exit criteria**
+
+- Users can answer “is the router running?” and “what did I use today?” from the TUI.
+- Token views degrade cleanly when the token file is missing or corrupt.
+
+### Phase 6 — Onboarding & Install Flow
+
+Goal: make the router discoverable and easy to install into coding tools.
+
+- Add new-user onboarding overlay when `config.router` is absent.
+- Add existing-user upgrade banner for users with existing config but no router key.
+- Add “enable router” flow:
+  - create default set from top healthy visible models when possible
+  - start daemon
+  - show dashboard or success confirmation
+- Add “not now” flow:
+  - `router.enabled = false`
+  - `router.onboardingSeen = true`
+- Add `FCM Router` as install target in endpoint installer.
+- Write tool configs with:
+  - `base_url: http://localhost:<port>/v1`
+  - `model: fcm`
+  - `api_key: fcm-local`
+- Support named set install:
+  - `base_url: http://localhost:<port>/v1/sets/:name`
+  - `model: fcm`
+- Add install telemetry:
+  - `app_router_install`
+- Add command palette actions:
+  - open router dashboard
+  - start/stop daemon
+  - install router endpoint
+  - open set manager
+  - open token usage
+
+**Exit criteria**
+
+- A non-technical user can discover, enable, and install the router without reading docs.
+- Direct model install remains available and clearly separate.
+
+### Phase 7 — Auto-Start & Service Management
+
+Goal: make the router always available after reboot for users who opt in.
+
+- Add Settings router section:
+  - auto-start toggle
+  - probe intensity
+  - active set selector
+- Implement macOS `launchd` plist:
+  - `~/Library/LaunchAgents/com.free-coding-models.daemon.plist`
+- Implement Linux systemd user unit:
+  - `~/.config/systemd/user/free-coding-models-daemon.service`
+- Use dynamic command that survives npm upgrades where possible.
+- Add unregister/remove flow.
+- Add auto-start telemetry:
+  - `app_router_autostart_toggle`
+- Document cleanup commands for orphaned services.
+
+**Exit criteria**
+
+- Opt-in auto-start works on macOS and Linux.
+- Turning it off removes service files and does not kill the current session unexpectedly.
+
+### Phase 8 — Release Hardening & npm Verification
+
+Goal: ship the router without the local-repo blind spots that npm packages love to hide.
+
+- Run full test suite:
+  - `pnpm test`
+  - `pnpm start`
+  - daemon lifecycle smoke
+  - mock upstream integration tests
+  - `agent-tui` visual tests for router screens
+- Run package/build verification:
+  - `pnpm build:web`
+  - `npm pack --dry-run`
+  - verify `src/router-daemon.js` is included in the tarball
+- Bump version.
+- Rewrite `CHANGELOG.md` with only the release notes for the new version.
+- Commit and push.
+- Wait for GitHub Actions npm publish.
+- Install the published package globally.
+- Verify:
+  - `free-coding-models --help`
+  - `free-coding-models --daemon-bg`
+  - `free-coding-models --daemon-status`
+  - `free-coding-models --daemon-stop`
+
+**Exit criteria**
+
+- The published npm tarball, not only the local checkout, runs the router successfully.
 
 ---
 

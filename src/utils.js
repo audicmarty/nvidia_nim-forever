@@ -389,7 +389,8 @@ export function findBestModel(results) {
 //   - API key: first positional arg that does not look like a CLI flag (e.g., "nvapi-xxx")
 //   - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --opencode-web, --openclaw,
 //     --aider, --crush, --goose, --qwen, --kilo,
-//     --openhands, --amp, --pi, --no-telemetry, --json, --help/-h (case-insensitive)
+//     --openhands, --amp, --pi, --daemon, --daemon-bg, --daemon-stop,
+//     --daemon-status, --no-telemetry, --json, --help/-h (case-insensitive)
 //   - Value flag: --tier <letter> (the next non-flag arg is the tier value)
 //
 // Returns:
@@ -467,6 +468,10 @@ export function parseArgs(argv) {
   const jsonMode = flags.includes('--json')
   const helpMode = flags.includes('--help') || flags.includes('-h')
   const premiumMode = flags.includes('--premium')
+  const daemonMode = flags.includes('--daemon')
+  const daemonBackgroundMode = flags.includes('--daemon-bg')
+  const daemonStopMode = flags.includes('--daemon-stop')
+  const daemonStatusMode = flags.includes('--daemon-status')
 
   // 📖 --web / --gui / web subcommand — launch the web dashboard instead of the TUI
   const webMode = flags.includes('--web') || flags.includes('--gui') || args[0] === 'web'
@@ -523,6 +528,10 @@ export function parseArgs(argv) {
     showUnconfigured,
     premiumMode,
     webMode,
+    daemonMode,
+    daemonBackgroundMode,
+    daemonStopMode,
+    daemonStatusMode,
     // 📖 Profile system removed - API keys now persist permanently across all sessions
     recommendMode,
   }

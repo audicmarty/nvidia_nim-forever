@@ -42,8 +42,11 @@ import {
 import {
   _emptyProfileSettings,
   normalizeEndpointInstalls, getApiKey,
-  buildPersistedConfig
+  buildPersistedConfig,
+  normalizeRouterConfig,
+  DEFAULT_ROUTER_SETTINGS
 } from '../src/config.js'
+import { buildDefaultRouterSet, formatOpenAiError } from '../src/router-daemon.js'
 import { buildProviderModelTokenKey, loadTokenUsageByProviderModel, formatTokenTotalCompact } from '../src/token-usage-reader.js'
 import { renderTable } from '../src/render-table.js'
 import { createOverlayRenderers } from '../src/overlays.js'
@@ -1412,6 +1415,14 @@ describe('parseArgs', () => {
     assert.equal(parseArgs(argv()).noTelemetry, false)
   })
 
+  it('detects router daemon lifecycle flags', () => {
+    assert.equal(parseArgs(argv('--daemon')).daemonMode, true)
+    assert.equal(parseArgs(argv('--daemon-bg')).daemonBackgroundMode, true)
+    assert.equal(parseArgs(argv('--daemon-stop')).daemonStopMode, true)
+    assert.equal(parseArgs(argv('--daemon-status')).daemonStatusMode, true)
+    assert.equal(parseArgs(argv()).daemonMode, false)
+  })
+
   it('detects --help and -h flags', () => {
     assert.equal(parseArgs(argv('--help')).helpMode, true)
     assert.equal(parseArgs(argv('-h')).helpMode, true)
@@ -1468,6 +1479,10 @@ describe('cli help text', () => {
       '--json',
       '--tier <S|A|B|C>',
       '--recommend',
+      '--daemon',
+      '--daemon-bg',
+      '--daemon-status',
+      '--daemon-stop',
       '--no-telemetry',
       '--help, -h',
     ]
@@ -2050,6 +2065,87 @@ describe('buildPersistedConfig', () => {
         lastSyncedAt: '2026-03-10T09:00:00.000Z',
       },
     ])
+  })
+
+  it('preserves router config from disk when unrelated stale writers save', () => {
+    const diskConfig = {
+      apiKeys: { groq: 'disk-groq' },
+      providers: {},
+      settings: { hideUnconfiguredModels: true },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+      router: {
+        enabled: true,
+        activeSet: 'fast-coding',
+        sets: {
+          'fast-coding': {
+            name: 'fast-coding',
+            models: [{ provider: 'groq', model: 'openai/gpt-oss-120b', priority: 1 }],
+            created: '2026-04-22T10:00:00.000Z',
+          },
+        },
+      },
+    }
+
+    const incomingConfig = {
+      apiKeys: { groq: 'disk-groq' },
+      providers: {},
+      settings: { hideUnconfiguredModels: false },
+      favorites: [],
+      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+      endpointInstalls: [],
+    }
+
+    const persisted = buildPersistedConfig(incomingConfig, diskConfig)
+    assert.equal(persisted.router.enabled, true)
+    assert.equal(persisted.router.activeSet, 'fast-coding')
+    assert.equal(persisted.router.sets['fast-coding'].models[0].provider, 'groq')
+  })
+})
+
+describe('router config helpers', () => {
+  it('normalizes router sets, priorities, and tuning defaults', () => {
+    const router = normalizeRouterConfig({
+      enabled: true,
+      activeSet: 'fast coding!',
+      probeMode: 'turbo',
+      sets: {
+        'fast coding!': {
+          name: 'fast coding!',
+          models: [
+            { provider: 'groq', model: 'llama-3.3-70b-versatile', priority: 4 },
+            { provider: 'groq', model: 'llama-3.3-70b-versatile', priority: 9 },
+            { provider: 'cerebras', model: 'gpt-oss-120b', priority: 1 },
+          ],
+        },
+      },
+    })
+
+    assert.equal(router.enabled, true)
+    assert.equal(router.activeSet, 'fast-coding')
+    assert.equal(router.probeMode, DEFAULT_ROUTER_SETTINGS.probeMode)
+    assert.deepEqual(router.sets['fast-coding'].models.map((entry) => entry.priority), [1, 2])
+    assert.deepEqual(router.sets['fast-coding'].models.map((entry) => entry.provider), ['cerebras', 'groq'])
+  })
+
+  it('builds a default router set from providers that already have keys', () => {
+    const set = buildDefaultRouterSet({ apiKeys: { groq: 'gsk-test' } }, 3)
+    assert.equal(set.name, DEFAULT_ROUTER_SETTINGS.activeSet)
+    assert.equal(set.models.length, 3)
+    assert.ok(set.models.every((entry) => entry.provider === 'groq'))
+    assert.deepEqual(set.models.map((entry) => entry.priority), [1, 2, 3])
+  })
+
+  it('formats errors with the OpenAI-compatible router shape', () => {
+    const payload = formatOpenAiError('All models unavailable', 'service_unavailable', 'all_models_unavailable', 'req-test', {
+      set: 'fast-coding',
+    })
+    assert.equal(payload.error.message, 'All models unavailable')
+    assert.equal(payload.error.type, 'service_unavailable')
+    assert.equal(payload.error.code, 'all_models_unavailable')
+    assert.equal(payload.error.request_id, 'req-test')
+    assert.equal(payload.error.set, 'fast-coding')
   })
 })
 

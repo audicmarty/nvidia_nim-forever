@@ -1,62 +1,18 @@
-## [0.3.55] - 2026-04-18
-
-### Changed
-
-- **Direct Launch Attempt** — Tool launchers for OpenCode and Kilo now attempt to spawn the command directly instead of blocking with a pre-installation check. Installation instructions are now provided via the process error handler for a more seamless experience.
-- **Fixed OpenCode NPM Command** — Updated the suggested installation command for OpenCode to `npm install -g opencode-ai`.
-
-## [0.3.54] - 2026-04-18
-
-### Changed
-
-- **Improved OpenCode WebUI Launch** — The `--opencode-web` flag now correctly spawns the `opencode web` command, providing a integrated browser-based coding experience with pre-configured model selection.
+## [0.3.55] - 2026-04-22
 
 ### Added
 
-- **Kilo CLI Support** — Added `--kilo` flag to launch the Kilo CLI with the selected model. Kilo is a fork of OpenCode and shares the same configuration structure (stored in `~/.config/kilo/opencode.json`).
-
-## [0.3.53] - 2026-04-18
-
-### Added
-
-- **OpenCode WebUI Support** — Added `--opencode-web` flag to open the OpenCode WebUI dashboard after configuring the selected model.
-
-## [0.3.52] - 2026-04-18
-
-## [0.3.51] - 2026-04-11
+- **Smart Model Router daemon** — Added the first production slice of the FCM Router: a localhost OpenAI-compatible daemon that can run in the background, expose `/v1/chat/completions`, and route `model: "fcm"` requests through a persistent model set.
+- **Router lifecycle CLI flags** — Added `--daemon`, `--daemon-bg`, `--daemon-status`, and `--daemon-stop` so users can run the router in foreground service mode, start it detached, inspect it from scripts, or shut it down cleanly.
+- **Model sets and named routing endpoints** — Added persisted router config under `router` in `~/.free-coding-models.json`, auto-created the default `fast-coding` set, and exposed `/v1/sets/:name/chat/completions` plus `/v1/models` virtual model discovery for tool compatibility.
+- **Health probes, scoring, and failover** — Added cold-start probing, rolling health windows, priority-aware scoring, auth-error detection, stale-model detection, retryable upstream error handling, and per-model circuit breaker state.
+- **Token and request stats** — Added metadata-only token usage tracking in `~/.free-coding-models-tokens.json`, `/health`, `/stats`, `/stats/tokens`, and SSE events for future TUI dashboard integration.
 
 ### Changed
 
-- **NVIDIA NIM moved to #1** — Now listed first in README, TUI Settings page, and `D` key filter cycling (per user request). Provider order across all surfaces is now: NVIDIA NIM → Groq → Cerebras → Google AI Studio → Cloudflare → ... → iFlow.
+- **Config persistence now preserves router data** — The config normalizer now understands the router schema, clamps timing and circuit-breaker settings, normalizes model priorities, and avoids dropping router sets when unrelated settings are saved.
+- **Documentation now includes router setup** — README usage examples now explain how to start the daemon, configure coding tools with `http://localhost:19280/v1`, inspect status, and stop the service.
 
-### Added
+### Fixed
 
-- **Provider generosity ranking** — README subtitle now includes "ranked by free tier generosity" and the full 25-provider ranking table. This reflects the same order used in the TUI Settings screen and `D` key cycling.
-
-### Provider order (as shown in TUI and README)
-
-1. NVIDIA NIM (~40 RPM, 46 models)
-2. Groq (30 RPM, 1K-14.4K req/day, 8 models)
-3. Cerebras (30 RPM, 1M tokens/day, 4 models)
-4. Google AI Studio (15-60 RPM, 250-1.5K req/day, 6 models)
-5. Cloudflare Workers AI (10K neurons/day, 15 models)
-6. OpenRouter (50 req/day free, 25 models)
-7. DeepInfra (200 concurrent requests, 4 models)
-8. HuggingFace (~$0.10/month, 2 models)
-9. Perplexity (~50 RPM tiered, 4 models)
-10. SambaNova (generous dev quota, 13 models)
-11. Fireworks AI ($1 credits, 4 models)
-12. Hyperbolic ($1 credits, 13 models)
-13. OVHcloud AI (2 req/min/IP free, 8 models)
-14. Replicate (6 req/min free, 2 models)
-15. Codestral (30 RPM, 2K req/day, 1 model)
-16. ZAI (generous free quota, 7 models)
-17. Scaleway (1M tokens, 10 models)
-18. Alibaba DashScope (1M tokens/90 days, 11 models)
-19. SiliconFlow (100 req/day + $1 credits, 6 models)
-20. Rovo Dev CLI (5M tokens/day, 5 models)
-21. Gemini CLI (1K req/day, 3 models)
-22. Chutes AI (free community GPU, 4 models)
-23. OpenCode Zen (free with account, 7 models)
-24. Together AI (❌ no free tier, 19 models)
-25. iFlow (⚠️ shutting down April 17, 2026, 11 models)
+- **Daemon-safe process handling** — The CLI fatal error handlers now defer to the router daemon when `--daemon` is active, allowing the daemon's own recovery and logging path to keep long-running sessions alive.
