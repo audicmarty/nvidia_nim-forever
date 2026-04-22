@@ -4,7 +4,7 @@
  *
  * @details
  *   This module centralizes all overlay rendering in one place:
- *   - Settings, Install Endpoints, Command Palette, Help, Smart Recommend, Feedback, Changelog
+ *   - Settings, Install Endpoints, Command Palette, Help, Smart Recommend, Feedback, Changelog, Router Dashboard
  *   - Settings diagnostics for provider key tests, including wrapped retry/error details
  *   - Recommend analysis timer orchestration and progress updates
  *
@@ -15,6 +15,7 @@
  *
  *   → Functions:
  *   - `createOverlayRenderers` — returns renderer + analysis helpers + overlayLayout
+ *   - `renderRouterDashboard` — mounts the Smart Model Router dashboard renderer
  *
  * @exports { createOverlayRenderers }
  * @see ./key-handler.js — handles keypresses for all overlay interactions
@@ -22,6 +23,7 @@
 
 import { loadChangelog } from './changelog-loader.js'
 import { buildCliHelpLines } from './cli-help.js'
+import { renderRouterDashboard as renderRouterDashboardOverlay } from './router-dashboard.js'
 import { themeColors, getThemeStatusLabel, getProviderRgb } from './theme.js'
 
 export function createOverlayRenderers(state, deps) {
@@ -927,11 +929,12 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${key('Y')}  Toggle favorites mode  ${hint('(Pinned + always visible ↔ Normal filter/sort behavior)')}`)
     lines.push(`  ${key('X')}  Clear active text filter  ${hint('(remove custom query applied from ⚡️ Command Palette)')}`)
     lines.push(`  ${key('Q')}  Smart Recommend  ${hint('(🎯 find the best model for your task — questionnaire + live analysis)')}`)
+    lines.push(`  ${key('Shift+R')}  Router Dashboard  ${hint('(🔀 daemon health, circuit breakers, tokens, request log)')}`)
     lines.push(`  ${key('G')}  Cycle theme  ${hint('(auto → dark → light)')}`)
     lines.push(`  ${themeColors.errorBold('I')}  Feedback, bugs & requests  ${hint('(📝 send anonymous feedback, bug reports, or feature requests)')}`)
     lines.push(`  ${key('P')}  Open settings  ${hint('(manage API keys, provider toggles, updates, legacy cleanup)')}`)
       // 📖 Profile system removed - API keys now persist permanently across all sessions
-    lines.push(`  ${key('Shift+R')}  Reset view settings  ${hint('(tier filter, sort, provider filter → defaults)')}`)
+    lines.push(`  ${key('Ctrl+P')}  Reset view settings  ${hint('(search "Reset view" in the command palette)')}`)
     lines.push(`  ${key('N')}  Changelog  ${hint('(📋 browse all versions, Enter to view details)')}`)
     lines.push(`  ${key('Ctrl+H')} / ${key('Esc')}  Show/hide this help`)
     lines.push(`  ${key('Ctrl+C')}  Exit`)
@@ -1394,6 +1397,10 @@ export function createOverlayRenderers(state, deps) {
     if (state.recommendPingTimer) { clearInterval(state.recommendPingTimer); state.recommendPingTimer = null }
   }
 
+  function renderRouterDashboard() {
+    return renderRouterDashboardOverlay(state, { LOCAL_VERSION })
+  }
+
   // ─── Incompatible fallback overlay ─────────────────────────────────────────
   // 📖 renderIncompatibleFallback shows when user presses Enter on a model that
   // 📖 is NOT compatible with the active tool. Two sections:
@@ -1500,6 +1507,7 @@ export function createOverlayRenderers(state, deps) {
     renderFeedback,
     renderChangelog,
     renderInstalledModels,
+    renderRouterDashboard,
     renderIncompatibleFallback,
     startRecommendAnalysis,
     stopRecommendAnalysis,

@@ -513,10 +513,11 @@ class TokenTracker {
 }
 
 class RouterRuntime {
-  constructor({ config, port, logger, tokenPath = ROUTER_TOKENS_PATH }) {
+  constructor({ config, port, logger, tokenPath = ROUTER_TOKENS_PATH, persistConfig = true }) {
     this.config = config
     this.port = port
     this.logger = logger
+    this.persistConfig = persistConfig
     this.startedAt = Date.now()
     this.inFlight = 0
     this.shuttingDown = false
@@ -609,6 +610,7 @@ class RouterRuntime {
   }
 
   saveRouterConfig() {
+    if (this.persistConfig === false) return { success: true, backupCreated: false }
     const result = saveConfig(this.config)
     if (!result.success) this.logger.warn('Router config write failed', { error: result.error })
     return result
@@ -984,9 +986,11 @@ class RouterRuntime {
           this.probeTimeouts.delete(timeout)
           void this.probeCandidate(candidate, { eco: router.probeMode === 'eco' })
         }, index * stagger)
+        timeout.unref?.()
         this.probeTimeouts.add(timeout)
       })
     }, interval)
+    this.probeTimer.unref?.()
   }
 
   async routeRequest({ req, res, body, setName, requestId }) {
@@ -1401,6 +1405,36 @@ class RouterRuntime {
     sendError(res, 404, 'Not found', 'invalid_request_error', 'not_found', requestId)
   }
 
+  async handleProbeModeRequest(req, res, requestId) {
+    const body = await readJsonBody(req)
+    const nextProbeMode = typeof body.probeMode === 'string'
+      ? body.probeMode.trim().toLowerCase()
+      : typeof body.mode === 'string'
+        ? body.mode.trim().toLowerCase()
+        : ''
+    if (!['eco', 'balanced', 'aggressive'].includes(nextProbeMode)) {
+      sendError(res, 400, 'probeMode must be one of: eco, balanced, aggressive', 'invalid_request_error', 'invalid_probe_mode', requestId)
+      return
+    }
+
+    const router = this.routerConfig()
+    const previousProbeMode = router.probeMode
+    this.setRouterConfig({ ...router, probeMode: nextProbeMode })
+    this.saveRouterConfig()
+    this.scheduleProbeLoop()
+    this.broadcast('config', {
+      activeSet: this.routerConfig().activeSet,
+      old_probe_mode: previousProbeMode,
+      probe_mode: nextProbeMode,
+    })
+    void this.runProbeBurst()
+    sendJson(res, 200, {
+      ok: true,
+      previousProbeMode,
+      probeMode: nextProbeMode,
+    }, { 'x-request-id': requestId })
+  }
+
   async handleHttp(req, res) {
     const requestId = req.headers['x-request-id'] || `req-${randomUUID()}`
     const url = new URL(req.url, `http://localhost:${this.port}`)
@@ -1452,6 +1486,10 @@ class RouterRuntime {
       if (url.pathname === '/daemon/shutdown' && req.method === 'POST') {
         sendJson(res, 200, { ok: true, message: 'Daemon shutting down' }, { 'x-request-id': requestId })
         setTimeout(() => this.shutdown(0), 50)
+        return
+      }
+      if (url.pathname === '/daemon/probe-mode' && req.method === 'POST') {
+        await this.handleProbeModeRequest(req, res, requestId)
         return
       }
       if (url.pathname === '/sets' || url.pathname.startsWith('/sets/')) {
@@ -1592,11 +1630,14 @@ export function createRouterRuntimeForTest({ config, port = 0, logger = null, to
   }
   // 📖 Tests use this factory to exercise the real HTTP router against local
   // 📖 fake providers without spawning a daemon or touching user token files.
+  // 📖 Router config persistence is disabled here so set/probe-mode endpoint
+  // 📖 tests cannot write fixture router sets into ~/.free-coding-models.json.
   return new RouterRuntime({
     config: config || {},
     port,
     logger: testLogger,
     tokenPath,
+    persistConfig: false,
   })
 }
 

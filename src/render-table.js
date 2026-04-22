@@ -865,6 +865,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
         { text: '  •  ', key: null },
         { text: 'Q Smart Recommend', key: 'q' },
         { text: '  •  ', key: null },
+        { text: 'Shift+R Router', key: 'shift+r' },
+        { text: '  •  ', key: null },
         { text: 'G Theme', key: 'g' },
         { text: '  •  ', key: null },
         { text: 'I Feedback, bugs & requests', key: 'i' },
@@ -884,6 +886,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     lines.push(
       '  ' + paletteLabel + themeColors.dim(`  •  `) +
       hotkey('Q', ' Smart Recommend') + themeColors.dim(`  •  `) +
+      hotkey('Shift+R', ' Router') + themeColors.dim(`  •  `) +
       hotkey('G', ' Theme') + themeColors.dim(`  •  `) +
       hotkey('I', ' Feedback, bugs & requests')
     )
@@ -979,6 +982,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     // 📖 Collapsed footer: single line with toggle hint
     lines.push(
       '  ' + themeColors.hotkey('Ctrl+O') + themeColors.dim(' Toggle Footer') +
+      themeColors.dim('  •  ') +
+      themeColors.hotkey('Shift+R') + themeColors.dim(' Router') +
       themeColors.dim('  •  Ctrl+C Exit')
     )
   }

@@ -248,6 +248,10 @@ free-coding-models --web
 free-coding-models --daemon-bg
 free-coding-models --daemon-status
 
+# "I want to inspect the router without leaving the TUI"
+free-coding-models
+# then press Shift+R
+
 # "Start with an elite-focused preset, then adjust filters live"
 free-coding-models --premium
 
@@ -275,6 +279,19 @@ free-coding-models --daemon-status
 free-coding-models --daemon-stop
 ```
 
+Inside the TUI, press **`Shift+R`** to open the Router Dashboard. It polls `/health` and `/stats`, listens to `/stream/events`, and shows daemon state, active set, probe mode, circuit breaker health, token totals, and the live routed-request log.
+
+Dashboard keys:
+
+| Key | Action |
+|-----|--------|
+| `S` | Switch to the next router set |
+| `I` | Cycle probe mode (`eco → balanced → aggressive`) |
+| `C` | Clear the local dashboard request log |
+| `R` | Reserved for Phase 7 service-manager restart |
+| `P` | Reserved until probe pause/resume backend support exists |
+| `Esc` | Return to the main model table |
+
 Configure tools with:
 
 | Field | Value |
@@ -294,6 +311,8 @@ Router endpoints:
 | `GET /v1/models` | Return virtual models (`fcm`, `fcm:set-name`) |
 | `GET /health` | Daemon status JSON |
 | `GET /stats` | Routing, health, request log, and token stats |
+| `GET /stream/events` | Live SSE events for dashboard updates |
+| `POST /daemon/probe-mode` | Set probe mode with `{ "probeMode": "eco" | "balanced" | "aggressive" }` |
 
 Routing behavior:
 
@@ -400,6 +419,7 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 | `G` | Cycle global theme (`Auto → Dark → Light`) |
 | `Ctrl+P` | Open ⚡️ command palette (search + run actions) |
 | `R/S/C/M/O/L/A/H/V/B/U` | Sort columns |
+| `Shift+R` | Router Dashboard (daemon health, circuits, tokens, request log) |
 | `Shift+U` | Update to latest version (when update available) |
 | `P` | Settings (API keys, providers, updates, theme) |
 | `Q` | Smart Recommend overlay |

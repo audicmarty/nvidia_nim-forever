@@ -8,6 +8,9 @@
 - **Health probes, scoring, and failover** — Added cold-start probing, rolling health windows, priority-aware scoring, auth-error detection, stale-model detection, retryable upstream error handling, and per-model circuit breaker state.
 - **Token and request stats** — Added metadata-only token usage tracking in `~/.free-coding-models-tokens.json`, `/health`, `/stats`, `/stats/tokens`, and SSE events for future TUI dashboard integration.
 - **Router hardening integration tests** — Added deterministic fake-provider tests for success routing, non-streaming failover, streaming failover before first byte, partial stream failures, auth handling, all-models-down `503` payloads, malformed upstream responses, timeouts, connection refused, and client disconnects.
+- **Router Dashboard TUI** — Added a `Shift+R` dashboard inside the terminal app for daemon status, active set, port, uptime, probe mode, model circuit state, token totals, and the live routed-request log.
+- **Live dashboard data path** — The dashboard safely consumes `/health`, `/stats`, and `/stream/events`, with polling as a fallback so the screen remains useful even if the event stream drops.
+- **Probe mode control** — Added `POST /daemon/probe-mode` and the dashboard `I` key to cycle `eco`, `balanced`, and `aggressive` probe intensity without hand-editing config.
 
 ### Changed
 
@@ -15,6 +18,7 @@
 - **Documentation now includes router setup** — README usage examples now explain how to start the daemon, configure coding tools with `http://localhost:19280/v1`, inspect status, and stop the service.
 - **Router auth and quota behavior is stricter** — A `401` or `403` now skips remaining candidates from the same provider for the current request, and final router `503` responses include structured quota details such as retry and rate-limit headers when providers expose them.
 - **Daemon restart API is intentionally hidden** — Removed the placeholder `/daemon/restart` behavior until a real launchd/systemd/TUI service-manager restart path exists.
+- **`Shift+R` now opens Router Dashboard** — Reset view remains available through the `Ctrl+P` command palette so the router can own the PRD-defined global shortcut.
 
 ### Fixed
 
@@ -22,3 +26,4 @@
 - **Upstream response hardening** — HTML maintenance pages and malformed successful JSON are now treated as retryable provider failures instead of being forwarded to coding tools.
 - **Client disconnect cleanup** — If a coding tool disconnects mid-request, the daemon now aborts the upstream request without marking the provider unhealthy.
 - **Package safety coverage** — Added a package sanity test that keeps `src/router-daemon.js` protected by the npm `files` allowlist.
+- **Dashboard crash resistance** — Malformed, partial, stopped, stale, or unreachable daemon responses are rendered as dashboard states instead of crashing the TUI render loop.

@@ -48,6 +48,7 @@ import {
   DEFAULT_ROUTER_SETTINGS
 } from '../src/config.js'
 import { buildDefaultRouterSet, createRouterRuntimeForTest, formatOpenAiError } from '../src/router-daemon.js'
+import { formatRouterDuration, normalizeRouterDashboardSnapshot, parseRouterDashboardSseFrame } from '../src/router-dashboard.js'
 import { buildProviderModelTokenKey, loadTokenUsageByProviderModel, formatTokenTotalCompact } from '../src/token-usage-reader.js'
 import { renderTable } from '../src/render-table.js'
 import { createOverlayRenderers } from '../src/overlays.js'
@@ -347,6 +348,50 @@ describe('command palette fuzzy search', () => {
     assert.ok(ids.has('action-toggle-favorite-mode'))
     assert.ok(ids.has('action-favorites-mode-pinned'))
     assert.ok(ids.has('action-favorites-mode-normal'))
+  })
+
+  it('exposes the Router Dashboard as the Shift+R page command', () => {
+    const entries = buildCommandPaletteEntries()
+    const dashboard = entries.find((entry) => entry.id === 'open-router-dashboard')
+    assert.ok(dashboard)
+    assert.equal(dashboard.shortcut, 'Shift+R')
+  })
+})
+
+describe('router dashboard helpers', () => {
+  it('formats daemon uptime compactly', () => {
+    assert.equal(formatRouterDuration(45), '45s')
+    assert.equal(formatRouterDuration(125), '2m 5s')
+    assert.equal(formatRouterDuration(7320), '2h 2m')
+  })
+
+  it('normalizes malformed daemon payloads without throwing', () => {
+    const snapshot = normalizeRouterDashboardSnapshot(null, {
+      models: [
+        { provider: 'groq', model: 'llama', state: 'closed', score: '0.8', uptime: '0.5' },
+        null,
+      ],
+      requestLog: [{ model: 'groq/llama', status: 200, tokens: '12' }],
+      tokens: { today: { total_tokens: '1000' }, all_time: { requests: '2' } },
+    })
+
+    assert.equal(snapshot.ok, false)
+    assert.equal(snapshot.models.length, 2)
+    assert.equal(snapshot.models[0].state, 'CLOSED')
+    assert.equal(snapshot.models[1].provider, 'unknown')
+    assert.equal(snapshot.requestLog[0].tokens, 12)
+    assert.equal(snapshot.tokens.today.total_tokens, 1000)
+    assert.equal(snapshot.tokens.all_time.requests, 2)
+  })
+
+  it('parses SSE event frames defensively', () => {
+    const parsed = parseRouterDashboardSseFrame('event: request\ndata: {"model":"groq/x","status":200}\n\n')
+    assert.equal(parsed.event, 'request')
+    assert.deepEqual(parsed.data, { model: 'groq/x', status: 200 })
+
+    const malformed = parseRouterDashboardSseFrame('event: probe\ndata: nope\n\n')
+    assert.equal(malformed.event, 'probe')
+    assert.equal(malformed.data, 'nope')
   })
 })
 
@@ -2636,6 +2681,24 @@ describe('router daemon integration hardening', () => {
 
       assert.equal(response.status, 404)
       assert.equal(payload.error.code, 'not_found')
+    })
+  })
+
+  it('updates probe mode through the dashboard endpoint', async () => {
+    const config = buildRouterTestConfig([])
+    await withRouterTestServer(config, async ({ baseUrl, runtime }) => {
+      const response = await fetch(`${baseUrl}/daemon/probe-mode`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ probeMode: 'eco' }),
+      })
+      const payload = await response.json()
+      const health = await (await fetch(`${baseUrl}/health`)).json()
+
+      assert.equal(response.status, 200)
+      assert.equal(payload.probeMode, 'eco')
+      assert.equal(runtime.routerConfig().probeMode, 'eco')
+      assert.equal(health.probeMode, 'eco')
     })
   })
 })

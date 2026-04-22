@@ -123,6 +123,7 @@ import { startOpenClaw } from '../src/openclaw.js'
 import { createOverlayRenderers } from '../src/overlays.js'
 import { createKeyHandler, createMouseEventHandler } from '../src/key-handler.js'
 import { createMouseHandler, containsMouseSequence } from '../src/mouse.js'
+import { stopRouterDashboardClient } from '../src/router-dashboard.js'
 import { getToolModeOrder, getToolMeta } from '../src/tool-metadata.js'
 import { startExternalTool } from '../src/tool-launchers.js'
 import { getToolInstallPlan, installToolWithPlan, isToolInstalled } from '../src/tool-bootstrap.js'
@@ -522,6 +523,26 @@ export async function runApp(cliArgs, config) {
     installedModelsScrollOffset: 0, // 📖 Vertical scroll offset for overlay viewport
     installedModelsData: [],       // 📖 Cached scan results
     installedModelsErrorMsg: null, // 📖 Error or status message
+    // 📖 Router Dashboard overlay state (Shift+R opens it).
+    routerDashboardOpen: false,
+    routerDashboardStatus: 'idle', // 📖 idle | loading | ready | partial | stopped | stale | unreachable | malformed
+    routerDashboardBaseUrl: null,
+    routerDashboardPort: null,
+    routerDashboardHealth: null,
+    routerDashboardStats: null,
+    routerDashboardError: null,
+    routerDashboardScrollOffset: 0,
+    routerDashboardEvents: [],
+    routerDashboardLiveRequests: [],
+    routerDashboardClearedAt: 0,
+    routerDashboardLastUpdatedAt: null,
+    routerDashboardLastRefreshStartedAt: null,
+    routerDashboardPollTimer: null,
+    routerDashboardEventAbort: null,
+    routerDashboardEventStatus: 'idle',
+    routerDashboardEventError: null,
+    routerDashboardNotice: null,
+    routerDashboardNoticeTimer: null,
     // 📖 Custom text filter (Ctrl+P palette → type text → Enter). Ephemeral — not saved to config.
     customTextFilter: null,       // 📖 Active free-text filter string (null = off). Matches model name, ctx, provider key/name.
   }
@@ -725,6 +746,7 @@ export async function runApp(cliArgs, config) {
     clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
     clearInterval(state.versionRecheckTimer)
+    stopRouterDashboardClient(state)
     process.stdout.write(ALT_LEAVE)
     if (process.stdout.isTTY) {
       process.stdout.flush && process.stdout.flush()
@@ -798,6 +820,7 @@ export async function runApp(cliArgs, config) {
     if (ticker) clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
     clearInterval(state.versionRecheckTimer)
+    stopRouterDashboardClient(state)
     if (onKeyPress) process.stdin.removeListener('keypress', onKeyPress)
     if (onMouseData) process.stdin.removeListener('data', onMouseData)
     if (process.stdin.isTTY && resetRawMode) process.stdin.setRawMode(false)
@@ -1015,7 +1038,7 @@ export async function runApp(cliArgs, config) {
     refreshAutoPingMode()
     state.frame++
     // 📖 Cache visible+sorted models each frame so Enter handler always matches the display
-    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.installedModelsOpen && !state.commandPaletteOpen) {
+    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.installedModelsOpen && !state.routerDashboardOpen && !state.commandPaletteOpen) {
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection, {
         pinFavorites: state.favoritesPinnedAndSticky,
@@ -1108,6 +1131,8 @@ export async function runApp(cliArgs, config) {
         ? overlays.renderToolInstallPrompt()
       : state.installedModelsOpen
         ? overlays.renderInstalledModels()
+      : state.routerDashboardOpen
+        ? overlays.renderRouterDashboard()
       : state.incompatibleFallbackOpen
         ? overlays.renderIncompatibleFallback()
       : state.commandPaletteOpen

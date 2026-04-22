@@ -1,6 +1,6 @@
 # PRD — Smart Model Router ("FCM Router")
 
-> **Status**: Draft v5 — Phase 2 backend hardening implemented  
+> **Status**: Draft v6 — Phase 3 Router Dashboard TUI implemented  
 > **Author**: Vanessa Depraute + Claude  
 > **Date**: 2026-04-23  
 > **Target release**: next minor version  
@@ -64,7 +64,7 @@ This PRD is now split between **implemented backend foundation** and **remaining
 
 | Area | Status | Why it matters |
 |------|--------|----------------|
-| Router Dashboard TUI | ❌ Not started | Users cannot monitor daemon health, logs, circuit states, or token usage inside the TUI yet. |
+| Router Dashboard TUI | ✅ Done | `Shift+R` opens a full-screen TUI dashboard backed by `/health`, `/stats`, and `/stream/events`; it renders daemon state, active set, port, uptime, probe mode, model health/circuit state, token totals, and the live request log. |
 | Set Manager TUI | ❌ Not started | Sets can be managed through HTTP only; no two-pane in-app set editor yet. |
 | Position picker | ❌ Not started | Users cannot add selected table models into a set from the main TUI yet. |
 | Main TUI router footer/status | ❌ Not started | Main table does not show daemon running state or token totals. |
@@ -72,7 +72,7 @@ This PRD is now split between **implemented backend foundation** and **remaining
 | Onboarding overlay/banner | ❌ Not started | Users are not prompted to enable the router from the TUI. |
 | `FCM Router` install target | ❌ Not started | Existing endpoint installer cannot yet write router config into OpenCode/Goose/Aider/etc. |
 | Auto-start on boot | ❌ Not started | No launchd/systemd setup or Settings toggle yet. |
-| Command palette router actions | ❌ Not started | Router commands are not searchable inside Ctrl+P yet. |
+| Command palette router actions | 🟡 Partial | Ctrl+P can open the Router Dashboard. Full searchable router operations remain in a later phase. |
 | Full npm release verification | ❌ Not done | Implementation was tested locally, but no version bump, publish, or global npm tarball verification was performed. |
 
 ### Current Usable Slice
@@ -677,8 +677,9 @@ Since all single-letter keys (A-Z) are already assigned, the router uses **Shift
 | `C` | Clear request log |
 | `P` | Pause/resume health probes |
 | `I` | Cycle probe intensity (Eco → Balanced → Aggressive) |
-| `D` | Toggle detailed/compact view |
 | `Esc` | Back to main table |
+
+> Phase 3 note: `R` and `P` intentionally show disabled/reserved notices until Phase 7 adds service-manager restart support and the backend gains probe pause/resume semantics. Detailed/compact dashboard view can be added later if the screen becomes too dense.
 
 ### Set Manager Keys (local to set manager overlay)
 
@@ -1085,17 +1086,17 @@ Goal: make the router backend robust enough that the TUI can trust it without de
 - No advertised backend endpoint is stubbed or misleading.
 - Backend behavior matches sections 8-10 of this PRD, or this PRD is updated with explicit deviations.
 
-### Phase 3 — Router Dashboard TUI
+### Phase 3 — Router Dashboard TUI ✅ Done
 
 Goal: make router health visible inside the existing terminal app.
 
-- Add `Shift+R` global keybinding.
-- Add Router Dashboard overlay.
-- Connect dashboard to:
+- ✅ Added `Shift+R` global keybinding from the main TUI.
+- ✅ Added Router Dashboard overlay plus Ctrl+P page entry.
+- ✅ Connected dashboard to:
   - `GET /health`
   - `GET /stats`
   - `GET /stream/events`
-- Render:
+- ✅ Rendered:
   - daemon state
   - active set
   - port
@@ -1105,20 +1106,22 @@ Goal: make router health visible inside the existing terminal app.
   - model health/circuit table
   - token summary
   - live request log
-- Add local dashboard keys:
-  - `S` switch active set
-  - `I` cycle probe intensity
-  - `R` restart daemon, after Phase 7 adds a real service manager restart path
-  - `C` clear local dashboard request log
-  - `P` pause/resume probes, if backend support is added
-  - `Esc` back
-- Use `agent-tui` visual tests for dashboard layout and key handling.
+- ✅ Added local dashboard keys:
+  - `S` switches to the next active set using `/sets` + `/sets/:name/activate`
+  - `I` cycles probe intensity using `POST /daemon/probe-mode`
+  - `R` shows a Phase 7 restart notice, because no real service manager restart path exists yet
+  - `C` clears the local dashboard request log
+  - `P` shows a disabled notice until backend probe pause/resume support exists
+  - `Esc` returns to the main table
+- ✅ Added defensive dashboard parsing for stopped, stale, unreachable, partial, and malformed daemon payloads.
+- ✅ Added unit/integration tests for dashboard helpers, command palette entry, and probe-mode endpoint.
+- ✅ Used `agent-tui` visual tests for dashboard layout and key handling.
 
 **Exit criteria**
 
-- User can inspect daemon/router state without leaving the TUI.
-- Dashboard works when daemon is running, stopped, stale, or unreachable.
-- TUI never crashes if the daemon returns malformed/unexpected JSON.
+- ✅ User can inspect daemon/router state without leaving the TUI.
+- ✅ Dashboard works when daemon is running, stopped, stale, or unreachable.
+- ✅ TUI never crashes if the daemon returns malformed/unexpected JSON.
 
 ### Phase 4 — Set Manager & Model Set UX
 

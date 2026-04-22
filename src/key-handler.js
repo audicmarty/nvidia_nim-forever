@@ -42,6 +42,15 @@ import { buildCommandPaletteTree, flattenCommandTree, filterCommandPaletteEntrie
 import { WIDTH_WARNING_MIN_COLS, VERDICT_CYCLE, HEALTH_CYCLE } from './constants.js'
 import { scanAllToolConfigs, softDeleteModel } from './installed-models-manager.js'
 import { startExternalTool } from './tool-launchers.js'
+import {
+  clearRouterDashboardRequestLog,
+  closeRouterDashboardOverlay,
+  cycleRouterDashboardActiveSet,
+  cycleRouterDashboardProbeMode,
+  openRouterDashboardOverlay,
+  restartRouterDashboardDaemon,
+  toggleRouterDashboardProbePause,
+} from './router-dashboard.js'
 
 // 📖 Some providers need an explicit probe model because the first catalog entry
 // 📖 is not guaranteed to be accepted by their chat endpoint.
@@ -1016,6 +1025,7 @@ export function createKeyHandler(ctx) {
       || state.installEndpointsOpen
       || state.toolInstallPromptOpen
       || state.installedModelsOpen
+      || state.routerDashboardOpen
       || state.recommendOpen
       || state.feedbackOpen
       || state.helpVisible
@@ -1207,6 +1217,7 @@ export function createKeyHandler(ctx) {
       case 'open-changelog': return openChangelogOverlay()
       case 'open-feedback': return openFeedbackOverlay()
       case 'open-recommend': return openRecommendOverlay()
+      case 'open-router-dashboard': return openRouterDashboardOverlay(state)
       case 'open-install-endpoints': return openInstallEndpointsOverlay()
       case 'open-installed-models': return openInstalledModelsOverlay()
       case 'action-cycle-theme': return cycleGlobalTheme()
@@ -1339,6 +1350,59 @@ export function createKeyHandler(ctx) {
     }
 
     // 📖 Profile system removed - API keys now persist permanently across all sessions
+
+    // 📖 Router Dashboard captures local dashboard controls while open so keys
+    // 📖 like S/I/R/C do not leak through to sort/filter actions in the table.
+    if (state.routerDashboardOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+      const pageStep = Math.max(1, (state.terminalRows || 1) - 4)
+
+      if (key.name === 'escape') {
+        closeRouterDashboardOverlay(state)
+        return
+      }
+      if (key.name === 'up' || key.name === 'k') {
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.routerDashboardScrollOffset = (state.routerDashboardScrollOffset || 0) + 1
+        return
+      }
+      if (key.name === 'pageup') {
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) - pageStep)
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.routerDashboardScrollOffset = (state.routerDashboardScrollOffset || 0) + pageStep
+        return
+      }
+      if (key.name === 'home') {
+        state.routerDashboardScrollOffset = 0
+        return
+      }
+      if (key.name === 's') {
+        await cycleRouterDashboardActiveSet(state)
+        return
+      }
+      if (key.name === 'i') {
+        await cycleRouterDashboardProbeMode(state)
+        return
+      }
+      if (key.name === 'r') {
+        restartRouterDashboardDaemon(state)
+        return
+      }
+      if (key.name === 'c') {
+        clearRouterDashboardRequestLog(state)
+        return
+      }
+      if (key.name === 'p') {
+        toggleRouterDashboardProbePause(state)
+        return
+      }
+      return
+    }
 
     // 📖 Install Endpoints overlay: provider → tool → connection → scope → optional model subset.
     if (state.installEndpointsOpen) {
@@ -2366,9 +2430,9 @@ export function createKeyHandler(ctx) {
 
     // 📖 Profile system removed - API keys now persist permanently across all sessions
 
-    // 📖 Shift+R: reset all UI view settings to defaults (tier, sort, provider) and clear persisted config
-    if (key.name === 'r' && key.shift) {
-      resetViewSettings()
+    // 📖 Shift+R: open the Smart Model Router dashboard from the main table.
+    if (key.name === 'r' && key.shift && !key.ctrl && !key.meta) {
+      openRouterDashboardOverlay(state)
       return
     }
 
@@ -2383,7 +2447,7 @@ export function createKeyHandler(ctx) {
     // 📖 T is reserved for tier filter cycling. Y toggles favorites display mode.
     // 📖 X clears the active custom text filter.
     // 📖 D is now reserved for provider filter cycling
-    // 📖 Shift+R is reserved for reset view settings
+    // 📖 Shift+R is reserved for the Router Dashboard; reset view remains in Ctrl+P.
     const sortKeys = {
       'r': 'rank', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx', 'h': 'condition', 'v': 'verdict', 'b': 'stability', 'u': 'uptime'
@@ -2763,6 +2827,11 @@ export function createMouseEventHandler(ctx) {
         }
         return
       }
+      if (state.routerDashboardOpen) {
+        const step = evt.type === 'scroll-up' ? -3 : 3
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) + step)
+        return
+      }
 
       // 📖 Main table scroll: move cursor up/down with wrap-around
       const count = state.visibleSorted.length
@@ -2840,6 +2909,11 @@ export function createMouseEventHandler(ctx) {
 
     if (state.installedModelsOpen) {
       state.installedModelsOpen = false
+      return
+    }
+
+    if (state.routerDashboardOpen) {
+      closeRouterDashboardOverlay(state)
       return
     }
 
@@ -3004,6 +3078,8 @@ export function createMouseEventHandler(ctx) {
         // 📖 Most are single-character keys; special cases like ctrl+p need special handling.
         if (zone.key === 'ctrl+p') {
           process.stdin.emit('keypress', '\x10', { name: 'p', ctrl: true, meta: false, shift: false })
+        } else if (zone.key === 'shift+r') {
+          process.stdin.emit('keypress', 'R', { name: 'r', ctrl: false, meta: false, shift: true })
         } else {
           process.stdin.emit('keypress', zone.key, { name: zone.key, ctrl: false, meta: false, shift: false })
         }
