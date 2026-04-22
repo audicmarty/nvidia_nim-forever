@@ -19,9 +19,11 @@
  *   → getRouterDaemonStatus() — Discover and read `/health` from a running daemon
  *   → buildDefaultRouterSet() — Create the first priority-ordered model set
  *   → formatOpenAiError() — Build OpenAI-compatible error response payloads
+ *   → createRouterRuntimeForTest() — Build an isolated runtime for mock-upstream tests
  *
  * @exports runRouterDaemon, startRouterDaemonBackground, stopRouterDaemon
  * @exports getRouterDaemonStatus, buildDefaultRouterSet, formatOpenAiError
+ * @exports createRouterRuntimeForTest
  *
  * @see ./config.js — router config is persisted under `router`
  * @see ../sources.js — provider URLs and model IDs are resolved from the catalog
@@ -66,6 +68,21 @@ const STATS_RETENTION_DAYS = 90
 const TIER_ORDER = ['S+', 'S', 'A+', 'A', 'A-', 'B+', 'B', 'C']
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503])
 const AUTH_STATUS_CODES = new Set([401, 403])
+const RATE_LIMIT_HEADER_NAMES = [
+  'retry-after',
+  'x-ratelimit-limit',
+  'x-ratelimit-remaining',
+  'x-ratelimit-reset',
+  'ratelimit-limit',
+  'ratelimit-remaining',
+  'ratelimit-reset',
+  'x-ratelimit-limit-requests',
+  'x-ratelimit-remaining-requests',
+  'x-ratelimit-reset-requests',
+  'x-ratelimit-limit-tokens',
+  'x-ratelimit-remaining-tokens',
+  'x-ratelimit-reset-tokens',
+]
 
 function nowIso() {
   return new Date().toISOString()
@@ -80,6 +97,14 @@ function safeJsonParse(raw, fallback = null) {
     return JSON.parse(raw)
   } catch {
     return fallback
+  }
+}
+
+function parseJsonResult(raw) {
+  try {
+    return { ok: true, value: JSON.parse(raw) }
+  } catch (error) {
+    return { ok: false, error }
   }
 }
 
@@ -121,6 +146,87 @@ function headerEntries(headers) {
     entries[lower] = value
   })
   return entries
+}
+
+function getHeaderValue(headers, name) {
+  if (!headers || typeof headers.get !== 'function') return ''
+  return headers.get(name) || ''
+}
+
+function extractRateLimitHeaders(headers) {
+  const values = {}
+  for (const name of RATE_LIMIT_HEADER_NAMES) {
+    const value = getHeaderValue(headers, name)
+    if (value) values[name] = value
+  }
+  return values
+}
+
+function parseRetryAfterMs(value) {
+  if (!value) return null
+  const seconds = Number(value)
+  if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000))
+  const dateMs = Date.parse(value)
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now())
+  return null
+}
+
+function hasZeroRemainingQuota(rateLimitHeaders) {
+  return Object.entries(rateLimitHeaders).some(([name, value]) => {
+    if (!name.includes('remaining')) return false
+    const numeric = Number(value)
+    return Number.isFinite(numeric) && numeric <= 0
+  })
+}
+
+function isLikelyHtmlText(text) {
+  return /^\s*(<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>])/i.test(text || '')
+}
+
+function isLikelyHtmlResponse(headers, text = '') {
+  const contentType = getHeaderValue(headers, 'content-type').toLowerCase()
+  return contentType.includes('text/html') || isLikelyHtmlText(text)
+}
+
+function buildUpstreamMeta(response, text = '') {
+  // 📖 Keep quota diagnostics structural only: headers and retry timing are safe,
+  // 📖 while upstream response bodies stay out of logs and telemetry.
+  const rateLimitHeaders = extractRateLimitHeaders(response.headers)
+  const retryAfterMs = parseRetryAfterMs(rateLimitHeaders['retry-after'])
+  const quotaExhausted = response.status === 429
+    || hasZeroRemainingQuota(rateLimitHeaders)
+    || /\b(quota|rate[_ -]?limit|too many requests)\b/i.test(text || '')
+  return {
+    retryAfterMs,
+    rateLimitHeaders,
+    quotaExhausted,
+  }
+}
+
+function attachClientAbort(req, res, controller) {
+  let clientAborted = false
+  const abort = () => {
+    if (res.writableEnded) return
+    // 📖 If the coding tool disconnects, stop spending provider quota
+    // 📖 immediately and do not mark the upstream model unhealthy.
+    clientAborted = true
+    try {
+      controller.abort(new Error('client_disconnected'))
+    } catch {
+      controller.abort()
+    }
+  }
+  req.on('aborted', abort)
+  res.on('close', abort)
+  return {
+    get aborted() {
+      return clientAborted
+    },
+    dispose() {
+      req.off('aborted', abort)
+      res.off('close', abort)
+    },
+  }
 }
 
 function cloneHeadersForUpstream(reqHeaders, apiKey, providerKey) {
@@ -407,7 +513,7 @@ class TokenTracker {
 }
 
 class RouterRuntime {
-  constructor({ config, port, logger }) {
+  constructor({ config, port, logger, tokenPath = ROUTER_TOKENS_PATH }) {
     this.config = config
     this.port = port
     this.logger = logger
@@ -421,7 +527,7 @@ class RouterRuntime {
     this.tokenFlushTimer = null
     this.probeTimer = null
     this.probeTimeouts = new Set()
-    this.tokenTracker = new TokenTracker(ROUTER_TOKENS_PATH, logger)
+    this.tokenTracker = new TokenTracker(tokenPath, logger)
     this.modelCatalog = this.buildModelCatalog()
     this.probeWindows = new Map()
     this.circuit = new Map()
@@ -430,6 +536,7 @@ class RouterRuntime {
     this.lastProbeAt = null
     this.totalRequestsRouted = 0
     this.quotaExhausted = new Set()
+    this.quotaDetails = new Map()
     this.staleNotifications = new Set()
     this.refreshRouteState()
   }
@@ -584,19 +691,30 @@ class RouterRuntime {
     state.openedAt = null
     state.lastError = null
     state.authError = false
+    this.quotaExhausted.delete(key)
+    this.quotaDetails.delete(key)
     if (oldState !== state.state) {
       this.broadcast('circuit', { model: key, old_state: oldState, new_state: state.state, cooldown_ms: state.cooldownMs })
     }
     if (latencyMs !== null) this.recordProbeResult(key, { ok: true, latencyMs, code: 200 })
   }
 
-  markFailure(key, detail, statusCode = null) {
+  markFailure(key, detail, statusCode = null, meta = {}) {
     const state = this.circuit.get(key)
     if (!state) return
     state.authError = false
     state.consecutiveFailures += 1
     state.lastError = detail
-    if (statusCode === 429) this.quotaExhausted.add(key)
+    if (statusCode === 429 || meta.quotaExhausted) {
+      this.quotaExhausted.add(key)
+      this.quotaDetails.set(key, {
+        model: key,
+        status: statusCode,
+        retry_after_ms: meta.retryAfterMs ?? null,
+        rate_limit_headers: meta.rateLimitHeaders || {},
+        last_seen: nowIso(),
+      })
+    }
     const router = this.routerConfig()
     if (state.state === 'HALF_OPEN' || state.consecutiveFailures >= router.circuitBreaker.failureThreshold) {
       const oldState = state.state
@@ -619,6 +737,30 @@ class RouterRuntime {
       })
     }
     this.recordProbeResult(key, { ok: false, latencyMs: null, code: statusCode || 'ERR', error: detail })
+  }
+
+  quotaDetailsForKeys(keys) {
+    return keys
+      .filter((key) => this.quotaExhausted.has(key))
+      .map((key) => this.quotaDetails.get(key) || {
+        model: key,
+        status: 429,
+        retry_after_ms: null,
+        rate_limit_headers: {},
+        last_seen: null,
+      })
+  }
+
+  recordRouterError(kind, requestId, properties = {}) {
+    void sendUsageTelemetry(this.config, {}, {
+      event: 'app_router_error',
+      mode: 'daemon',
+      properties: {
+        kind,
+        request_id: requestId,
+        ...properties,
+      },
+    })
   }
 
   getWindowStats(key) {
@@ -873,14 +1015,15 @@ class RouterRuntime {
 
     const candidates = this.getRoutingCandidates(set)
     const maxRetries = this.routerConfig().failover.maxRetries
-    const attempts = candidates.slice(0, Math.max(1, maxRetries))
-    if (attempts.length === 0) {
+    const maxAttempts = Math.max(1, maxRetries)
+    if (candidates.length === 0) {
       const health = this.getModelHealth(set)
       const quotaExhausted = [...this.quotaExhausted].filter((key) => set.models.some((model) => modelKey(model.provider, model.model) === key))
       sendError(res, 503, `All models in set are unavailable: ${set.name}`, 'service_unavailable', 'all_models_unavailable', requestId, {
         set: set.name,
         models_tried: [],
         quota_exhausted: quotaExhausted,
+        quota_exhausted_details: this.quotaDetailsForKeys(quotaExhausted),
         model_health: health,
       })
       void sendUsageTelemetry(this.config, {}, {
@@ -898,23 +1041,29 @@ class RouterRuntime {
     this.inFlight += 1
     try {
       const tried = []
-      for (const [attemptIndex, candidate] of attempts.entries()) {
+      const blockedProviders = new Set()
+      let attemptIndex = 0
+      for (const candidate of candidates) {
+        if (attemptIndex >= maxAttempts) break
+        if (blockedProviders.has(candidate.provider)) continue
         tried.push(candidate.key)
         const result = body.stream === true
           ? await this.proxyStreamingRequest({ req, res, body, candidate, requestId, attemptIndex })
           : await this.proxyJsonRequest({ req, res, body, candidate, requestId, attemptIndex })
         if (result.done) return
-        if (result.failoverToNext && attemptIndex < attempts.length - 1) {
-          const next = attempts[attemptIndex + 1]
-          this.logger.warn(`Failover ${candidate.key} -> ${next.key}`, { request_id: requestId, reason: result.reason })
+        attemptIndex += 1
+        if (result.authFailure) blockedProviders.add(candidate.provider)
+        if (result.failoverToNext && attemptIndex < maxAttempts) {
+          const next = candidates.find((entry) => !tried.includes(entry.key) && !blockedProviders.has(entry.provider))
+          this.logger.warn(`Failover ${candidate.key}${next ? ` -> ${next.key}` : ''}`, { request_id: requestId, reason: result.reason })
           void sendUsageTelemetry(this.config, {}, {
             event: 'app_router_failover',
             mode: 'daemon',
             properties: {
               from_model: candidate.key,
-              to_model: next.key,
+              to_model: next?.key || null,
               reason: result.reason,
-              attempt_number: attemptIndex + 1,
+              attempt_number: attemptIndex,
             },
           })
           continue
@@ -926,6 +1075,7 @@ class RouterRuntime {
         set: set.name,
         models_tried: tried,
         quota_exhausted: quotaExhausted,
+        quota_exhausted_details: this.quotaDetailsForKeys(quotaExhausted),
       })
     } finally {
       this.inFlight -= 1
@@ -943,6 +1093,7 @@ class RouterRuntime {
       model: getApiModelId(candidate.provider, candidate.model),
       stream: false,
     }
+    const clientAbort = attachClientAbort(req, res, controller)
     try {
       const response = await fetch(resolveProviderUrl(candidate.provider), {
         method: 'POST',
@@ -955,11 +1106,25 @@ class RouterRuntime {
       })
       const latencyMs = Math.round(performance.now() - started)
       const text = await response.text()
+      const upstreamMeta = buildUpstreamMeta(response, text)
+
+      if (isLikelyHtmlResponse(response.headers, text)) {
+        this.markFailure(key, 'upstream_html_maintenance', 503, upstreamMeta)
+        this.recordRouterError('upstream_html_maintenance', requestId, { model: key, status: response.status })
+        this.addRequestLog({ request_id: requestId, model: key, status: 503, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: 'upstream_html_maintenance' })
+        return { done: false, failoverToNext: true, reason: 'upstream_html_maintenance' }
+      }
 
       if (response.ok) {
+        const parsed = parseJsonResult(text)
+        if (!parsed.ok || !parsed.value || typeof parsed.value !== 'object') {
+          this.markFailure(key, 'upstream_invalid_json', 502, upstreamMeta)
+          this.recordRouterError('upstream_invalid_json', requestId, { model: key, status: response.status })
+          this.addRequestLog({ request_id: requestId, model: key, status: 502, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: 'upstream_invalid_json' })
+          return { done: false, failoverToNext: true, reason: 'upstream_invalid_json' }
+        }
         this.markSuccess(key, latencyMs)
-        const parsed = safeJsonParse(text, null)
-        const usage = extractUsage(parsed)
+        const usage = extractUsage(parsed.value)
         this.tokenTracker.record(candidate.provider, candidate.model, usage)
         this.totalRequestsRouted += 1
         this.addRequestLog({
@@ -983,11 +1148,11 @@ class RouterRuntime {
       if (AUTH_STATUS_CODES.has(response.status)) {
         this.markAuthError(key, `HTTP ${response.status}`)
         this.addRequestLog({ request_id: requestId, model: key, status: response.status, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: 'auth_error' })
-        return { done: false, failoverToNext: true, reason: `auth_${response.status}` }
+        return { done: false, failoverToNext: true, reason: `auth_${response.status}`, authFailure: true }
       }
 
       if (RETRYABLE_STATUS_CODES.has(response.status)) {
-        this.markFailure(key, `HTTP ${response.status}`, response.status)
+        this.markFailure(key, `HTTP ${response.status}`, response.status, upstreamMeta)
         this.addRequestLog({ request_id: requestId, model: key, status: response.status, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: `http_${response.status}` })
         return { done: false, failoverToNext: true, reason: `http_${response.status}` }
       }
@@ -1000,12 +1165,18 @@ class RouterRuntime {
       res.end(text)
       return { done: true }
     } catch (error) {
+      if (clientAbort.aborted) {
+        this.logger.info(`Client disconnected before upstream response from ${key}`, { request_id: requestId })
+        return { done: true }
+      }
       const reason = error.name === 'AbortError' ? 'timeout' : error.message
       this.markFailure(key, reason)
+      this.recordRouterError('upstream_transport_error', requestId, { model: key, reason })
       this.addRequestLog({ request_id: requestId, model: key, status: 'ERR', latency_ms: null, tokens: 0, failover: attemptIndex > 0, error: reason })
       return { done: false, failoverToNext: true, reason }
     } finally {
       clearTimeout(timeout)
+      clientAbort.dispose()
     }
   }
 
@@ -1021,6 +1192,7 @@ class RouterRuntime {
     }
     const timeout = setTimeout(() => controller.abort(), this.routerConfig().failover.requestTimeoutMs)
     let sentToClient = false
+    const clientAbort = attachClientAbort(req, res, controller)
     try {
       const response = await fetch(resolveProviderUrl(candidate.provider), {
         method: 'POST',
@@ -1032,14 +1204,21 @@ class RouterRuntime {
         signal: controller.signal,
       })
       const latencyMs = Math.round(performance.now() - started)
+      const upstreamMeta = buildUpstreamMeta(response)
+      if (isLikelyHtmlResponse(response.headers)) {
+        this.markFailure(key, 'upstream_html_maintenance', 503, upstreamMeta)
+        this.recordRouterError('upstream_html_maintenance', requestId, { model: key, status: response.status, stream: true })
+        this.addRequestLog({ request_id: requestId, model: key, status: 503, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: 'upstream_html_maintenance', stream: true })
+        return { done: false, failoverToNext: true, reason: 'upstream_html_maintenance' }
+      }
       if (!response.ok) {
         if (AUTH_STATUS_CODES.has(response.status)) {
           this.markAuthError(key, `HTTP ${response.status}`)
           this.addRequestLog({ request_id: requestId, model: key, status: response.status, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: 'auth_error', stream: true })
-          return { done: false, failoverToNext: true, reason: `auth_${response.status}` }
+          return { done: false, failoverToNext: true, reason: `auth_${response.status}`, authFailure: true }
         }
         if (RETRYABLE_STATUS_CODES.has(response.status)) {
-          this.markFailure(key, `HTTP ${response.status}`, response.status)
+          this.markFailure(key, `HTTP ${response.status}`, response.status, upstreamMeta)
           this.addRequestLog({ request_id: requestId, model: key, status: response.status, latency_ms: latencyMs, tokens: 0, failover: attemptIndex > 0, error: `http_${response.status}`, stream: true })
           return { done: false, failoverToNext: true, reason: `http_${response.status}` }
         }
@@ -1063,6 +1242,12 @@ class RouterRuntime {
         this.markFailure(key, 'stream ended before first chunk')
         return { done: false, failoverToNext: true, reason: 'empty_stream' }
       }
+      const firstChunkBuffer = Buffer.from(firstChunk.value)
+      if (isLikelyHtmlText(firstChunkBuffer.toString('utf8'))) {
+        this.markFailure(key, 'upstream_html_maintenance', 503, upstreamMeta)
+        this.recordRouterError('upstream_html_maintenance', requestId, { model: key, status: response.status, stream: true })
+        return { done: false, failoverToNext: true, reason: 'upstream_html_maintenance' }
+      }
 
       res.writeHead(response.status, {
         ...headerEntries(response.headers),
@@ -1070,7 +1255,7 @@ class RouterRuntime {
         'x-request-id': requestId,
       })
       sentToClient = true
-      res.write(Buffer.from(firstChunk.value))
+      res.write(firstChunkBuffer)
 
       while (!res.writableEnded) {
         const chunk = await this.readStreamChunkWithTimeout(reader)
@@ -1093,8 +1278,13 @@ class RouterRuntime {
       return { done: true }
     } catch (error) {
       controller.abort()
+      if (clientAbort.aborted) {
+        this.logger.info(`Client disconnected during streaming response from ${key}`, { request_id: requestId })
+        return { done: true }
+      }
       const reason = error.name === 'AbortError' ? 'timeout' : error.message
       this.markFailure(key, reason)
+      this.recordRouterError('upstream_stream_error', requestId, { model: key, reason, partial: sentToClient })
       if (sentToClient) {
         this.logger.warn(`Streaming failure after partial response from ${key}`, { request_id: requestId, reason })
         try { res.end() } catch {}
@@ -1103,6 +1293,7 @@ class RouterRuntime {
       return { done: false, failoverToNext: true, reason }
     } finally {
       clearTimeout(timeout)
+      clientAbort.dispose()
     }
   }
 
@@ -1263,10 +1454,6 @@ class RouterRuntime {
         setTimeout(() => this.shutdown(0), 50)
         return
       }
-      if (url.pathname === '/daemon/restart' && req.method === 'POST') {
-        sendJson(res, 501, { ok: false, message: 'Restart is handled by CLI lifecycle in this release' }, { 'x-request-id': requestId })
-        return
-      }
       if (url.pathname === '/sets' || url.pathname.startsWith('/sets/')) {
         await this.handleSetsRequest(req, res, url, requestId)
         return
@@ -1292,6 +1479,7 @@ class RouterRuntime {
         return
       }
       this.logger.error('Internal router error', { request_id: requestId, error: error.stack || error.message })
+      this.recordRouterError('internal_router_error', requestId, { message: error.message })
       sendError(res, 500, 'Internal router error', 'server_error', 'internal_router_error', requestId)
     }
   }
@@ -1304,6 +1492,15 @@ class RouterRuntime {
       this.logger.error('Recovered uncaught exception', { error: error.stack || error.message })
       if (this.uncaughtTimestamps.length >= 10) {
         this.logger.error('Too many uncaught exceptions; shutting down for external restart')
+        void sendUsageTelemetry(this.config, {}, {
+          event: 'app_router_self_restart',
+          mode: 'daemon',
+          properties: {
+            uncaught_count: this.uncaughtTimestamps.length,
+            uptime_before_restart: Math.floor((Date.now() - this.startedAt) / 1000),
+            strategy: 'exit_for_service_restart',
+          },
+        })
         void this.shutdown(1)
       }
     })
@@ -1383,6 +1580,24 @@ export function buildDefaultRouterSet(config = {}, maxModels = 5) {
     })),
     created: nowIso(),
   }
+}
+
+export function createRouterRuntimeForTest({ config, port = 0, logger = null, tokenPath = ROUTER_TOKENS_PATH } = {}) {
+  const testLogger = logger || {
+    level: 'error',
+    error() {},
+    warn() {},
+    info() {},
+    debug() {},
+  }
+  // 📖 Tests use this factory to exercise the real HTTP router against local
+  // 📖 fake providers without spawning a daemon or touching user token files.
+  return new RouterRuntime({
+    config: config || {},
+    port,
+    logger: testLogger,
+    tokenPath,
+  })
 }
 
 function ensureRouterConfigForDaemon(config) {

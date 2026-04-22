@@ -13,6 +13,7 @@
  *   → Provider key test model discovery — protects settings key-check probes from stale provider catalogs
  *   → Provider key test outcome classification — distinguishes auth failure, rate limits, and no-callable-model cases
  *   → Provider key test diagnostics — explains probe failures in human-readable form
+ *   → Router daemon integration — verifies failover, quota metadata, and upstream hardening with fake providers
  *
  * @see lib/utils.js — the functions under test
  * @see sources.js — model data validated here
@@ -46,7 +47,7 @@ import {
   normalizeRouterConfig,
   DEFAULT_ROUTER_SETTINGS
 } from '../src/config.js'
-import { buildDefaultRouterSet, formatOpenAiError } from '../src/router-daemon.js'
+import { buildDefaultRouterSet, createRouterRuntimeForTest, formatOpenAiError } from '../src/router-daemon.js'
 import { buildProviderModelTokenKey, loadTokenUsageByProviderModel, formatTokenTotalCompact } from '../src/token-usage-reader.js'
 import { renderTable } from '../src/render-table.js'
 import { createOverlayRenderers } from '../src/overlays.js'
@@ -109,6 +110,191 @@ function mockResult(overrides = {}) {
     httpCode: null,
     ...overrides,
   }
+}
+
+const ROUTER_TEST_MODELS = Object.freeze({
+  groqFast: 'llama-3.3-70b-versatile',
+  groqBackup: 'openai/gpt-oss-120b',
+  nvidiaFast: 'deepseek-ai/deepseek-v3.2',
+})
+
+function listenOnRandomPort(server) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      const address = server.address()
+      resolve(typeof address === 'object' && address ? address.port : 0)
+    })
+  })
+}
+
+function closeRouterTestServer(server) {
+  return new Promise((resolve) => {
+    server.close(() => resolve())
+  })
+}
+
+function readNodeRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    req.on('data', (chunk) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
+function withTimeout(promise, ms, label) {
+  let timeout = null
+  return Promise.race([
+    promise.finally(() => {
+      if (timeout) clearTimeout(timeout)
+    }),
+    new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    }),
+  ])
+}
+
+async function withSourceUrls(overrides, fn) {
+  // 📖 Router integration tests temporarily point real catalog providers at
+  // 📖 localhost fake upstreams, then restore the catalog no matter what fails.
+  const originals = new Map()
+  for (const [provider, url] of Object.entries(overrides)) {
+    originals.set(provider, sources[provider]?.url)
+    sources[provider].url = url
+  }
+  try {
+    return await fn()
+  } finally {
+    for (const [provider, url] of originals) {
+      sources[provider].url = url
+    }
+  }
+}
+
+async function withMockProvider(responder, fn) {
+  // 📖 This tiny OpenAI-compatible fake provider keeps Phase 2 tests
+  // 📖 deterministic without adding a test framework or network dependency.
+  const requests = []
+  const server = createHttpServer(async (req, res) => {
+    const bodyText = await readNodeRequestBody(req)
+    const request = {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      bodyText,
+      body: bodyText ? JSON.parse(bodyText) : null,
+    }
+    requests.push(request)
+    const response = await responder(request, res)
+    if (!response || res.writableEnded || res.destroyed) return
+    if (response.delayMs) await new Promise((resolve) => setTimeout(resolve, response.delayMs))
+    res.writeHead(response.status ?? 200, response.headers || { 'content-type': 'application/json' })
+    if (Array.isArray(response.chunks)) {
+      for (const chunk of response.chunks) res.write(chunk)
+      res.end()
+      return
+    }
+    if (response.rawBody !== undefined) {
+      res.end(response.rawBody)
+      return
+    }
+    res.end(JSON.stringify(response.body ?? { id: 'chatcmpl-test', choices: [] }))
+  })
+  const port = await listenOnRandomPort(server)
+  try {
+    return await fn({
+      requests,
+      url: `http://127.0.0.1:${port}/v1/chat/completions`,
+      port,
+      server,
+    })
+  } finally {
+    await closeRouterTestServer(server)
+  }
+}
+
+function buildRouterTestConfig(models, overrides = {}) {
+  // 📖 Tests use real router normalization so timeout/circuit defaults match
+  // 📖 production behavior instead of silently depending on impossible values.
+  const router = normalizeRouterConfig({
+    ...DEFAULT_ROUTER_SETTINGS,
+    enabled: true,
+    onboardingSeen: true,
+    activeSet: 'test-set',
+    sets: {
+      'test-set': {
+        name: 'test-set',
+        created: '2026-04-23T00:00:00.000Z',
+        models,
+      },
+    },
+    failover: {
+      ...DEFAULT_ROUTER_SETTINGS.failover,
+      maxRetries: overrides.maxRetries ?? models.length,
+      requestTimeoutMs: overrides.requestTimeoutMs ?? 500,
+      streamStallTimeoutMs: overrides.streamStallTimeoutMs ?? 100,
+    },
+    circuitBreaker: {
+      ...DEFAULT_ROUTER_SETTINGS.circuitBreaker,
+      failureThreshold: 1,
+    },
+  })
+  return {
+    telemetry: { enabled: false },
+    apiKeys: {
+      groq: 'gsk-router-test',
+      nvidia: 'nvapi-router-test',
+    },
+    router,
+  }
+}
+
+async function withRouterTestServer(config, fn) {
+  const tokenPath = join(tmpdir(), `fcm-router-test-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`)
+  const runtime = createRouterRuntimeForTest({
+    config,
+    tokenPath,
+    logger: {
+      level: 'error',
+      error() {},
+      warn() {},
+      info() {},
+      debug() {},
+    },
+  })
+  const server = createHttpServer((req, res) => void runtime.handleHttp(req, res))
+  const port = await listenOnRandomPort(server)
+  runtime.port = port
+  runtime.server = server
+  try {
+    return await fn({
+      runtime,
+      port,
+      baseUrl: `http://127.0.0.1:${port}`,
+    })
+  } finally {
+    try { runtime.tokenTracker.flush({ force: true }) } catch {}
+    await closeRouterTestServer(server)
+    rmSync(tokenPath, { force: true })
+  }
+}
+
+function routerChatBody(overrides = {}) {
+  return {
+    model: 'fcm',
+    messages: [{ role: 'user', content: 'ping' }],
+    ...overrides,
+  }
+}
+
+async function postRouterChat(baseUrl, bodyOverrides = {}) {
+  return fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(routerChatBody(bodyOverrides)),
+  })
 }
 
 describe('command palette fuzzy search', () => {
@@ -1655,6 +1841,11 @@ describe('package.json sanity', () => {
   it('builds the web dashboard during prepack so npm releases include web/dist', () => {
     assert.equal(pkg.scripts?.prepack, 'npm run build:web')
   })
+
+  it('packages the router daemon through the npm files allowlist', () => {
+    assert.ok(pkg.files.includes('src/'), 'src/ must stay packaged because it contains src/router-daemon.js')
+    assert.ok(existsSync(join(ROOT, 'src/router-daemon.js')), 'router daemon entry should exist')
+  })
 })
 
 describe('CLI entry point sanity', () => {
@@ -2146,6 +2337,306 @@ describe('router config helpers', () => {
     assert.equal(payload.error.code, 'all_models_unavailable')
     assert.equal(payload.error.request_id, 'req-test')
     assert.equal(payload.error.set, 'fast-coding')
+  })
+})
+
+describe('router daemon integration hardening', () => {
+  it('routes non-streaming chat completions through the highest-priority healthy model', async () => {
+    await withMockProvider(() => ({
+      body: {
+        id: 'chatcmpl-success',
+        choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      },
+    }), async (groqProvider) => {
+      await withSourceUrls({ groq: groqProvider.url }, async () => {
+        const config = buildRouterTestConfig([
+          { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+        ])
+        await withRouterTestServer(config, async ({ baseUrl, runtime }) => {
+          const response = await postRouterChat(baseUrl)
+          const payload = await response.json()
+
+          assert.equal(response.status, 200)
+          assert.equal(response.headers.get('x-fcm-router-model'), `groq/${ROUTER_TEST_MODELS.groqFast}`)
+          assert.equal(payload.id, 'chatcmpl-success')
+          assert.equal(groqProvider.requests.length, 1)
+          assert.equal(groqProvider.requests[0].headers.authorization, 'Bearer gsk-router-test')
+          assert.equal(groqProvider.requests[0].body.model, ROUTER_TEST_MODELS.groqFast)
+          assert.equal(runtime.tokenTracker.stats.all_time.total_tokens, 5)
+        })
+      })
+    })
+  })
+
+  it('fails over non-streaming retryable provider errors to the next model', async () => {
+    await withMockProvider(() => ({ status: 503, body: { error: { message: 'maintenance' } } }), async (groqProvider) => {
+      await withMockProvider(() => ({ body: { id: 'chatcmpl-failover', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl)
+            const payload = await response.json()
+
+            assert.equal(response.status, 200)
+            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.equal(payload.id, 'chatcmpl-failover')
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+  })
+
+  it('fails over streaming errors before the first byte', async () => {
+    await withMockProvider(() => ({ status: 503, body: { error: { message: 'warming up' } } }), async (groqProvider) => {
+      await withMockProvider(() => ({
+        headers: { 'content-type': 'text/event-stream' },
+        chunks: ['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n'],
+      }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl, { stream: true })
+            const text = await response.text()
+
+            assert.equal(response.status, 200)
+            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.match(text, /"ok"/)
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+  })
+
+  it('does not retry a streaming response after partial output reached the client', async () => {
+    await withMockProvider((request, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.write('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n')
+      setTimeout(() => res.destroy(new Error('upstream stream exploded')), 5)
+      return null
+    }, async (groqProvider) => {
+      await withMockProvider(() => ({ body: { id: 'should-not-run', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl, { stream: true })
+            const text = await response.text()
+
+            assert.equal(response.status, 200)
+            assert.match(text, /partial/)
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 0)
+          })
+        })
+      })
+    })
+  })
+
+  it('skips remaining candidates from the same provider after an auth error', async () => {
+    await withMockProvider(() => ({ status: 401, body: { error: { message: 'bad key' } } }), async (groqProvider) => {
+      await withMockProvider(() => ({ body: { id: 'chatcmpl-auth-skip', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqBackup, priority: 2 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 3 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl)
+
+            assert.equal(response.status, 200)
+            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+  })
+
+  it('returns precise quota metadata when every routed model is exhausted', async () => {
+    await withMockProvider(() => ({
+      status: 429,
+      headers: {
+        'content-type': 'application/json',
+        'retry-after': '7',
+        'x-ratelimit-remaining': '0',
+      },
+      body: { error: { message: 'quota exceeded' } },
+    }), async (groqProvider) => {
+      await withSourceUrls({ groq: groqProvider.url }, async () => {
+        const config = buildRouterTestConfig([
+          { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+        ])
+        await withRouterTestServer(config, async ({ baseUrl }) => {
+          const response = await postRouterChat(baseUrl)
+          const payload = await response.json()
+
+          assert.equal(response.status, 503)
+          assert.equal(payload.error.code, 'all_models_failed')
+          assert.deepEqual(payload.error.quota_exhausted, [`groq/${ROUTER_TEST_MODELS.groqFast}`])
+          assert.equal(payload.error.quota_exhausted_details[0].retry_after_ms, 7000)
+          assert.equal(payload.error.quota_exhausted_details[0].rate_limit_headers['x-ratelimit-remaining'], '0')
+          assert.equal(groqProvider.requests.length, 1)
+        })
+      })
+    })
+  })
+
+  it('treats upstream HTML maintenance pages as retryable 503 responses', async () => {
+    await withMockProvider(() => ({
+      headers: { 'content-type': 'text/html' },
+      rawBody: '<!doctype html><html><body>maintenance</body></html>',
+    }), async (groqProvider) => {
+      await withMockProvider(() => ({ body: { id: 'chatcmpl-after-html', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl)
+            const payload = await response.json()
+
+            assert.equal(response.status, 200)
+            assert.equal(payload.id, 'chatcmpl-after-html')
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+  })
+
+  it('fails over malformed successful JSON instead of returning it to clients', async () => {
+    await withMockProvider(() => ({
+      headers: { 'content-type': 'application/json' },
+      rawBody: '{"id":',
+    }), async (groqProvider) => {
+      await withMockProvider(() => ({ body: { id: 'chatcmpl-after-invalid-json', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: groqProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ])
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl)
+            const payload = await response.json()
+
+            assert.equal(response.status, 200)
+            assert.equal(payload.id, 'chatcmpl-after-invalid-json')
+            assert.equal(groqProvider.requests.length, 1)
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+  })
+
+  it('fails over request timeouts and connection-refused transport errors', async () => {
+    await withMockProvider(() => ({ delayMs: 1100, body: { id: 'too-late', choices: [] } }), async (slowProvider) => {
+      await withMockProvider(() => ({ body: { id: 'chatcmpl-after-timeout', choices: [] } }), async (nvidiaProvider) => {
+        await withSourceUrls({ groq: slowProvider.url, nvidia: nvidiaProvider.url }, async () => {
+          const config = buildRouterTestConfig([
+            { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+            { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+          ], { requestTimeoutMs: 10 })
+          await withRouterTestServer(config, async ({ baseUrl }) => {
+            const response = await postRouterChat(baseUrl)
+            const payload = await response.json()
+
+            assert.equal(response.status, 200)
+            assert.equal(payload.id, 'chatcmpl-after-timeout')
+            assert.equal(nvidiaProvider.requests.length, 1)
+          })
+        })
+      })
+    })
+
+    const closedServer = createHttpServer(() => {})
+    const closedPort = await listenOnRandomPort(closedServer)
+    await closeRouterTestServer(closedServer)
+    await withMockProvider(() => ({ body: { id: 'chatcmpl-after-refused', choices: [] } }), async (nvidiaProvider) => {
+      await withSourceUrls({
+        groq: `http://127.0.0.1:${closedPort}/v1/chat/completions`,
+        nvidia: nvidiaProvider.url,
+      }, async () => {
+        const config = buildRouterTestConfig([
+          { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+          { provider: 'nvidia', model: ROUTER_TEST_MODELS.nvidiaFast, priority: 2 },
+        ])
+        await withRouterTestServer(config, async ({ baseUrl }) => {
+          const response = await postRouterChat(baseUrl)
+          const payload = await response.json()
+
+          assert.equal(response.status, 200)
+          assert.equal(payload.id, 'chatcmpl-after-refused')
+          assert.equal(nvidiaProvider.requests.length, 1)
+        })
+      })
+    })
+  })
+
+  it('aborts the upstream request when the client disconnects', async () => {
+    let providerCloseResolve = null
+    let providerReceivedResolve = null
+    const providerClosed = new Promise((resolve) => { providerCloseResolve = resolve })
+    const providerReceived = new Promise((resolve) => { providerReceivedResolve = resolve })
+
+    await withMockProvider((request, res) => {
+      providerReceivedResolve()
+      res.on('close', () => providerCloseResolve())
+      return new Promise(() => {})
+    }, async (groqProvider) => {
+      await withSourceUrls({ groq: groqProvider.url }, async () => {
+        const config = buildRouterTestConfig([
+          { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+        ], { requestTimeoutMs: 1000 })
+        await withRouterTestServer(config, async ({ baseUrl }) => {
+          const controller = new AbortController()
+          const request = fetch(`${baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(routerChatBody()),
+            signal: controller.signal,
+          }).catch((error) => error)
+
+          await withTimeout(providerReceived, 500, 'provider request')
+          controller.abort()
+          await withTimeout(providerClosed, 500, 'provider close')
+          const result = await request
+
+          assert.ok(result instanceof Error)
+          assert.equal(groqProvider.requests.length, 1)
+        })
+      })
+    })
+  })
+
+  it('does not advertise the daemon restart endpoint before a real restart strategy exists', async () => {
+    const config = buildRouterTestConfig([
+      { provider: 'groq', model: ROUTER_TEST_MODELS.groqFast, priority: 1 },
+    ])
+    await withRouterTestServer(config, async ({ baseUrl }) => {
+      const response = await fetch(`${baseUrl}/daemon/restart`, { method: 'POST' })
+      const payload = await response.json()
+
+      assert.equal(response.status, 404)
+      assert.equal(payload.error.code, 'not_found')
+    })
   })
 })
 

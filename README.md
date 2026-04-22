@@ -299,7 +299,10 @@ Routing behavior:
 
 - Priority order works immediately on cold start, then probes refine health scores over time.
 - Transient failures (`429`, `500`, `502`, `503`, timeouts) fail over to the next model.
-- Authentication problems (`401`, `403`, missing keys) are marked separately so bad credentials do not poison the circuit breaker.
+- Authentication problems (`401`, `403`, missing keys) are marked separately so bad credentials do not poison the circuit breaker; after one provider returns an auth error, the router skips the rest of that provider for the current request.
+- Upstream HTML maintenance pages and malformed successful JSON are treated as retryable provider failures instead of being forwarded to your coding tool.
+- Quota and rate-limit failures include retry headers in the final router `503` payload when providers expose them.
+- If a coding tool disconnects mid-request, the daemon aborts the upstream request without counting it as a provider failure.
 - Streaming requests retry before the first byte; after partial output starts, the daemon records the failure and lets the current stream finish as safely as possible.
 
 ### Tool launcher flags

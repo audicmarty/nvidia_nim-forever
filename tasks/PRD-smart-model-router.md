@@ -1,6 +1,6 @@
 # PRD — Smart Model Router ("FCM Router")
 
-> **Status**: Draft v4 — partially implemented  
+> **Status**: Draft v5 — Phase 2 backend hardening implemented  
 > **Author**: Vanessa Depraute + Claude  
 > **Date**: 2026-04-23  
 > **Target release**: next minor version  
@@ -50,13 +50,14 @@ This PRD is now split between **implemented backend foundation** and **remaining
 | Health probes | ✅ Backend done | Cold-start burst, rolling probe windows, staggered steady probing, Eco/Balanced/Aggressive intervals. |
 | Circuit breaker | ✅ Backend done | CLOSED / HALF_OPEN / OPEN states, exponential cooldown, auth errors separated from transient failures. |
 | Scoring | ✅ Backend done | Score uses latency, uptime, and user priority. Cold start falls back to priority order. |
-| Request failover | ✅ Backend done | Non-streaming failover and streaming failover before first byte are implemented. Partial streamed responses are not retried after bytes are sent. |
+| Request failover | ✅ Backend done | Non-streaming failover, streaming failover before first byte, timeout failover, connection-refused failover, HTML maintenance-page failover, and malformed JSON failover are implemented. Partial streamed responses are not retried after bytes are sent. |
 | Stale model detection | ✅ Backend done | Set entries missing from `sources.js` are marked stale and skipped. |
 | Stats endpoints | ✅ Done | `/health`, `/stats`, `/stats/tokens`, `/stats/tokens/daily/:date`, and `/stream/events` exist. |
 | Token tracking | ✅ Partial | Non-streaming OpenAI `usage` fields are tracked daily/all-time. Streaming token extraction is still not tracked. |
 | SSE events | ✅ Backend done | Emits `request`, `probe`, `circuit`, and `set_change` events. No TUI consumer yet. |
-| Telemetry | ✅ Partial | Daemon start/stop, failover, circuit-open, and all-down events are wired. Error/self-restart telemetry is still incomplete. |
-| Tests | ✅ Done | Unit coverage added for CLI flags, router config normalization/persistence, default set creation, and error payload shape. Manual smoke tested daemon start/status/stop. |
+| Telemetry | ✅ Backend done | Daemon start/stop, failover, circuit-open, all-down, router-error, and external-restart-trigger telemetry are wired. |
+| Upstream hardening | ✅ Backend done | Client disconnect aborts, quota metadata extraction, same-provider auth skipping, HTML detection, malformed JSON detection, and restart endpoint removal are implemented. |
+| Tests | ✅ Done | Unit coverage plus fake-upstream router integration coverage for success routing, failover, streaming behavior, auth errors, all-down `503`, malformed upstream responses, timeouts, connection refused, and client disconnects. |
 | Documentation | ✅ Done | README, flags docs, config docs, changelog, and this PRD reflect the current router foundation. |
 
 ### Not Implemented Yet
@@ -72,7 +73,6 @@ This PRD is now split between **implemented backend foundation** and **remaining
 | `FCM Router` install target | ❌ Not started | Existing endpoint installer cannot yet write router config into OpenCode/Goose/Aider/etc. |
 | Auto-start on boot | ❌ Not started | No launchd/systemd setup or Settings toggle yet. |
 | Command palette router actions | ❌ Not started | Router commands are not searchable inside Ctrl+P yet. |
-| Full upstream hardening | ⚠️ Partial | Core retry/failover works, but malformed upstream JSON, HTML maintenance pages, client disconnect aborts, detailed quota header parsing, and restart endpoint need more hardening. |
 | Full npm release verification | ❌ Not done | Implementation was tested locally, but no version bump, publish, or global npm tarball verification was performed. |
 
 ### Current Usable Slice
@@ -773,7 +773,6 @@ All values have sensible defaults — zero config required for the basic use cas
 | `PUT` | `/sets/:name` | Update set (reorder, add/remove models) |
 | `DELETE` | `/sets/:name` | Delete a set |
 | `POST` | `/sets/:name/activate` | Switch daemon to this set |
-| `POST` | `/daemon/restart` | Graceful restart |
 | `POST` | `/daemon/shutdown` | Graceful shutdown |
 
 ### SSE Event Types (`/stream/events`)
@@ -791,11 +790,13 @@ All values have sensible defaults — zero config required for the basic use cas
 
 | Scenario | Behavior |
 |----------|----------|
-| All models in set are OPEN | Return `503 { error: "All models in set are unavailable", set: "fast-coding", models_tried: [...] }`. If any model was skipped due to quota exhaustion (429 with rate-limit headers showing 0 remaining), include `"quota_exhausted": ["groq/llama-3.3-70b"]` in the response so the user knows *why* and can switch to a set with different providers |
+| All models in set are OPEN | Return `503 { error: "All models in set are unavailable", set: "fast-coding", models_tried: [...] }`. If any model was skipped due to quota exhaustion (429 with rate-limit headers showing 0 remaining), include `"quota_exhausted": ["groq/llama-3.3-70b"]` plus `"quota_exhausted_details"` with retry/rate-limit metadata so the user knows *why* and can switch to a set with different providers |
 | Daemon port occupied on start | Try ports 19280→19289 sequentially, write actual port to `.port` file |
 | TUI can't find daemon | Check PID file → check .port file → scan 19280-19289 → offer to restart |
 | Streaming: partial response then failure | Let partial response through (can't un-send bytes), log failure, update circuit breaker. Next request routes to healthier model |
 | API key missing for a provider in set | Mark model as `AUTH_ERROR` (not circuit-broken). Show ⚠ in dashboard. Skip during routing but don't count as failure |
+| Provider returns `401`/`403` during a request | Mark that model as `AUTH_ERROR`, skip remaining candidates from the same provider for this request, and try the next provider if one is available |
+| Client disconnects mid-request | Abort the upstream fetch and stop work without counting it as a provider failure |
 | Config file locked/corrupted | Daemon keeps running with in-memory state. TUI shows warning. Retry config write on next interval |
 | User deletes the active set | Fall back to first available set. If no sets exist, pause daemon and notify user |
 | Token file grows too large | Auto-prune daily entries older than 90 days on daemon startup |
@@ -820,7 +821,7 @@ process.on('unhandledRejection', (reason) => { /* log, do NOT exit */ })
 
 | Scenario | Behavior |
 |----------|----------|
-| Uncaught exception | Log full stack trace at `error` level. Do **not** exit. Increment a `crash_recovered` counter exposed in `/health`. If 10+ uncaught exceptions in 5 minutes → self-restart (graceful shutdown + respawn via same binary) |
+| Uncaught exception | Log full stack trace at `error` level. Do **not** exit for ordinary isolated exceptions. Increment a `crash_recovered` counter exposed in `/health`. If 10+ uncaught exceptions happen in 5 minutes, gracefully shut down with exit code `1` so launchd/systemd or the future TUI service manager can restart it; the daemon does not self-spawn a second process from inside the same process. |
 | Unhandled promise rejection | Same as uncaught exception — log and continue |
 | Out of memory (heap) | Node.js will kill the process regardless. PID file becomes stale → TUI auto-restarts daemon on next connect. To prevent OOM: all rolling windows, logs, and caches have hard caps (see §10.5) |
 | SIGTERM | Graceful shutdown: stop accepting new requests, drain in-flight (30s max), flush token stats, delete PID file, exit 0 |
@@ -1051,11 +1052,11 @@ Shipped in the first implementation pass.
 - ✅ Basic daemon telemetry.
 - ✅ README/config/flags/changelog documentation.
 
-### Phase 2 — Backend Hardening & Compliance 🔜 Next
+### Phase 2 — Backend Hardening & Compliance ✅ Done
 
 Goal: make the router backend robust enough that the TUI can trust it without defensive hacks.
 
-- Add mock-upstream integration tests for:
+- ✅ Added mock-upstream integration tests for:
   - success routing
   - non-streaming failover
   - streaming failover before first byte
@@ -1064,20 +1065,19 @@ Goal: make the router backend robust enough that the TUI can trust it without de
   - all-models-down `503`
   - malformed JSON / HTML upstream response
   - timeout and connection refused
-- Implement client-disconnect upstream abort.
-- Detect and retry upstream HTML maintenance pages as `503`.
-- Harden malformed upstream JSON handling for non-streaming responses.
-- Extract `Retry-After` and rate-limit/quota headers where providers expose them.
-- Add more precise quota-exhausted reporting in `503` payloads.
-- Implement `/daemon/restart` or remove it from the advertised API until ready.
-- Decide whether auth failures should skip all same-provider candidates during one request.
-- Finish error telemetry:
+  - client disconnect aborts
+- ✅ Implemented client-disconnect upstream abort without counting it as provider failure.
+- ✅ Detects upstream HTML maintenance pages and retries them as provider `503` failures.
+- ✅ Treats malformed successful JSON as a retryable upstream failure.
+- ✅ Extracts `Retry-After` and common rate-limit/quota headers when providers expose them.
+- ✅ Adds `quota_exhausted_details` beside `quota_exhausted` in router `503` payloads.
+- ✅ Removed `/daemon/restart` from the active API until a real service-level restart strategy exists.
+- ✅ Auth failures now skip remaining same-provider candidates during the current request.
+- ✅ Finished error telemetry:
   - `app_router_error`
   - `app_router_self_restart`
-- Review daemon process safety:
-  - current implementation logs repeated uncaught exceptions and exits for external restart
-  - original PRD says self-respawn; choose one behavior and document it.
-- Add package sanity test that `src/router-daemon.js` is included by the existing `files` field.
+- ✅ Process safety decision: the daemon still recovers ordinary uncaught exceptions/rejections in-process, but exits after 10 uncaught exceptions in 5 minutes so launchd/systemd or the future TUI service manager can restart it. It does not self-spawn a second process from inside the daemon.
+- ✅ Added package sanity coverage that `src/router-daemon.js` remains included by the npm `files` allowlist.
 
 **Exit criteria**
 
@@ -1108,7 +1108,7 @@ Goal: make router health visible inside the existing terminal app.
 - Add local dashboard keys:
   - `S` switch active set
   - `I` cycle probe intensity
-  - `R` restart daemon, if Phase 2 keeps `/daemon/restart`
+  - `R` restart daemon, after Phase 7 adds a real service manager restart path
   - `C` clear local dashboard request log
   - `P` pause/resume probes, if backend support is added
   - `Esc` back
