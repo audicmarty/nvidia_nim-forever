@@ -68,7 +68,14 @@ import {
 // 📖 is not guaranteed to be accepted by their chat endpoint.
 const PROVIDER_TEST_MODEL_OVERRIDES = {
   sambanova: ['DeepSeek-V3-0324'],
-  nvidia: ['meta/llama-3.1-8b-instruct'],
+  nvidia: [
+    'meta/llama-3.3-70b-instruct',
+    'meta/llama-3.1-405b-instruct',
+    'deepseek-ai/deepseek-r1-distill-qwen-32b',
+    'qwen/qwen2.5-coder-32b-instruct',
+    'google/gemma-2-9b-it',
+    'microsoft/phi-4-mini-instruct',
+  ],
 }
 
 // 📖 Settings key tests retry retryable failures across several models so a
@@ -83,7 +90,7 @@ const SETTINGS_TEST_RETRY_DELAY_MS = 4000
 // 📖   - replicate: uses /v1/predictions (not /models) but needs a different payload
 // 📖   - cloudflare: no auth endpoint — only has chat completions, always uses ping fallback
 const PROVIDER_AUTH_ENDPOINTS = {
-  nvidia: null, // 📖 NVIDIA NIM doesn't have a reliable /v1/account endpoint; use ping only
+  nvidia: null, // 📖 /v1/models returns 200 for any valid key — doesn't prove models are callable; use ping only
   groq: { url: 'https://api.groq.com/v1/models', method: 'GET' },
   cerebras:     { url: 'https://api.cerebras.ai/v1/models',          method: 'GET' },
   sambanova:    { url: 'https://api.sambanova.ai/v1/models',         method: 'GET' },
@@ -210,12 +217,21 @@ export function listProviderTestModels(providerKey, src, discoveredModelIds = []
  * @param {string[]} codes
  * @returns {'ok'|'auth_error'|'rate_limited'|'no_callable_model'|'fail'}
  */
-export function classifyProviderTestOutcome(codes) {
+export function classifyProviderTestOutcome(codes, providerKey = null) {
   if (codes.includes('200')) return 'ok'
   if (codes.includes('401')) return 'auth_error'
-  if (codes.includes('403')) return 'forbidden'
+  // 📖 For NVIDIA, 403 is per-model (not account-level) — only flag forbidden if ALL probes are 403.
+  // 📖 For other providers, any single 403 means the key itself is rejected.
+  if (codes.includes('403')) {
+    if (providerKey === 'nvidia') {
+      if (codes.every(code => code === '403')) return 'forbidden'
+      // Otherwise keep probing — some models may still work
+    } else {
+      return 'forbidden'
+    }
+  }
   if (codes.length > 0 && codes.every(code => code === '429')) return 'rate_limited'
-  if (codes.length > 0 && codes.every(code => code === '404' || code === '410')) return 'no_callable_model'
+  if (codes.length > 0 && codes.every(code => code === '404' || code === '410' || code === '403')) return 'no_callable_model'
   return 'fail'
 }
 
@@ -659,7 +675,7 @@ export function createKeyHandler(ctx) {
       attempts.push(...batchResults)
 
       // 📖 Check outcome after each parallel batch.
-      const outcome = classifyProviderTestOutcome(attempts.map(({ code }) => code))
+      const outcome = classifyProviderTestOutcome(attempts.map(({ code }) => code), providerKey)
       if (outcome === 'ok') {
         state.settingsTestResults[providerKey] = 'ok'
         state.settingsTestDetails[providerKey] = buildProviderTestDetail(providerLabel, 'ok', attempts, discoveryNote)
@@ -2240,20 +2256,20 @@ export function createKeyHandler(ctx) {
         if (key.name === 'escape' || key.name === 'return') {
           state.routerOnboardingOpen = false
           // 📖 Mark onboarding as seen (don't show again)
-          if (state.config?.router) {
-            state.config.router.onboardingSeen = true
-          }
+          if (!state.config.router) state.config.router = {}
+          state.config.router.onboardingSeen = true
+          saveConfig(state.config)
           return
         }
         return
       }
       if (key.name === 'escape' || key.name === 'n') {
         state.routerOnboardingOpen = false
-        // 📖 Mark as seen and disabled
-        if (state.config?.router) {
-          state.config.router.onboardingSeen = true
-          state.config.router.enabled = false
-        }
+        // 📖 Mark as seen and disabled — must create router config if absent
+        if (!state.config.router) state.config.router = {}
+        state.config.router.onboardingSeen = true
+        state.config.router.enabled = false
+        saveConfig(state.config)
         return
       }
       if (key.name === 'up' || key.name === 'k') {
@@ -2265,13 +2281,15 @@ export function createKeyHandler(ctx) {
         return
       }
       if (key.name === 'return' || key.name === 'y') {
-        const shouldEnable = key.name === 'return' ? true : (state.routerOnboardingCursor === 0)
+        // 📖 Enter follows cursor position; Y always means "yes enable"
+        const shouldEnable = key.name === 'y' ? true : (state.routerOnboardingCursor === 0)
         if (!shouldEnable) {
           state.routerOnboardingOpen = false
-          if (state.config?.router) {
-            state.config.router.onboardingSeen = true
-            state.config.router.enabled = false
-          }
+          // 📖 Mark as seen and disabled — must create router config if absent
+          if (!state.config.router) state.config.router = {}
+          state.config.router.onboardingSeen = true
+          state.config.router.enabled = false
+          saveConfig(state.config)
           return
         }
         // 📖 Enable router: start daemon in background and mark onboarding seen
@@ -2288,11 +2306,10 @@ export function createKeyHandler(ctx) {
             await new Promise((r) => setTimeout(r, 2000))
             if (state.routerOnboardingPhase === 'loading') {
               state.routerOnboardingPhase = 'success'
-              if (state.config?.router) {
-                state.config.router.enabled = true
-                state.config.router.onboardingSeen = true
-                saveConfig(state.config)
-              }
+              if (!state.config.router) state.config.router = {}
+              state.config.router.enabled = true
+              state.config.router.onboardingSeen = true
+              saveConfig(state.config)
               trackTelemetryEvent('app_router_install', { router_version: '0.4.0' })
               await new Promise((r) => setTimeout(r, 1500))
               state.routerOnboardingOpen = false
@@ -2772,6 +2789,9 @@ export function createKeyHandler(ctx) {
         // 📖 Test the selected provider's key (fires a real ping)
         const pk = providerKeys[state.settingsCursor]
         if (!pk) return
+        // 📖 Reset to 'pending' immediately so user sees visual feedback that T is working
+        state.settingsTestResults[pk] = 'pending'
+        if (state.settingsTestDetails) state.settingsTestDetails[pk] = `Re-testing ${sources[pk]?.name || pk}...`
         testProviderKey(pk)
         return
       }

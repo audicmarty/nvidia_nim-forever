@@ -935,7 +935,9 @@ export function resolveApiKeys(config, providerKey, envVarName) {
   } else if (envVarName && process.env[envVarName]) {
     keys = [process.env[envVarName]]
   }
-  return keys.filter(k => typeof k === 'string' && k.length > 0)
+  return keys
+    .filter(k => typeof k === 'string' && k.trim().length > 0)
+    .map(k => k.trim())
 }
 
 /**

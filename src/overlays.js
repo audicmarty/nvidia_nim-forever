@@ -1802,7 +1802,7 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('🔀 Smart Router Available!')}`)
     lines.push('')
-    lines.push(themeColors.dim('  FCM can run a background daemon that automatically'))
+    lines.push(themeColors.dim('  free-coding-models can run a background daemon that automatically'))
     lines.push(themeColors.dim('  routes your requests to the fastest healthy model —'))
     lines.push(themeColors.dim('  with zero manual intervention after initial setup.'))
     lines.push('')

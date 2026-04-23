@@ -272,12 +272,17 @@ function installIntoOpenCode(providerKey, models, apiKey, paths) {
   const config = readJson(filePath, {})
   if (!config.provider || typeof config.provider !== 'object') config.provider = {}
 
+  // 📖 Use OpenCode's {env:VAR} syntax instead of raw API key to avoid stale key issues.
+  // 📖 FCM injects the resolved key into the child env on launch, so {env:VAR} always resolves.
+  const envVarName = ENV_VAR_NAMES[providerKey]
+  const apiKeyRef = envVarName ? `{env:${envVarName}}` : apiKey
+
   config.provider[providerId] = {
     npm: '@ai-sdk/openai-compatible',
     name: getManagedProviderLabel(providerKey),
     options: {
       baseURL: resolveProviderBaseUrl(providerKey),
-      apiKey,
+      apiKey: apiKeyRef,
     },
     models: Object.fromEntries(models.map((model) => [model.modelId, { name: model.label }])),
   }

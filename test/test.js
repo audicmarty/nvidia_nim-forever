@@ -593,11 +593,11 @@ describe('provider key test model discovery', () => {
     assert.deepEqual(
       listProviderTestModels('nvidia', sources.nvidia, ['openai/gpt-oss-120b', 'deepseek-ai/deepseek-v3.2']).slice(0, 5),
       [
-        'meta/llama-3.1-8b-instruct',
-        'openai/gpt-oss-120b',
-        'deepseek-ai/deepseek-v3.2',
-        'moonshotai/kimi-k2.5',
-        'z-ai/glm5',
+        'meta/llama-3.3-70b-instruct',
+        'meta/llama-3.1-405b-instruct',
+        'deepseek-ai/deepseek-r1-distill-qwen-32b',
+        'qwen/qwen2.5-coder-32b-instruct',
+        'google/gemma-2-9b-it',
       ]
     )
   })
@@ -630,6 +630,19 @@ describe('classifyProviderTestOutcome', () => {
 
   it('falls back to fail for mixed non-auth transport or server errors', () => {
     assert.equal(classifyProviderTestOutcome(['404', '500', 'ERR']), 'fail')
+  })
+
+  it('treats all-403 as forbidden for NVIDIA too', () => {
+    assert.equal(classifyProviderTestOutcome(['403', '403', '403'], 'nvidia'), 'forbidden')
+  })
+
+  it('does not stop on 403 for NVIDIA when mixed with other codes', () => {
+    // Mixed 403+404 for NVIDIA should be no_callable_model, not forbidden
+    assert.equal(classifyProviderTestOutcome(['403', '404', '403'], 'nvidia'), 'no_callable_model')
+  })
+
+  it('still treats single 403 as forbidden for non-NVIDIA providers', () => {
+    assert.equal(classifyProviderTestOutcome(['403', '404'], 'groq'), 'forbidden')
   })
 })
 
@@ -3235,7 +3248,8 @@ describe('endpoint installer', () => {
       const written = JSON.parse(readFileSync(paths.opencodeConfigPath, 'utf8'))
       assert.equal(result.toolMode, 'opencode')
       assert.equal(result.modelCount, 1)
-      assert.equal(written.provider['fcm-nvidia'].options.apiKey, expectedApiKey)
+      // 📖 OpenCode installs now use {env:VAR} syntax instead of raw keys
+      assert.equal(written.provider['fcm-nvidia'].options.apiKey, '{env:NVIDIA_API_KEY}')
       assert.deepEqual(written.provider['fcm-nvidia'].models, {
         'deepseek-ai/deepseek-v3.2': { name: 'DeepSeek V3.2' },
       })

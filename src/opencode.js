@@ -213,8 +213,7 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       }, 305000)
     }
 
-    resetActivityTimeout();
-      if (chunksReceived <= 3 || chunksReceived % 50 === 0) logToRealtimeFile(`REQ ${reqId}`, `Received chunk #${chunksReceived} (${chunk.length} bytes)`);
+    resetActivityTimeout()
     
     // 📖 3. THE ENDPOINT FIX: Use the public NIM endpoint for API keys!
     // The HAR endpoint (api.ngc.nvidia.com) requires a captcha token. API keys MUST use integrate.api.nvidia.com.
@@ -588,12 +587,14 @@ async function spawnOpenCode(args, providerKey, fcmConfig, existingZaiProxy = nu
           saveOpenCodeConfig(cfg)
         } catch { /* best-effort cleanup */ }
       }
-      // 📖 GLM cleanup: remove the ephemeral proxy provider from opencode.json
+      // 📖 GLM cleanup: remove ephemeral proxy providers from opencode.json
       if (providerKey === 'nvidia') {
         try {
           const cfg = loadOpenCodeConfig()
           if (cfg.provider?.['fcm-glm']) delete cfg.provider['fcm-glm']
+          if (cfg.provider?.['fcm-nvidia']) delete cfg.provider['fcm-nvidia']
           if (typeof cfg.model === 'string' && cfg.model.startsWith('fcm-glm/')) delete cfg.model
+          if (typeof cfg.model === 'string' && cfg.model.startsWith('fcm-nvidia/')) delete cfg.model
           saveOpenCodeConfig(cfg)
         } catch { /* best-effort cleanup */ }
       }
@@ -627,6 +628,13 @@ export async function startOpenCode(model, fcmConfig) {
     if (existsSync(getOpenCodeConfigPath())) {
       copyFileSync(getOpenCodeConfigPath(), backupPath)
       console.log(chalk.dim(` Backup: ${backupPath}`))
+    }
+    
+    // 📖 Cleanup: Remove stale fcm-nvidia entries (leftover from old versions with hardcoded test keys)
+    if (config.provider?.['fcm-nvidia']) {
+      delete config.provider['fcm-nvidia']
+      if (typeof config.model === 'string' && config.model.startsWith('fcm-nvidia/')) delete config.model
+      saveOpenCodeConfig(config)
     }
     
     const resolvedKey = getApiKey(fcmConfig, 'nvidia')
