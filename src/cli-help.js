@@ -45,10 +45,10 @@ const CONFIG_FLAGS = [
 ]
 
 const EXAMPLES = [
-  'fcm --help',
-  'fcm --web',
-  'fcm --opencode --tier S',
-  "fcm --json | jq '.[0]'",
+  'nnf --help',
+  'nnf --web',
+  'nnf --opencode --tier S',
+  "nnf --json | jq '.[0]'",
 ]
 
 function paint(chalk, formatter, text) {
@@ -70,8 +70,8 @@ export function buildCliHelpLines({ chalk = null, indent = '', title = 'CLI Help
     .map((meta) => ({ flag: meta.flag, description: `${meta.label} mode` }))
 
   lines.push(`${indent}${paint(chalk, chalk?.bold, title)}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: fcm [apiKey] [options]')}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, '       free-coding-models [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: nnf [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, ' nvidia-nim-forever [apiKey] [options]')}`)
   lines.push('')
   lines.push(`${indent}${paint(chalk, chalk?.bold, 'Tool Flags')}`)
   for (const entry of launchFlags) {
