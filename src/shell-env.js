@@ -335,7 +335,7 @@ export async function promptShellEnvMigration(config) {
       console.log()
       console.log(centerPad + chalk.dim(`  Detected shell: ${shell} (${rcName})`))
       console.log(centerPad + chalk.dim(`  This adds a single source line to ${rcName}`))
-      console.log(centerPad + chalk.dim('  and creates ~/.free-coding-models.env (0600)'))
+console.log(centerPad + chalk.dim(' and creates ~/.nvidia-nim-forever.env (0600)'))
       console.log()
 
       for (let i = 0; i < options.length; i++) {

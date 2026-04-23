@@ -1827,7 +1827,7 @@ export function createOverlayRenderers(state, deps) {
         const keyLabel = themeColors.hotkey(`  ${opt.key}]`)
         const row = `${bullet(isCursor)}${keyLabel} ${isCursor ? themeColors.textBold(opt.label) : themeColors.text(opt.label)}`
         cursorLineByRow[i] = lines.length
-        lines.push(isCursor ? themeColors.bgCursorSettings(row) : row)
+        lines.push(isCursor ? themeColors.bgCursorSettingsList(row) : row)
         lines.push(themeColors.dim(`      ${opt.hint}`))
         lines.push('')
       }
