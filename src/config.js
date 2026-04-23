@@ -1012,7 +1012,6 @@ export function _emptyProfileSettings() {
     shellEnvEnabled: false, // 📖 false = don't prompt for shell env setup (user can enable manually in settings)
   }
 }
-}
 
 /**
  * 📖 normalizeEndpointInstalls keeps the endpoint-install tracking list safe to replay.
