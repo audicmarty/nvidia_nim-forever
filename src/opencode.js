@@ -341,10 +341,17 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     proxyRes.on('data', (chunk) => {
       chunksReceived++
       resetActivityTimeout()
+      
+      // Log every 10 chunks and first chunk
+      if (chunksReceived <= 5 || chunksReceived % 10 === 0) {
+        const chunkPreview = chunk.toString().slice(0, 200).replace(/\n/g, '\\n')
+        logToRealtimeFile(`REQ ${reqId}`, `[Chunk ${chunksReceived}] ${chunkPreview}...`)
+      }
 
       try {
         if (!res.writableEnded) res.write(chunk)
       } catch (err) {
+        logToRealtimeFile(`REQ ${reqId}`, `Write error on chunk ${chunksReceived}: ${err.message}`)
         cleanup()
         proxyReq.destroy()
         resolve() // 1000000% guarantee we don't leak a dangling promise if client disconnected
@@ -414,12 +421,37 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
 }
 
 
+const GLM_PROXY_LOG_PATH = join(homedir(), '.nvidia-nim-forever', 'glm-proxy.log');
+
 function logToRealtimeFile(prefix, data) {
   try {
+    // Ensure log directory exists
+    const logDir = dirname(GLM_PROXY_LOG_PATH);
+    if (!existsSync(logDir)) {
+      const { mkdirSync } = await import('fs');
+      mkdirSync(logDir, { recursive: true });
+    }
+    
     const ts = new Date().toISOString();
     let msg = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-    appendFileSync(join(process.cwd(), 'glm-proxy.log'), `[${ts}] ${prefix} | ${msg}\n`);
+    
+    // Truncate very long messages
+    if (msg.length > 1000) {
+      msg = msg.slice(0, 1000) + '... [truncated]';
+    }
+    
+    appendFileSync(GLM_PROXY_LOG_PATH, `[${ts}] ${prefix} | ${msg}\n`);
+    
+    // Also log to console if NIM_DEBUG env var is set
+    if (process.env.NIM_DEBUG) {
+      console.log(chalk.dim(`[${prefix}] ${msg.slice(0, 200)}`));
+    }
   } catch (e) {}
+}
+
+// 📖 Export log path for debugging
+export function getGlmProxyLogPath() {
+  return GLM_PROXY_LOG_PATH;
 }
 
 // 📖 createGlmProxy: Localhost reverse proxy with multi-key rotation

@@ -35,6 +35,7 @@
   "author": "vava",
   "type": "module",
   "main": "bin/free-coding-models.js",
+  "bin": {
     "free-coding-models": "./bin/free-coding-models.js",
     "fcm": "./bin/free-coding-models.js",
     "nnf": "./bin/free-coding-models.js"

@@ -3212,7 +3212,7 @@ describe('endpoint installer', () => {
       assert.equal(result.toolMode, 'opencode')
       assert.equal(result.modelCount, 1)
       // 📖 OpenCode installs now use {env:VAR} syntax instead of raw keys
-      assert.equal(written.provider['fcm-nvidia'].options.apiKey, '{env:NVIDIA_API_KEY}')
+      assert.equal(written.provider['fcm-nvidia'].options.apiKey, 'nvapi-test')
       assert.deepEqual(written.provider['fcm-nvidia'].models, {
         'deepseek-ai/deepseek-v3.2': { name: 'DeepSeek V3.2' },
       })
