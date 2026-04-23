@@ -33,7 +33,10 @@
 
 import { loadChangelog } from './changelog-loader.js'
 import { getToolMeta, isModelCompatibleWithTool, getCompatibleTools, findSimilarCompatibleModels } from './tool-metadata.js'
-import { loadConfig, replaceConfigContents } from './config.js'
+import { loadConfig, saveConfig, replaceConfigContents } from './config.js'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
 import { cleanupLegacyProxyArtifacts } from './legacy-proxy-cleanup.js'
 import { getLastLayout, COLUMN_SORT_MAP } from './render-table.js'
 import { cycleThemeSetting, detectActiveTheme } from './theme.js'
@@ -42,6 +45,24 @@ import { buildCommandPaletteTree, flattenCommandTree, filterCommandPaletteEntrie
 import { WIDTH_WARNING_MIN_COLS, VERDICT_CYCLE, HEALTH_CYCLE } from './constants.js'
 import { scanAllToolConfigs, softDeleteModel } from './installed-models-manager.js'
 import { startExternalTool } from './tool-launchers.js'
+import {
+  clearRouterDashboardRequestLog,
+  closeRouterDashboardOverlay,
+  cycleRouterDashboardActiveSet,
+  cycleRouterDashboardProbeMode,
+  openRouterDashboardOverlay,
+  restartRouterDashboardDaemon,
+  toggleRouterDashboardProbePause,
+  fetchRouterSets,
+  createRouterSet,
+  renameRouterSet,
+  duplicateRouterSet,
+  deleteRouterSet,
+  activateRouterSet,
+  reorderRouterSetModel,
+  closeRouterSetsManagerOverlay,
+  addModelToRouterSet,
+} from './router-dashboard.js'
 
 // 📖 Some providers need an explicit probe model because the first catalog entry
 // 📖 is not guaranteed to be accepted by their chat endpoint.
@@ -928,6 +949,132 @@ export function createKeyHandler(ctx) {
     }
   }
 
+  function openRouterSetsManagerOverlay() {
+    state.setsOpen = true
+    state.setsCursor = 0
+    state.setsScrollOffset = 0
+    state.setsActivePane = 'sets'
+    state.setsEditMode = null
+    state.setsEditBuffer = ''
+    state.setsError = null
+    state.setsLastFetchAt = 0
+    void fetchRouterSets(state, { fetchFn })
+  }
+
+  function openRouterAddModelOverlay() {
+    const selected = state.visibleSorted[state.cursor]
+    if (!selected) return
+    state.setsAddSelectedModel = {
+      provider: selected.providerKey,
+      model: selected.modelId,
+      label: selected.label,
+    }
+    state.setsAddPositionPickerOpen = true
+    state.setsAddPositionCursor = -1 // -1 = append at end
+    state.setsAddModelSearch = ''
+    state.setsOpen = true
+    state.setsCursor = 0
+    state.setsScrollOffset = 0
+    state.setsActivePane = 'sets'
+    state.setsEditMode = 'add-position-picker'
+    state.setsEditBuffer = ''
+    state.setsError = null
+    void fetchRouterSets(state, { fetchFn })
+  }
+
+  // 📖 Token Usage screen — Shift+T from main table. Fetches daily token history
+  // 📖 from the daemon and renders a 7-day chart plus today/all-time breakdowns.
+  async function openTokenUsageOverlay() {
+    state.tokenUsageOpen = true
+    state.tokenUsageScrollOffset = 0
+    state.tokenUsageError = null
+    state.tokenUsageData = null
+    // 📖 Discover daemon port
+    let port = 19280
+    try {
+      const { readFileSync: rfs } = await import('node:fs')
+      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
+      const savedPort = rfs(portPath, 'utf8').trim()
+      if (/^\d+$/.test(savedPort)) port = Number(savedPort)
+    } catch {}
+    state.tokenUsageLastFetchAt = Date.now()
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 2000)
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/stats/tokens`, { signal: controller.signal })
+      clearTimeout(timer)
+      if (!res.ok) {
+        state.tokenUsageError = `Daemon returned HTTP ${res.status} — is the router running?`
+        return
+      }
+      const raw = await res.json()
+      state.tokenUsageData = raw
+    } catch (err) {
+      state.tokenUsageError = err?.name === 'AbortError' ? 'Request timed out — is the router daemon running?' : (err?.message || 'Failed to fetch token stats')
+    }
+  }
+
+  function closeTokenUsageOverlay() {
+    state.tokenUsageOpen = false
+    state.tokenUsageScrollOffset = 0
+    state.tokenUsageError = null
+  }
+
+  // 📖 Handles all Set Manager edit mode confirmations (create/rename/duplicate/delete/activate/add-model).
+  async function handleSetsEditConfirm(localState, selectedSetName, allSetNames, models) {
+    const mode = localState.setsEditMode
+    const buffer = localState.setsEditBuffer.trim()
+    localState.setsEditMode = null
+    localState.setsEditBuffer = ''
+
+    if (mode === 'create') {
+      if (!buffer) { localState.setsError = 'Set name cannot be empty'; return }
+      const result = await createRouterSet(localState, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to create set'
+      return
+    }
+    if (mode === 'rename') {
+      if (!buffer || !selectedSetName) { localState.setsError = 'Invalid rename'; return }
+      if (allSetNames.includes(buffer) && buffer !== selectedSetName) { localState.setsError = 'A set with that name already exists'; return }
+      const result = await renameRouterSet(localState, selectedSetName, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to rename set'
+      return
+    }
+    if (mode === 'duplicate') {
+      if (!buffer || !selectedSetName) { localState.setsError = 'Invalid duplicate'; return }
+      if (allSetNames.includes(buffer)) { localState.setsError = 'A set with that name already exists'; return }
+      const result = await duplicateRouterSet(localState, selectedSetName, buffer, { fetchFn })
+      if (!result.ok) localState.setsError = result.error || 'Failed to duplicate set'
+      return
+    }
+    if (mode === 'delete-confirm') {
+      if (!selectedSetName) return
+      const result = await deleteRouterSet(localState, selectedSetName, { fetchFn })
+      if (!result.ok) { localState.setsError = result.error || 'Failed to delete set'; return }
+      localState.setsCursor = Math.max(0, localState.setsCursor - 1)
+      return
+    }
+    if (mode === 'activate-confirm') {
+      if (!selectedSetName) return
+      const result = await activateRouterSet(localState, selectedSetName, { fetchFn })
+      if (!result.ok) { localState.setsError = result.error || 'Failed to activate set'; return }
+      return
+    }
+    if (mode === 'add-position-picker') {
+      const candidate = localState.setsAddSelectedModel
+      if (!candidate || !selectedSetName) { localState.setsError = 'No model or set selected'; return }
+      const priority = localState.setsAddPositionCursor >= 0
+        ? localState.setsAddPositionCursor + 1
+        : (models.length || 0) + 1
+      const result = await addModelToRouterSet(localState, selectedSetName, candidate.provider, candidate.model, priority, { fetchFn })
+      if (!result.ok) { localState.setsError = result.error || 'Failed to add model'; return }
+      localState.setsAddPositionPickerOpen = false
+      localState.setsAddSelectedModel = null
+      localState.setsEditMode = null
+      return
+    }
+  }
+
   function cycleToolMode() {
     const modeOrder = getToolModeOrder()
     const currentIndex = modeOrder.indexOf(state.mode)
@@ -1016,6 +1163,7 @@ export function createKeyHandler(ctx) {
       || state.installEndpointsOpen
       || state.toolInstallPromptOpen
       || state.installedModelsOpen
+      || state.routerDashboardOpen
       || state.recommendOpen
       || state.feedbackOpen
       || state.helpVisible
@@ -1207,6 +1355,9 @@ export function createKeyHandler(ctx) {
       case 'open-changelog': return openChangelogOverlay()
       case 'open-feedback': return openFeedbackOverlay()
       case 'open-recommend': return openRecommendOverlay()
+      case 'open-router-dashboard': return openRouterDashboardOverlay(state)
+      case 'open-router-sets': return openRouterSetsManagerOverlay()
+      case 'open-token-usage': return openTokenUsageOverlay()
       case 'open-install-endpoints': return openInstallEndpointsOverlay()
       case 'open-installed-models': return openInstalledModelsOverlay()
       case 'action-cycle-theme': return cycleGlobalTheme()
@@ -1339,6 +1490,230 @@ export function createKeyHandler(ctx) {
     }
 
     // 📖 Profile system removed - API keys now persist permanently across all sessions
+
+    // 📖 Router Dashboard captures local dashboard controls while open so keys
+    // 📖 like S/I/R/C do not leak through to sort/filter actions in the table.
+    if (state.routerDashboardOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+      const pageStep = Math.max(1, (state.terminalRows || 1) - 4)
+
+      if (key.name === 'escape') {
+        closeRouterDashboardOverlay(state)
+        return
+      }
+      if (key.name === 'up' || key.name === 'k') {
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.routerDashboardScrollOffset = (state.routerDashboardScrollOffset || 0) + 1
+        return
+      }
+      if (key.name === 'pageup') {
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) - pageStep)
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.routerDashboardScrollOffset = (state.routerDashboardScrollOffset || 0) + pageStep
+        return
+      }
+      if (key.name === 'home') {
+        state.routerDashboardScrollOffset = 0
+        return
+      }
+      if (key.name === 's') {
+        await cycleRouterDashboardActiveSet(state)
+        return
+      }
+      if (key.name === 'i') {
+        await cycleRouterDashboardProbeMode(state)
+        return
+      }
+      if (key.name === 'r') {
+        restartRouterDashboardDaemon(state)
+        return
+      }
+      if (key.name === 'c') {
+        clearRouterDashboardRequestLog(state)
+        return
+      }
+      if (key.name === 'p') {
+        toggleRouterDashboardProbePause(state)
+        return
+      }
+      return
+    }
+
+    // 📖 Router Set Manager overlay: N=new set, D=duplicate, R=rename, Delete=delete,
+    // 📖 Tab=switch pane, Enter=confirm, Shift+Up/Down=reorder, A=activate, Esc=cancel/close.
+    if (state.setsOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+
+      const setsData = state.setsData
+      const sets = setsData?.sets || {}
+      const setNames = Object.keys(sets).sort()
+      const selectedSetName = state.setsCursor < setNames.length ? setNames[state.setsCursor] : null
+      const models = selectedSetName ? (sets[selectedSetName]?.models || []) : []
+      const leftPaneMax = state.setsEditMode === 'create' ? 0 : Math.max(0, setNames.length - 1)
+      const rightPaneMax = Math.max(0, models.length - 1)
+
+      // ── Edit mode: text input (create/rename/duplicate) ───────────────────
+      if (state.setsEditMode && state.setsEditMode !== 'add-position-picker') {
+        if (key.name === 'escape') {
+          state.setsEditMode = null
+          state.setsEditBuffer = ''
+          return
+        }
+        if (key.name === 'return') {
+          await handleSetsEditConfirm(state, selectedSetName, setNames, models)
+          return
+        }
+        if (key.name === 'backspace') {
+          state.setsEditBuffer = state.setsEditBuffer.slice(0, -1)
+          return
+        }
+        if (key.ctrl || key.meta) return
+        const char = key.ctrl ? '' : (key.str || '').slice(-1)
+        if (char && char.length === 1 && !key.ctrl && !key.meta) {
+          state.setsEditBuffer += char
+        }
+        return
+      }
+
+      // ── Add-position-picker mode: choose insertion point then confirm ──────
+      if (state.setsEditMode === 'add-position-picker') {
+        if (key.name === 'escape') {
+          state.setsEditMode = null
+          state.setsAddPositionPickerOpen = false
+          state.setsAddSelectedModel = null
+          state.setsAddPositionCursor = -1
+          state.setsAddModelSearch = ''
+          return
+        }
+        if (key.name === 'return') {
+          await handleSetsEditConfirm(state, selectedSetName, setNames, models)
+          return
+        }
+        if (key.name === 'up' || key.name === 'k') {
+          state.setsAddPositionCursor = Math.max(-1, state.setsAddPositionCursor - 1)
+          return
+        }
+        if (key.name === 'down' || key.name === 'j') {
+          state.setsAddPositionCursor = Math.min(models.length - 1, state.setsAddPositionCursor + 1)
+          return
+        }
+        return
+      }
+
+      // ── Escape: close overlay ──────────────────────────────────────────────
+      if (key.name === 'escape') {
+        closeRouterSetsManagerOverlay(state)
+        return
+      }
+
+      // ── Tab: switch focus between left (sets) and right (models) panes ────
+      if (key.name === 'tab') {
+        state.setsActivePane = state.setsActivePane === 'sets' ? 'models' : 'sets'
+        return
+      }
+
+      // ── Navigation: up/down within active pane ─────────────────────────────
+      const maxCursor = state.setsActivePane === 'sets' ? leftPaneMax : rightPaneMax
+      if (key.name === 'up' || key.name === 'k') {
+        state.setsCursor = Math.max(0, state.setsCursor - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.setsCursor = Math.min(maxCursor, state.setsCursor + 1)
+        return
+      }
+      if (key.name === 'pageup') {
+        state.setsCursor = Math.max(0, state.setsCursor - Math.max(1, (state.terminalRows || 10) - 4))
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.setsCursor = Math.min(maxCursor, state.setsCursor + Math.max(1, (state.terminalRows || 10) - 4))
+        return
+      }
+      if (key.name === 'home') {
+        state.setsCursor = 0
+        return
+      }
+      if (key.name === 'end') {
+        state.setsCursor = maxCursor
+        return
+      }
+
+      // ── N: create new set ─────────────────────────────────────────────────
+      if (key.name === 'n') {
+        state.setsEditMode = 'create'
+        state.setsEditBuffer = ''
+        state.setsActivePane = 'sets'
+        state.setsCursor = 0
+        return
+      }
+
+      // ── D: duplicate selected set ─────────────────────────────────────────
+      if (key.name === 'd') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'duplicate'
+        state.setsEditBuffer = `${selectedSetName}-copy`
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── R: rename selected set ─────────────────────────────────────────────
+      if (key.name === 'r') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'rename'
+        state.setsEditBuffer = selectedSetName
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── Delete / Backspace: delete selected set or remove model ───────────
+      if (key.name === 'delete' || key.name === 'backspace') {
+        if (state.setsActivePane === 'sets') {
+          if (!selectedSetName) return
+          state.setsEditMode = 'delete-confirm'
+          state.setsActivePane = 'sets'
+          return
+        } else {
+          // Remove model from set
+          const m = models[state.setsCursor]
+          if (!m || !selectedSetName) return
+          const result = await removeModelFromRouterSet(state, selectedSetName, m.provider, m.model)
+          if (!result.ok) state.setsError = result.error || 'Failed to remove model'
+          return
+        }
+      }
+
+      // ── A: activate selected set ──────────────────────────────────────────
+      if (key.name === 'a') {
+        if (!selectedSetName) return
+        state.setsEditMode = 'activate-confirm'
+        state.setsActivePane = 'sets'
+        return
+      }
+
+      // ── Shift+Up / Shift+Down: reorder model priority ─────────────────────
+      if (key.shift && (key.name === 'up' || key.name === 'arrowup')) {
+        const m = models[state.setsCursor]
+        if (!m || !selectedSetName) return
+        const result = await reorderRouterSetModel(state, selectedSetName, m.provider, m.model, 'up')
+        if (!result.ok) state.setsError = result.error || 'Failed to reorder'
+        return
+      }
+      if (key.shift && (key.name === 'down' || key.name === 'arrowdown')) {
+        const m = models[state.setsCursor]
+        if (!m || !selectedSetName) return
+        const result = await reorderRouterSetModel(state, selectedSetName, m.provider, m.model, 'down')
+        if (!result.ok) state.setsError = result.error || 'Failed to reorder'
+        return
+      }
+
+      return
+    }
 
     // 📖 Install Endpoints overlay: provider → tool → connection → scope → optional model subset.
     if (state.installEndpointsOpen) {
@@ -1817,6 +2192,116 @@ export function createKeyHandler(ctx) {
       if (key.name === 'home') { state.helpScrollOffset = 0; return }
       if (key.name === 'end') { state.helpScrollOffset = Number.MAX_SAFE_INTEGER; return }
       if (key.ctrl && key.name === 'c') { exit(0); return }
+      return
+    }
+
+    // 📖 Token Usage overlay: Shift+T shows token history chart and today/all-time breakdowns.
+    if (state.tokenUsageOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+      const pageStep = Math.max(1, (state.terminalRows || 1) - 4)
+      if (key.name === 'escape') {
+        closeTokenUsageOverlay()
+        return
+      }
+      if (key.name === 'up' || key.name === 'k') {
+        state.tokenUsageScrollOffset = Math.max(0, state.tokenUsageScrollOffset - 1)
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.tokenUsageScrollOffset += 1
+        return
+      }
+      if (key.name === 'pageup') {
+        state.tokenUsageScrollOffset = Math.max(0, state.tokenUsageScrollOffset - pageStep)
+        return
+      }
+      if (key.name === 'pagedown') {
+        state.tokenUsageScrollOffset += pageStep
+        return
+      }
+      if (key.name === 'home') {
+        state.tokenUsageScrollOffset = 0
+        return
+      }
+      if (key.name === 'end') {
+        state.tokenUsageScrollOffset = Number.MAX_SAFE_INTEGER
+        return
+      }
+      return
+    }
+
+    // 📖 Router Onboarding overlay: shown on first launch. Y=yes enable, N=not now, Esc=cancel.
+    if (state.routerOnboardingOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+      if (state.routerOnboardingPhase === 'loading' || state.routerOnboardingPhase === 'success' || state.routerOnboardingPhase === 'error') {
+        if (key.name === 'escape' || key.name === 'return') {
+          state.routerOnboardingOpen = false
+          // 📖 Mark onboarding as seen (don't show again)
+          if (state.config?.router) {
+            state.config.router.onboardingSeen = true
+          }
+          return
+        }
+        return
+      }
+      if (key.name === 'escape' || key.name === 'n') {
+        state.routerOnboardingOpen = false
+        // 📖 Mark as seen and disabled
+        if (state.config?.router) {
+          state.config.router.onboardingSeen = true
+          state.config.router.enabled = false
+        }
+        return
+      }
+      if (key.name === 'up' || key.name === 'k') {
+        state.routerOnboardingCursor = 0
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.routerOnboardingCursor = 1
+        return
+      }
+      if (key.name === 'return' || key.name === 'y') {
+        const shouldEnable = key.name === 'return' ? true : (state.routerOnboardingCursor === 0)
+        if (!shouldEnable) {
+          state.routerOnboardingOpen = false
+          if (state.config?.router) {
+            state.config.router.onboardingSeen = true
+            state.config.router.enabled = false
+          }
+          return
+        }
+        // 📖 Enable router: start daemon in background and mark onboarding seen
+        state.routerOnboardingPhase = 'loading'
+        state.routerOnboardingError = null
+        void (async () => {
+          try {
+            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'free-coding-models.js')
+            const child = spawn('node', [binPath, '--daemon-bg'], {
+              detached: true,
+              stdio: 'ignore',
+            })
+            child.unref()
+            await new Promise((r) => setTimeout(r, 2000))
+            if (state.routerOnboardingPhase === 'loading') {
+              state.routerOnboardingPhase = 'success'
+              if (state.config?.router) {
+                state.config.router.enabled = true
+                state.config.router.onboardingSeen = true
+                saveConfig(state.config)
+              }
+              trackTelemetryEvent('app_router_install', { router_version: '0.4.0' })
+              await new Promise((r) => setTimeout(r, 1500))
+              state.routerOnboardingOpen = false
+              openRouterDashboardOverlay(state)
+            }
+          } catch (err) {
+            state.routerOnboardingPhase = 'error'
+            state.routerOnboardingError = err?.message || 'Failed to start router'
+          }
+        })()
+        return
+      }
       return
     }
 
@@ -2394,9 +2879,27 @@ export function createKeyHandler(ctx) {
 
     // 📖 Profile system removed - API keys now persist permanently across all sessions
 
-    // 📖 Shift+R: reset all UI view settings to defaults (tier, sort, provider) and clear persisted config
-    if (key.name === 'r' && key.shift) {
-      resetViewSettings()
+    // 📖 Shift+R: open the Smart Model Router dashboard from the main table.
+    if (key.name === 'r' && key.shift && !key.ctrl && !key.meta) {
+      openRouterDashboardOverlay(state)
+      return
+    }
+
+    // 📖 Shift+S: open the Router Set Manager overlay.
+    if (key.name === 's' && key.shift && !key.ctrl && !key.meta) {
+      openRouterSetsManagerOverlay()
+      return
+    }
+
+    // 📖 Shift+A: add the selected model from the main table to a router set.
+    if (key.name === 'a' && key.shift && !key.ctrl && !key.meta) {
+      openRouterAddModelOverlay()
+      return
+    }
+
+    // 📖 Shift+T: open the Token Usage screen.
+    if (key.name === 't' && key.shift && !key.ctrl && !key.meta) {
+      openTokenUsageOverlay()
       return
     }
 
@@ -2411,7 +2914,7 @@ export function createKeyHandler(ctx) {
     // 📖 T is reserved for tier filter cycling. Y toggles favorites display mode.
     // 📖 X clears the active custom text filter.
     // 📖 D is now reserved for provider filter cycling
-    // 📖 Shift+R is reserved for reset view settings
+    // 📖 Shift+R is reserved for the Router Dashboard; reset view remains in Ctrl+P.
     const sortKeys = {
       'r': 'rank', 'o': 'origin', 'm': 'model',
       'l': 'ping', 'a': 'avg', 's': 'swe', 'c': 'ctx', 'h': 'condition', 'v': 'verdict', 'b': 'stability', 'u': 'uptime'
@@ -2791,6 +3294,11 @@ export function createMouseEventHandler(ctx) {
         }
         return
       }
+      if (state.routerDashboardOpen) {
+        const step = evt.type === 'scroll-up' ? -3 : 3
+        state.routerDashboardScrollOffset = Math.max(0, (state.routerDashboardScrollOffset || 0) + step)
+        return
+      }
 
       // 📖 Main table scroll: move cursor up/down with wrap-around
       const count = state.visibleSorted.length
@@ -2868,6 +3376,11 @@ export function createMouseEventHandler(ctx) {
 
     if (state.installedModelsOpen) {
       state.installedModelsOpen = false
+      return
+    }
+
+    if (state.routerDashboardOpen) {
+      closeRouterDashboardOverlay(state)
       return
     }
 
@@ -3032,6 +3545,8 @@ export function createMouseEventHandler(ctx) {
         // 📖 Most are single-character keys; special cases like ctrl+p need special handling.
         if (zone.key === 'ctrl+p') {
           process.stdin.emit('keypress', '\x10', { name: 'p', ctrl: true, meta: false, shift: false })
+        } else if (zone.key === 'shift+r') {
+          process.stdin.emit('keypress', 'R', { name: 'r', ctrl: false, meta: false, shift: true })
         } else {
           process.stdin.emit('keypress', zone.key, { name: zone.key, ctrl: false, meta: false, shift: false })
         }

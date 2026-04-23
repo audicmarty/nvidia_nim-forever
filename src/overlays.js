@@ -4,7 +4,7 @@
  *
  * @details
  *   This module centralizes all overlay rendering in one place:
- *   - Settings, Install Endpoints, Command Palette, Help, Smart Recommend, Feedback, Changelog
+ *   - Settings, Install Endpoints, Command Palette, Help, Smart Recommend, Feedback, Changelog, Router Dashboard
  *   - Settings diagnostics for provider key tests, including wrapped retry/error details
  *   - Recommend analysis timer orchestration and progress updates
  *
@@ -15,6 +15,7 @@
  *
  *   → Functions:
  *   - `createOverlayRenderers` — returns renderer + analysis helpers + overlayLayout
+ *   - `renderRouterDashboard` — mounts the Smart Model Router dashboard renderer
  *
  * @exports { createOverlayRenderers }
  * @see ./key-handler.js — handles keypresses for all overlay interactions
@@ -22,6 +23,7 @@
 
 import { loadChangelog } from './changelog-loader.js'
 import { buildCliHelpLines } from './cli-help.js'
+import { renderRouterDashboard as renderRouterDashboardOverlay } from './router-dashboard.js'
 import { themeColors, getThemeStatusLabel, getProviderRgb } from './theme.js'
 
 export function createOverlayRenderers(state, deps) {
@@ -927,11 +929,12 @@ export function createOverlayRenderers(state, deps) {
     lines.push(`  ${key('Y')}  Toggle favorites mode  ${hint('(Pinned + always visible ↔ Normal filter/sort behavior)')}`)
     lines.push(`  ${key('X')}  Clear active text filter  ${hint('(remove custom query applied from ⚡️ Command Palette)')}`)
     lines.push(`  ${key('Q')}  Smart Recommend  ${hint('(🎯 find the best model for your task — questionnaire + live analysis)')}`)
+    lines.push(`  ${key('Shift+R')}  Router Dashboard  ${hint('(🔀 daemon health, circuit breakers, tokens, request log)')}`)
     lines.push(`  ${key('G')}  Cycle theme  ${hint('(auto → dark → light)')}`)
     lines.push(`  ${themeColors.errorBold('I')}  Feedback, bugs & requests  ${hint('(📝 send anonymous feedback, bug reports, or feature requests)')}`)
     lines.push(`  ${key('P')}  Open settings  ${hint('(manage API keys, provider toggles, updates, legacy cleanup)')}`)
       // 📖 Profile system removed - API keys now persist permanently across all sessions
-    lines.push(`  ${key('Shift+R')}  Reset view settings  ${hint('(tier filter, sort, provider filter → defaults)')}`)
+    lines.push(`  ${key('Ctrl+P')}  Reset view settings  ${hint('(search "Reset view" in the command palette)')}`)
     lines.push(`  ${key('N')}  Changelog  ${hint('(📋 browse all versions, Enter to view details)')}`)
     lines.push(`  ${key('Ctrl+H')} / ${key('Esc')}  Show/hide this help`)
     lines.push(`  ${key('Ctrl+C')}  Exit`)
@@ -1394,6 +1397,10 @@ export function createOverlayRenderers(state, deps) {
     if (state.recommendPingTimer) { clearInterval(state.recommendPingTimer); state.recommendPingTimer = null }
   }
 
+  function renderRouterDashboard() {
+    return renderRouterDashboardOverlay(state, { LOCAL_VERSION })
+  }
+
   // ─── Incompatible fallback overlay ─────────────────────────────────────────
   // 📖 renderIncompatibleFallback shows when user presses Enter on a model that
   // 📖 is NOT compatible with the active tool. Two sections:
@@ -1490,6 +1497,370 @@ export function createOverlayRenderers(state, deps) {
     return cleared.join('\n')
   }
 
+  // ─── Router Set Manager overlay renderer ─────────────────────────────────────
+  // 📖 renderSetsManager: two-pane TUI for managing router model sets.
+  // 📖 Left pane: list of all sets (★ = active). Right pane: models in selected set.
+  // 📖 Keyboard-driven: N=new, D=duplicate, R=rename, Delete=remove, A=activate,
+  // 📖 Shift+Up/Down=reorder, Tab=switch pane, Esc=close.
+  // 📖 Phase 4 — Smart Model Router.
+  function renderSetsManager() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+
+    lines.push('')
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.textBold('📋 Router Set Manager')}  ${themeColors.dim('Shift+S from main table')}`)
+    lines.push('')
+
+    const setsData = state.setsData
+    const sets = setsData?.sets || {}
+    const activeSet = setsData?.activeSet || ''
+    const setNames = Object.keys(sets).sort()
+
+    if (state.setsError) {
+      lines.push(`  ${themeColors.warning(state.setsError)}`)
+      lines.push('')
+    }
+
+    // ── Edit mode banner ──────────────────────────────────────────────────────
+    if (state.setsEditMode) {
+      const editLabels = {
+        create: 'Creating new set — enter name and press Enter',
+        rename: 'Renaming set — enter new name',
+        duplicate: 'Duplicating set — enter new name',
+        'delete-confirm': 'Deleting set — press Enter to confirm',
+        'activate-confirm': 'Activating set — press Enter to confirm',
+        'add-position-picker': 'Adding model to set — choose position and press Enter',
+      }
+      lines.push(`  ${themeColors.warningBold('⚠')}  ${themeColors.warning(editLabels[state.setsEditMode] || 'Edit mode')}`)
+
+      // ── Add-position-picker: show model + insertion point list ─────────────
+      if (state.setsEditMode === 'add-position-picker') {
+        const m = state.setsAddSelectedModel
+        lines.push(`  ${themeColors.textBold('Model:')} ${m ? themeColors.info(`${m.provider}/${m.model}`) : themeColors.dim('(none)')}`)
+        lines.push(`  ${themeColors.textBold('Position:')} ${state.setsAddPositionCursor < 0 ? themeColors.success('→ Append at end') : `→ Insert at #${state.setsAddPositionCursor + 1}`}`)
+        lines.push('')
+        lines.push(`  ${themeColors.dim('Current set members:')}`)
+        // Show models with insertion point indicator
+        for (let i = 0; i < models.length; i++) {
+          const model = models[i]
+          const isAtCursor = i === state.setsAddPositionCursor
+          const marker = isAtCursor ? themeColors.successBold('❯ ') : '  '
+          const row = `${marker}${padEndDisplay(`#${i + 1}`, 3)} ${padEndDisplay(model.provider, 14)}  ${padEndDisplay(model.model, 30)}`
+          cursorLineByRow[i] = lines.length
+          lines.push(themeColors.dim(row))
+        }
+        const appendRow = `${models.length === 0 || state.setsAddPositionCursor < 0 ? themeColors.successBold('❯ ') : '  '}${padEndDisplay(`#${models.length + 1}`, 3)} ${themeColors.dim('(append at end)')}`
+        cursorLineByRow[models.length] = lines.length
+        lines.push(appendRow)
+        lines.push('')
+        lines.push(themeColors.dim('  ↑↓ Move position  •  Enter Confirm  •  Esc Cancel'))
+        // Scroll to show position picker
+        const targetLine = cursorLineByRow[state.setsAddPositionCursor < 0 ? models.length : state.setsAddPositionCursor] ?? 0
+        state.setsScrollOffset = keepOverlayTargetVisible(state.setsScrollOffset, targetLine, lines.length, state.terminalRows)
+        const { visible, offset } = sliceOverlayLines(lines, state.setsScrollOffset, state.terminalRows)
+        state.setsScrollOffset = offset
+        const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+        const cleared = tintedLines.map((l) => l + EL)
+        return cleared.join('\n')
+      }
+
+      if (state.setsEditMode !== 'delete-confirm' && state.setsEditMode !== 'activate-confirm') {
+        lines.push(`  ${themeColors.info('> ')}${state.setsEditBuffer}${themeColors.cursorBlink('▋')}`)
+      }
+      lines.push('')
+    }
+
+    // ── Compute pane dimensions ───────────────────────────────────────────────
+    const cols = state.terminalCols || 80
+    const leftWidth = Math.min(30, Math.floor(cols * 0.3))
+    const rightStart = leftWidth + 3
+    const rightWidth = cols - rightStart - 4
+
+    // ── Build left pane: list of sets ────────────────────────────────────────
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+    const leftHeader = themeColors.dim(`  ${padEndDisplay('SETS', leftWidth)}  MODELS IN SET`)
+    lines.push(leftHeader)
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+
+    const leftPaneRowCount = setNames.length
+
+    // ── Edit mode: show input row instead of set list ────────────────────────
+    if (state.setsEditMode === 'create') {
+      const isCursor = state.setsActivePane !== 'sets'
+      const row = `${bullet(isCursor)}${themeColors.textBold('New set: ')}${state.setsEditBuffer}${themeColors.cursorBlink('▋')}`
+      cursorLineByRow[0] = lines.length
+      lines.push(isCursor ? themeColors.bgCursorInstall(row) : row)
+    } else {
+      // Normal list of sets
+      for (let i = 0; i < setNames.length; i++) {
+        const name = setNames[i]
+        const isActive = name === activeSet
+        const isCursor = i === state.setsCursor && state.setsActivePane === 'sets' && !state.setsEditMode
+        const activeTag = isActive ? themeColors.success('★ ') : '   '
+        const label = padEndDisplay(name, leftWidth - 3)
+        const row = `${bullet(isCursor)}${activeTag}${themeColors.textBold(label)}`
+        cursorLineByRow[i] = lines.length
+        lines.push(isCursor ? themeColors.bgCursorInstall(row) : themeColors.dim(row))
+      }
+      if (setNames.length === 0) {
+        lines.push(themeColors.dim('  (no sets — press N to create)'))
+      }
+    }
+
+    lines.push(themeColors.dim(`  ${'─'.repeat(leftWidth)}  ${'─'.repeat(rightWidth)}`))
+    lines.push('')
+
+    // ── Right pane: models in selected set ──────────────────────────────────
+    const selectedSetName = state.setsCursor < setNames.length ? setNames[state.setsCursor] : null
+    const selectedSet = selectedSetName ? (sets[selectedSetName] || null) : null
+    const models = selectedSet?.models || []
+
+    if (selectedSetName) {
+      lines.push(`  ${themeColors.textBold('Active set:')} ${themeColors.info(selectedSetName)}  ${themeColors.dim(`${models.length} model${models.length !== 1 ? 's' : ''}`)}`)
+    } else {
+      lines.push(`  ${themeColors.dim('(select a set to see its models)')}`)
+    }
+    lines.push('')
+
+    // ── Right pane: model list ───────────────────────────────────────────────
+    for (let i = 0; i < models.length; i++) {
+      const m = models[i]
+      const isCursor = i === state.setsCursor && state.setsActivePane === 'models' && !state.setsEditMode
+      const priorityStr = padEndDisplay(`#${m.priority}`, 4)
+      const providerStr = padEndDisplay(m.provider || '?', Math.min(14, Math.floor(rightWidth * 0.3)))
+      const modelStr = padEndDisplay(m.model || '?', Math.max(10, rightWidth - providerStr.length - 10))
+      const row = `${bullet(isCursor)}${priorityStr} ${providerStr}  ${modelStr}`
+      cursorLineByRow[setNames.length + 1 + i] = lines.length
+      lines.push(isCursor ? themeColors.bgCursorInstall(row) : row)
+    }
+    if (models.length === 0 && selectedSetName) {
+      lines.push(themeColors.dim('  (empty set — Shift+A to add a model)'))
+    }
+
+    lines.push('')
+
+    // ── Footer hints ────────────────────────────────────────────────────────
+    if (state.setsEditMode) {
+      lines.push(themeColors.dim('  Enter Confirm  •  Esc Cancel'))
+    } else {
+      const leftHints = [
+        ['N', 'New'],
+        ['D', 'Dup'],
+        ['R', 'Rename'],
+        ['⌫', 'Del'],
+      ]
+      const rightHints = [
+        ['Tab', 'Switch pane'],
+        ['⇧↑/⇧↓', 'Reorder'],
+        ['A', 'Activate'],
+        ['Esc', 'Close'],
+      ]
+      const leftStr = leftHints.map(([k, v]) => `${themeColors.hotkey(k)} ${themeColors.dim(v)}`).join('  ')
+      const rightStr = rightHints.map(([k, v]) => `${themeColors.hotkey(k)} ${themeColors.dim(v)}`).join('  ')
+      lines.push(`  ${themeColors.dim('Sets:')} ${leftStr}`)
+      lines.push(`  ${themeColors.dim('Models:')} ${rightStr}`)
+    }
+
+    // ── Scroll management ───────────────────────────────────────────────────
+    const targetLine = cursorLineByRow[state.setsCursor] ?? 0
+    state.setsScrollOffset = keepOverlayTargetVisible(state.setsScrollOffset, targetLine, lines.length, state.terminalRows)
+    const { visible, offset } = sliceOverlayLines(lines, state.setsScrollOffset, state.terminalRows)
+    state.setsScrollOffset = offset
+
+    const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+    const cleared = tintedLines.map((l) => l + EL)
+    return cleared.join('\n')
+  }
+
+  // ─── Token Usage screen renderer ───────────────────────────────────────────
+  // 📖 renderTokenUsage: shows today/all-time breakdowns, by-model breakdown,
+  // 📖 and a 7-day bar chart. Triggered by Shift+T from the main table.
+  // 📖 Data fetched from GET /stats/tokens on the daemon.
+  function renderTokenUsage() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+
+    lines.push('')
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.textBold('📊 Token Usage')}  ${themeColors.dim('Shift+T from main table')}`)
+    lines.push('')
+
+    const data = state.tokenUsageData
+
+    if (state.tokenUsageError) {
+      lines.push(`  ${themeColors.warning(state.tokenUsageError)}`)
+      lines.push('')
+      lines.push(themeColors.dim('  Press Shift+S to start the router daemon first, then reopen this screen.'))
+      lines.push(themeColors.dim('  Esc to return to the main table'))
+      const { visible, offset } = sliceOverlayLines(lines, state.tokenUsageScrollOffset, state.terminalRows)
+      state.tokenUsageScrollOffset = offset
+      const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+      return tintedLines.map((l) => l + EL).join('\n')
+    }
+
+    if (!data) {
+      lines.push(themeColors.dim('  Loading token stats...'))
+      const { visible, offset } = sliceOverlayLines(lines, state.tokenUsageScrollOffset, state.terminalRows)
+      state.tokenUsageScrollOffset = offset
+      const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+      return tintedLines.map((l) => l + EL).join('\n')
+    }
+
+    const today = data.today || {}
+    const allTime = data.all_time || {}
+    const dailyData = data.daily || {}
+
+    const todayTotal = today.total_tokens || 0
+    const todayPrompt = today.prompt_tokens || 0
+    const todayCompletion = today.completion_tokens || 0
+    const todayReq = today.requests || 0
+    const allTimeTotal = allTime.total_tokens || 0
+    const allTimeReq = allTime.requests || 0
+    const firstTracked = allTime.first_tracked || null
+
+    lines.push(`  ${themeColors.textBold('TODAY')}  ${themeColors.dim(new Date().toISOString().slice(0, 10))}  ${themeColors.dim('|')}  ${themeColors.textBold('ALL TIME')}`)
+    lines.push(`  ${themeColors.dim('─'.repeat(40))}  ${themeColors.dim('─'.repeat(30))}`)
+    lines.push(`  ${themeColors.textBold('Total:')}     ${themeColors.info(formatTokenTotalCompact(todayTotal))} tok  ${themeColors.dim('│')}  ${themeColors.textBold('Total:')}  ${themeColors.info(formatTokenTotalCompact(allTimeTotal))} tok`)
+    lines.push(`  ${themeColors.textBold('Prompt:')}   ${themeColors.dim(formatTokenTotalCompact(todayPrompt))} tok  ${themeColors.dim('│')}  ${themeColors.textBold('Requests:')} ${themeColors.dim(String(allTimeReq))}`)
+    lines.push(`  ${themeColors.textBold('Completion:')} ${themeColors.dim(formatTokenTotalCompact(todayCompletion))} tok  ${themeColors.dim('│')}  ${themeColors.textBold('Since:')} ${themeColors.dim(firstTracked ? new Date(firstTracked).toLocaleDateString() : '—')}`)
+    lines.push(`  ${themeColors.textBold('Requests:')} ${themeColors.dim(String(todayReq))}  ${themeColors.dim('│')}`)
+
+    const byModel = today.by_model || {}
+    const sortedModels = Object.entries(byModel)
+      .map(([key, val]) => {
+        const total = isRecord(val) ? (val.total || 0) : Number(val) || 0
+        return { key, total }
+      })
+      .filter((m) => m.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+
+    lines.push('')
+    lines.push(`  ${themeColors.textBold('TOP MODELS TODAY')}`)
+    if (sortedModels.length === 0) {
+      lines.push(themeColors.dim('  No usage tracked yet today.'))
+    } else {
+      const maxTotal = sortedModels[0]?.total || 1
+      for (const m of sortedModels) {
+        const barLen = Math.max(2, Math.round((m.total / maxTotal) * 28))
+        const bar = themeColors.success('█'.repeat(barLen)) + themeColors.dim('░'.repeat(28 - barLen))
+        const pct = todayTotal > 0 ? Math.round((m.total / todayTotal) * 100) : 0
+        lines.push(`  ${bar}  ${themeColors.textBold(formatTokenTotalCompact(m.total))} tok  ${themeColors.dim(`${pct}%  ${m.key}`)}`)
+      }
+    }
+
+    lines.push('')
+    lines.push(`  ${themeColors.textBold('LAST 7 DAYS')}`)
+    const dayLabels = []
+    const dayTotals = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      const dayData = dailyData[key]
+      const total = dayData?.total_tokens || 0
+      dayLabels.push(d.toLocaleDateString('en-US', { weekday: 'short' }))
+      dayTotals.push(total)
+    }
+    const maxDay = Math.max(...dayTotals, 1)
+    lines.push(`  ${dayLabels.map((l, i) => themeColors.dim(padEndDisplay(l, 6))).join(' ')}`)
+    const barHeights = [14, 10, 7, 4]
+    for (const bh of barHeights) {
+      const row = dayTotals.map((t) => {
+        const filled = Math.round((t / maxDay) * bh)
+        const bar = themeColors.info('█'.repeat(filled)) + themeColors.dim('░'.repeat(bh - filled))
+        return padEndDisplay(bar, 6)
+      })
+      lines.push(`  ${row.join(' ')}`)
+    }
+    const totalRow = dayTotals.map((t) => padEndDisplay(themeColors.textBold(formatTokenTotalCompact(t)), 6))
+    lines.push(`  ${totalRow.join(' ')}`)
+
+    lines.push('')
+    lines.push(themeColors.dim('  Esc Back to main table  •  Shift+R Router Dashboard'))
+
+    const { visible, offset } = sliceOverlayLines(lines, state.tokenUsageScrollOffset, state.terminalRows)
+    state.tokenUsageScrollOffset = offset
+    const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+    return tintedLines.map((l) => l + EL).join('\n')
+  }
+
+  // ─── Router Onboarding overlay renderer ─────────────────────────────────────
+  // 📖 renderRouterOnboarding: shown on first launch (no config.router) or
+  // 📖 first launch after upgrade (existing config but router.onboardingSeen !== true).
+  // 📖 Two options: Enable (Y) or Not now (N). Phase 6 — Smart Model Router.
+  function renderRouterOnboarding() {
+    const EL = '\x1b[K'
+    const lines = []
+    const cursorLineByRow = {}
+
+    lines.push('')
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.textBold('🔀 Smart Router Available!')}`)
+    lines.push('')
+    lines.push(themeColors.dim('  FCM can run a background daemon that automatically'))
+    lines.push(themeColors.dim('  routes your requests to the fastest healthy model —'))
+    lines.push(themeColors.dim('  with zero manual intervention after initial setup.'))
+    lines.push('')
+
+    const options = [
+      { label: 'Yes, enable the router', hint: 'Recommended — creates default set and starts daemon', key: 'Y' },
+      { label: 'Not now', hint: 'You can enable it later from the TUI', key: 'N' },
+    ]
+
+    if (state.routerOnboardingPhase === 'loading') {
+      lines.push(themeColors.info('  Enabling router, please wait...'))
+    } else if (state.routerOnboardingPhase === 'success') {
+      lines.push(themeColors.success('  ✅ Router enabled! Dashboard opening...'))
+      lines.push(themeColors.dim('  Shift+R to reopen the dashboard anytime'))
+    } else if (state.routerOnboardingPhase === 'error') {
+      lines.push(themeColors.error(`  ❌ ${state.routerOnboardingError || 'Failed to enable router'}`))
+      lines.push(themeColors.dim('  Press Esc or Enter to continue to the main table'))
+    } else {
+      for (let i = 0; i < options.length; i++) {
+        const opt = options[i]
+        const isCursor = i === state.routerOnboardingCursor
+        const keyLabel = themeColors.hotkey(`  ${opt.key}]`)
+        const row = `${bullet(isCursor)}${keyLabel} ${isCursor ? themeColors.textBold(opt.label) : themeColors.text(opt.label)}`
+        cursorLineByRow[i] = lines.length
+        lines.push(isCursor ? themeColors.bgCursorSettings(row) : row)
+        lines.push(themeColors.dim(`      ${opt.hint}`))
+        lines.push('')
+      }
+      lines.push(themeColors.dim('  ↑↓ Navigate  •  Enter Select  •  Esc Skip for now'))
+    }
+
+    const targetLine = cursorLineByRow[state.routerOnboardingCursor] ?? 0
+    state.routerOnboardingScrollOffset = keepOverlayTargetVisible(state.routerOnboardingScrollOffset, targetLine, lines.length, state.terminalRows)
+    const { visible, offset } = sliceOverlayLines(lines, state.routerOnboardingScrollOffset, state.terminalRows)
+    state.routerOnboardingScrollOffset = offset
+    const tintedLines = tintOverlayLines(visible, themeColors.overlayBgSettings, state.terminalCols)
+    return tintedLines.map((l) => l + EL).join('\n')
+  }
+
+  // ─── Router upgrade banner (inline in main table, not an overlay) ─────────────
+  // 📖 renderRouterUpgradeBanner: non-blocking notification at top of the table
+  // 📖 shown once to existing users who haven't seen router yet. Auto-dismisses after 10s.
+  function renderRouterUpgradeBanner() {
+    const EL = '\x1b[K'
+    const now = Date.now()
+    const BANNER_TTL_MS = 10_000
+    // Dismissed or already seen in this session?
+    if (state.routerUpgradeBannerDismissedAt > 0) return ''
+    if (state.routerUpgradeBannerShownAt === 0) state.routerUpgradeBannerShownAt = now
+    if (now - state.routerUpgradeBannerShownAt > BANNER_TTL_MS) {
+      state.routerUpgradeBannerDismissedAt = now
+      return ''
+    }
+    const remaining = Math.ceil((BANNER_TTL_MS - (now - state.routerUpgradeBannerShownAt)) / 1000)
+    const msg = `  ${themeColors.accentBold('🆕')}  ${themeColors.textBold('Smart Router is now available!')}  ${themeColors.dim('Press')}  ${themeColors.hotkey('Shift+R')}  ${themeColors.dim('to set it up.')}  ${themeColors.dim(`(dismisses in ${remaining}s)`)}`
+    const pad = state.terminalCols > displayWidth(msg) ? ' '.repeat(Math.max(0, state.terminalCols - displayWidth(msg))) : ''
+    return themeColors.warningBold(msg + pad)
+  }
+
   return {
     renderSettings,
     renderInstallEndpoints,
@@ -1500,9 +1871,14 @@ export function createOverlayRenderers(state, deps) {
     renderFeedback,
     renderChangelog,
     renderInstalledModels,
+    renderRouterDashboard,
     renderIncompatibleFallback,
+    renderSetsManager,
+    renderTokenUsage,
+    renderRouterOnboarding,
+    renderRouterUpgradeBanner,
     startRecommendAnalysis,
     stopRecommendAnalysis,
-    overlayLayout,  // 📖 Mouse support: exposes cursor-to-line maps for click handling
+    overlayLayout,
   }
 }

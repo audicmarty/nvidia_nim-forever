@@ -45,6 +45,7 @@ export const TOOL_METADATA = {
   gemini:            { label: 'Gemini CLI',        emoji: '♊', flag: '--gemini',           color: [66, 165, 245],  cliOnly: true },
   jcode:             { label: 'jcode',              emoji: '🪼', flag: '--jcode',             color: [255, 140, 0]  },
   xcode:             { label: 'Xcode Intelligence',emoji: '🛠️', flag: '--xcode',            color: [20, 126, 251] },
+  fcm_router:        { label: 'FCM Router',        emoji: '🧭', flag: '--fcm-router',        color: [80, 200, 120] },
 }
 
 // 📖 Deduplicated emoji order for the "Compatible with" column.
@@ -63,11 +64,13 @@ export const COMPAT_COLUMN_SLOTS = [
   { emoji: '⚡', toolKeys: ['amp'],                          color: [255, 232, 98] },
   { emoji: '🔮', toolKeys: ['hermes'],                       color: [200, 160, 255] },
   { emoji: '▶️', toolKeys: ['continue'],                     color: [255, 100, 100] },
-  { emoji: '🧠', toolKeys: ['cline'],                        color: [100, 220, 180] },
-  { emoji: '🦘', toolKeys: ['rovo'],                         color: [148, 163, 184] },
+{ emoji: '🧠', toolKeys: ['cline'],                       color: [100, 220, 180] },
+  { emoji: '🧭', toolKeys: ['fcm_router'],                  color: [80, 200, 120] },
+  { emoji: '🦘', toolKeys: ['rovo'],                        color: [148, 163, 184] },
   { emoji: '♊', toolKeys: ['gemini'],                       color: [66, 165, 245] },
   { emoji: '🪼', toolKeys: ['jcode'],                        color: [255, 140, 0]  },
   { emoji: '🛠️', toolKeys: ['xcode'],                        color: [20, 126, 251] },
+  { emoji: '🧭', toolKeys: ['fcm_router'],                  color: [80, 200, 120] },
 ]
 
 export const TOOL_MODE_ORDER = [
@@ -88,6 +91,7 @@ export const TOOL_MODE_ORDER = [
   'continue',
   'cline',
   'xcode',
+  'fcm_router',
   'rovo',
   'gemini',
 ]

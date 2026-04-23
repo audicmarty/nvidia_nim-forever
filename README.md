@@ -244,6 +244,14 @@ free-coding-models --origin nvidia --tier S
 # "I want the local web dashboard"
 free-coding-models --web
 
+# "I want one local endpoint that fails over between free models"
+free-coding-models --daemon-bg
+free-coding-models --daemon-status
+
+# "I want to inspect the router without leaving the TUI"
+free-coding-models
+# then press Shift+R
+
 # "Start with an elite-focused preset, then adjust filters live"
 free-coding-models --premium
 
@@ -255,6 +263,66 @@ free-coding-models --openclaw --origin groq
 ```
 
 When launching the web dashboard, `free-coding-models` prefers `http://localhost:3333`. If that port is already used by another app, it now auto-picks the next free local port and prints the exact URL to open.
+
+### Smart Model Router
+
+The **FCM Router** is a local OpenAI-compatible daemon that keeps running after the TUI closes. Point your coding tool at one localhost endpoint and let FCM route each request to the best available model in your active set.
+
+```bash
+# Start the router in the background
+free-coding-models --daemon-bg
+
+# Check the active port, set, model count, uptime, and request totals
+free-coding-models --daemon-status
+
+# Stop it cleanly
+free-coding-models --daemon-stop
+```
+
+Inside the TUI, press **`Shift+R`** to open the Router Dashboard. It polls `/health` and `/stats`, listens to `/stream/events`, and shows daemon state, active set, probe mode, circuit breaker health, token totals, and the live routed-request log.
+
+Dashboard keys:
+
+| Key | Action |
+|-----|--------|
+| `S` | Switch to the next router set |
+| `I` | Cycle probe mode (`eco → balanced → aggressive`) |
+| `C` | Clear the local dashboard request log |
+| `R` | Reserved for Phase 7 service-manager restart |
+| `P` | Reserved until probe pause/resume backend support exists |
+| `Esc` | Return to the main model table |
+
+Configure tools with:
+
+| Field | Value |
+|-------|-------|
+| Base URL | `http://localhost:19280/v1` |
+| Model | `fcm` |
+| API key | `fcm-local` |
+
+The daemon auto-creates a `fast-coding` set from your configured providers on first start. It stores router settings in `~/.free-coding-models.json`, writes lifecycle logs to `~/.free-coding-models-daemon.log`, and tracks token metadata in `~/.free-coding-models-tokens.json`.
+
+Router endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /v1/chat/completions` | Route through the active set |
+| `POST /v1/sets/:name/chat/completions` | Route through a named set |
+| `GET /v1/models` | Return virtual models (`fcm`, `fcm:set-name`) |
+| `GET /health` | Daemon status JSON |
+| `GET /stats` | Routing, health, request log, and token stats |
+| `GET /stream/events` | Live SSE events for dashboard updates |
+| `POST /daemon/probe-mode` | Set probe mode with `{ "probeMode": "eco" | "balanced" | "aggressive" }` |
+
+Routing behavior:
+
+- Priority order works immediately on cold start, then probes refine health scores over time.
+- Transient failures (`429`, `500`, `502`, `503`, timeouts) fail over to the next model.
+- Authentication problems (`401`, `403`, missing keys) are marked separately so bad credentials do not poison the circuit breaker; after one provider returns an auth error, the router skips the rest of that provider for the current request.
+- Upstream HTML maintenance pages and malformed successful JSON are treated as retryable provider failures instead of being forwarded to your coding tool.
+- Quota and rate-limit failures include retry headers in the final router `503` payload when providers expose them.
+- If a coding tool disconnects mid-request, the daemon aborts the upstream request without counting it as a provider failure.
+- Streaming requests retry before the first byte; after partial output starts, the daemon records the failure and lets the current stream finish as safely as possible.
 
 ### Tool launcher flags
 
@@ -351,6 +419,7 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 | `G` | Cycle global theme (`Auto → Dark → Light`) |
 | `Ctrl+P` | Open ⚡️ command palette (search + run actions) |
 | `R/S/C/M/O/L/A/H/V/B/U` | Sort columns |
+| `Shift+R` | Router Dashboard (daemon health, circuits, tokens, request log) |
 | `Shift+U` | Update to latest version (when update available) |
 | `P` | Settings (API keys, providers, updates, theme) |
 | `Q` | Smart Recommend overlay |
@@ -391,6 +460,7 @@ When a tool mode is active (via `Z`), models incompatible with that tool are hig
 - **Configured-only default** — only shows providers you have keys for
 - **Keyless latency** — models ping even without an API key (show 🔑 NO KEY)
 - **Smart Recommend** — questionnaire picks the best model for your task type
+- **Smart Model Router** — local OpenAI-compatible daemon with model sets, failover, circuit breakers, health probes, and token stats
 - **⚡️ Command Palette** — `Ctrl+P` opens a searchable action launcher for filters, sorting, overlays, and quick toggles
 - **Install Endpoints** — push a full provider catalog into any tool's config (from Settings `P` or ⚡️ Command Palette)
 - **Missing tool bootstrap** — detect absent CLIs, offer one-click install, then continue the selected launch automatically

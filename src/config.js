@@ -67,7 +67,19 @@
  *     },
  *     "endpointInstalls": [
  *       { "providerKey": "nvidia", "toolMode": "opencode", "scope": "all", "modelIds": [], "lastSyncedAt": "2026-03-09T10:00:00.000Z" }
- *     ]
+ *     ],
+ *     "router": {
+ *       "enabled": true,
+ *       "activeSet": "fast-coding",
+ *       "probeMode": "balanced",
+ *       "sets": {
+ *         "fast-coding": {
+ *           "name": "fast-coding",
+ *           "models": [{ "provider": "groq", "model": "llama-3.3-70b-versatile", "priority": 1 }],
+ *           "created": "2026-04-22T10:00:00.000Z"
+ *         }
+ *       }
+ *     }
  *   }
  *
 
@@ -88,10 +100,11 @@
  *   → replaceConfigContents(targetConfig, nextConfig) — Refresh an in-memory config object from a normalized snapshot
  *   → persistApiKeysForProvider(config, providerKey) — Persist one provider's API keys without clobbering the rest of the file
  *   → normalizeEndpointInstalls(endpointInstalls) — Keep tracked endpoint installs stable across app versions
+ *   → normalizeRouterConfig(router) — Keep Smart Router sets and daemon tuning safe to persist
  *
  * @exports loadConfig, saveConfig, validateConfigFile, getApiKey, isProviderEnabled
  * @exports addApiKey, removeApiKey, listApiKeys — multi-key management helpers
- * @exports normalizeEndpointInstalls
+ * @exports normalizeEndpointInstalls, normalizeRouterConfig, DEFAULT_ROUTER_SETTINGS
  * @exports buildPersistedConfig, replaceConfigContents, persistApiKeysForProvider
  * @exports CONFIG_PATH — path to the JSON config file
  *
@@ -137,6 +150,39 @@ const ENV_VARS = {
   zai:        'ZAI_API_KEY',
   iflow:      'IFLOW_API_KEY',
 }
+
+// 📖 Smart Router defaults are intentionally conservative: balanced probing,
+// 📖 three-request failover, and short local port range discovery.
+export const DEFAULT_ROUTER_SETTINGS = Object.freeze({
+  enabled: false,
+  onboardingSeen: false,
+  autoStartOnBoot: false,
+  port: 19280,
+  activeSet: 'fast-coding',
+  probeMode: 'balanced',
+  probeIntervals: Object.freeze({
+    eco: 120000,
+    balanced: 30000,
+    aggressive: 10000,
+  }),
+  circuitBreaker: Object.freeze({
+    failureThreshold: 3,
+    initialCooldownMs: 30000,
+    maxCooldownMs: 300000,
+    backoffMultiplier: 2,
+  }),
+  failover: Object.freeze({
+    maxRetries: 3,
+    streamStallTimeoutMs: 8000,
+    requestTimeoutMs: 15000,
+  }),
+  scoring: Object.freeze({
+    latencyWeight: 0.4,
+    uptimeWeight: 0.4,
+    priorityWeight: 0.2,
+  }),
+  logLevel: 'info',
+})
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -227,6 +273,136 @@ function normalizeTelemetrySection(telemetry) {
   }
 }
 
+function normalizeRouterName(value, fallback = '') {
+  if (typeof value !== 'string') return fallback
+  return value.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64) || fallback
+}
+
+function normalizePositiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  return Math.max(min, Math.min(max, Math.round(numeric)))
+}
+
+function normalizeRouterSetModels(models) {
+  if (!Array.isArray(models)) return []
+  const seen = new Set()
+  const normalized = []
+  for (const entry of models) {
+    if (!isPlainObject(entry)) continue
+    const provider = normalizeRouterName(entry.provider)
+    const model = typeof entry.model === 'string' ? entry.model.trim() : ''
+    if (!provider || !model) continue
+    const key = `${provider}/${model}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push({
+      provider,
+      model,
+      priority: normalizePositiveInteger(entry.priority, normalized.length + 1, { min: 1, max: 999 }),
+    })
+  }
+  return normalized
+    .sort((a, b) => a.priority - b.priority)
+    .map((entry, index) => ({ ...entry, priority: index + 1 }))
+}
+
+function normalizeRouterSets(sets) {
+  if (!isPlainObject(sets)) return {}
+  const normalized = {}
+  for (const [rawName, rawSet] of Object.entries(sets)) {
+    if (!isPlainObject(rawSet)) continue
+    const name = normalizeRouterName(rawSet.name, normalizeRouterName(rawName))
+    if (!name) continue
+    normalized[name] = {
+      name,
+      models: normalizeRouterSetModels(rawSet.models),
+      created: typeof rawSet.created === 'string' && rawSet.created.trim()
+        ? rawSet.created
+        : new Date().toISOString(),
+    }
+  }
+  return normalized
+}
+
+function normalizeRouterIntervals(intervals) {
+  const safeIntervals = isPlainObject(intervals) ? intervals : {}
+  return {
+    eco: normalizePositiveInteger(safeIntervals.eco, DEFAULT_ROUTER_SETTINGS.probeIntervals.eco, { min: 5000, max: 3600000 }),
+    balanced: normalizePositiveInteger(safeIntervals.balanced, DEFAULT_ROUTER_SETTINGS.probeIntervals.balanced, { min: 5000, max: 3600000 }),
+    aggressive: normalizePositiveInteger(safeIntervals.aggressive, DEFAULT_ROUTER_SETTINGS.probeIntervals.aggressive, { min: 5000, max: 3600000 }),
+  }
+}
+
+function normalizeRouterCircuitBreaker(circuitBreaker) {
+  const safeBreaker = isPlainObject(circuitBreaker) ? circuitBreaker : {}
+  return {
+    failureThreshold: normalizePositiveInteger(safeBreaker.failureThreshold, DEFAULT_ROUTER_SETTINGS.circuitBreaker.failureThreshold, { min: 1, max: 20 }),
+    initialCooldownMs: normalizePositiveInteger(safeBreaker.initialCooldownMs, DEFAULT_ROUTER_SETTINGS.circuitBreaker.initialCooldownMs, { min: 1000, max: 3600000 }),
+    maxCooldownMs: normalizePositiveInteger(safeBreaker.maxCooldownMs, DEFAULT_ROUTER_SETTINGS.circuitBreaker.maxCooldownMs, { min: 1000, max: 3600000 }),
+    backoffMultiplier: normalizePositiveInteger(safeBreaker.backoffMultiplier, DEFAULT_ROUTER_SETTINGS.circuitBreaker.backoffMultiplier, { min: 1, max: 10 }),
+  }
+}
+
+function normalizeRouterFailover(failover) {
+  const safeFailover = isPlainObject(failover) ? failover : {}
+  return {
+    maxRetries: normalizePositiveInteger(safeFailover.maxRetries, DEFAULT_ROUTER_SETTINGS.failover.maxRetries, { min: 1, max: 10 }),
+    streamStallTimeoutMs: normalizePositiveInteger(safeFailover.streamStallTimeoutMs, DEFAULT_ROUTER_SETTINGS.failover.streamStallTimeoutMs, { min: 1000, max: 120000 }),
+    requestTimeoutMs: normalizePositiveInteger(safeFailover.requestTimeoutMs, DEFAULT_ROUTER_SETTINGS.failover.requestTimeoutMs, { min: 1000, max: 300000 }),
+  }
+}
+
+function normalizeRouterScoring(scoring) {
+  const safeScoring = isPlainObject(scoring) ? scoring : {}
+  const numberOrDefault = (value, fallback) => {
+    const numeric = Number(value)
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback
+  }
+  return {
+    latencyWeight: numberOrDefault(safeScoring.latencyWeight, DEFAULT_ROUTER_SETTINGS.scoring.latencyWeight),
+    uptimeWeight: numberOrDefault(safeScoring.uptimeWeight, DEFAULT_ROUTER_SETTINGS.scoring.uptimeWeight),
+    priorityWeight: numberOrDefault(safeScoring.priorityWeight, DEFAULT_ROUTER_SETTINGS.scoring.priorityWeight),
+  }
+}
+
+/**
+ * 📖 normalizeRouterConfig preserves the Smart Router subtree without trusting
+ * 📖 arbitrary JSON shapes from disk. It keeps model sets ordered, clamps timing
+ * 📖 knobs, and leaves the router absent when no router key exists so upgrades can
+ * 📖 still distinguish "not onboarded yet" from "explicitly disabled".
+ *
+ * @param {unknown} router
+ * @returns {object|null}
+ */
+export function normalizeRouterConfig(router) {
+  if (!isPlainObject(router)) return null
+  const sets = normalizeRouterSets(router.sets)
+  const activeSet = normalizeRouterName(router.activeSet, DEFAULT_ROUTER_SETTINGS.activeSet)
+  const safeActiveSet = sets[activeSet] ? activeSet : (Object.keys(sets)[0] || activeSet)
+  const probeMode = ['eco', 'balanced', 'aggressive'].includes(router.probeMode)
+    ? router.probeMode
+    : DEFAULT_ROUTER_SETTINGS.probeMode
+  const logLevel = ['error', 'warn', 'info', 'debug'].includes(router.logLevel)
+    ? router.logLevel
+    : DEFAULT_ROUTER_SETTINGS.logLevel
+
+  return {
+    enabled: router.enabled === true,
+    onboardingSeen: router.onboardingSeen === true,
+    autoStartOnBoot: router.autoStartOnBoot === true,
+    port: normalizePositiveInteger(router.port, DEFAULT_ROUTER_SETTINGS.port, { min: 1, max: 65535 }),
+    activeSet: safeActiveSet,
+    sets,
+    probeMode,
+    probeIntervals: normalizeRouterIntervals(router.probeIntervals),
+    circuitBreaker: normalizeRouterCircuitBreaker(router.circuitBreaker),
+    failover: normalizeRouterFailover(router.failover),
+    scoring: normalizeRouterScoring(router.scoring),
+    logLevel,
+  }
+}
+
 function normalizeProfileSettings(settings) {
   const safeSettings = isPlainObject(settings) ? { ...settings } : {}
   return {
@@ -240,7 +416,7 @@ function normalizeProfileSettings(settings) {
 
 function normalizeConfigShape(config) {
   const safeConfig = isPlainObject(config) ? config : {}
-  return {
+  const normalized = {
     apiKeys: normalizeApiKeysSection(safeConfig.apiKeys),
     providers: normalizeProvidersSection(safeConfig.providers),
     settings: normalizeSettingsSection(safeConfig.settings),
@@ -250,6 +426,9 @@ function normalizeConfigShape(config) {
 
 
   }
+  const normalizedRouter = normalizeRouterConfig(safeConfig.router)
+  if (normalizedRouter) normalized.router = normalizedRouter
+  return normalized
 }
 
 function readStoredConfigSnapshot() {
@@ -322,7 +501,11 @@ export function buildPersistedConfig(incomingConfig, diskConfig = _emptyConfig()
       ? cloneConfigValue(normalizedIncoming.endpointInstalls)
       : mergeEndpointInstalls(normalizedDisk.endpointInstalls, normalizedIncoming.endpointInstalls),
     // 📖 Profile system removed - always null
-
+  }
+  if (Object.prototype.hasOwnProperty.call(normalizedIncoming, 'router')) {
+    merged.router = cloneConfigValue(normalizedIncoming.router)
+  } else if (Object.prototype.hasOwnProperty.call(normalizedDisk, 'router')) {
+    merged.router = cloneConfigValue(normalizedDisk.router)
   }
 
   return normalizeConfigShape(merged)

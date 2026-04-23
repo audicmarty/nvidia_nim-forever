@@ -123,6 +123,7 @@ import { startOpenClaw } from '../src/openclaw.js'
 import { createOverlayRenderers } from '../src/overlays.js'
 import { createKeyHandler, createMouseEventHandler } from '../src/key-handler.js'
 import { createMouseHandler, containsMouseSequence } from '../src/mouse.js'
+import { stopRouterDashboardClient } from '../src/router-dashboard.js'
 import { getToolModeOrder, getToolMeta } from '../src/tool-metadata.js'
 import { startExternalTool } from '../src/tool-launchers.js'
 import { getToolInstallPlan, installToolWithPlan, isToolInstalled } from '../src/tool-bootstrap.js'
@@ -522,6 +523,63 @@ export async function runApp(cliArgs, config) {
     installedModelsScrollOffset: 0, // 📖 Vertical scroll offset for overlay viewport
     installedModelsData: [],       // 📖 Cached scan results
     installedModelsErrorMsg: null, // 📖 Error or status message
+    // 📖 Router Dashboard overlay state (Shift+R opens it).
+    routerDashboardOpen: false,
+    routerDashboardStatus: 'idle', // 📖 idle | loading | ready | partial | stopped | stale | unreachable | malformed
+    routerDashboardBaseUrl: null,
+    routerDashboardPort: null,
+    routerDashboardHealth: null,
+    routerDashboardStats: null,
+    routerDashboardError: null,
+    routerDashboardScrollOffset: 0,
+    routerDashboardEvents: [],
+    routerDashboardLiveRequests: [],
+    routerDashboardClearedAt: 0,
+    routerDashboardLastUpdatedAt: null,
+    routerDashboardLastRefreshStartedAt: null,
+    routerDashboardPollTimer: null,
+    routerDashboardEventAbort: null,
+    routerDashboardEventStatus: 'idle',
+    routerDashboardEventError: null,
+    routerDashboardNotice: null,
+    routerDashboardNoticeTimer: null,
+    // 📖 Set Manager overlay state (Shift+S opens it). Two-pane: left=sets, right=models in selected set.
+    setsOpen: false,              // 📖 Whether the Set Manager overlay is active
+    setsData: null,               // 📖 Cached { activeSet, sets } from GET /sets
+    setsError: null,              // 📖 Error message if sets fetch failed
+    setsCursor: 0,                // 📖 Selected row in active pane
+    setsScrollOffset: 0,          // 📖 Vertical scroll offset for overlay viewport
+    setsActivePane: 'sets',       // 📖 'sets' | 'models' — which pane has keyboard focus
+    setsEditMode: null,           // 📖 null | 'create' | 'rename' | 'duplicate' | 'delete-confirm' | 'activate-confirm'
+    setsEditBuffer: '',           // 📖 Typed text while in edit modes (new name, rename)
+    setsAddPositionPickerOpen: false, // 📖 True when Shift+A triggered the position picker for adding a model
+    setsAddPositionCursor: 0,     // 📖 Cursor position in the add-model position picker (-1 = append at end)
+    setsAddModelSearch: '',       // 📖 Search filter when adding models from catalog
+    setsAddSelectedModel: null,  // 📖 The model being added via Shift+A: { provider, model, label }
+    setsLastFetchAt: 0,           // 📖 Timestamp of last GET /sets to avoid hammering the API
+    // 📖 Router footer data (polled every 30s from daemon when routerDashboardOpen has ever been true)
+    routerFooterActiveSet: null,  // 📖 Active set name from daemon
+    routerFooterRunning: false,  // 📖 True if daemon is reachable
+    routerFooterTodayTokens: 0,   // 📖 Today's total token usage
+    routerFooterAllTimeTokens: 0, // 📖 All-time total token usage
+    routerFooterRequests: 0,       // 📖 Today's request count
+    routerFooterLastFetchAt: 0,   // 📖 Timestamp of last stats fetch
+    routerFooterPollTimer: null,  // 📖 setInterval handle
+    // 📖 Token Usage overlay state (Shift+T opens it)
+    tokenUsageOpen: false,       // 📖 Whether the Token Usage overlay is active
+    tokenUsageData: null,        // 📖 Cached { today, all_time, daily7 } from /stats/tokens
+    tokenUsageError: null,        // 📖 Error message if fetch failed
+    tokenUsageScrollOffset: 0,   // 📖 Vertical scroll offset
+    tokenUsageLastFetchAt: 0,    // 📖 Timestamp of last fetch
+    // 📖 Router onboarding overlay state (shown on first launch to new users)
+    routerOnboardingOpen: false, // 📖 Whether the router onboarding overlay is active
+    routerOnboardingCursor: 0,   // 📖 Selected option (0=Yes enable, 1=Not now, 2=Learn more)
+    routerOnboardingPhase: 'ask', // 📖 'ask' | 'loading' | 'success' | 'error'
+    routerOnboardingError: null,  // 📖 Error message if enable failed
+    routerOnboardingScrollOffset: 0,
+    // 📖 Router upgrade banner (shown once to existing users who haven't seen router)
+    routerUpgradeBannerShownAt: 0, // 📖 Timestamp when banner was shown (0 = not shown)
+    routerUpgradeBannerDismissedAt: 0, // 📖 Timestamp when banner was dismissed (0 = not dismissed)
     // 📖 Custom text filter (Ctrl+P palette → type text → Enter). Ephemeral — not saved to config.
     customTextFilter: null,       // 📖 Active free-text filter string (null = off). Matches model name, ctx, provider key/name.
   }
@@ -725,6 +783,7 @@ export async function runApp(cliArgs, config) {
     clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
     clearInterval(state.versionRecheckTimer)
+    stopRouterDashboardClient(state)
     process.stdout.write(ALT_LEAVE)
     if (process.stdout.isTTY) {
       process.stdout.flush && process.stdout.flush()
@@ -798,6 +857,7 @@ export async function runApp(cliArgs, config) {
     if (ticker) clearInterval(ticker)
     clearTimeout(state.pingIntervalObj)
     clearInterval(state.versionRecheckTimer)
+    stopRouterDashboardClient(state)
     if (onKeyPress) process.stdin.removeListener('keypress', onKeyPress)
     if (onMouseData) process.stdin.removeListener('data', onMouseData)
     if (process.stdin.isTTY && resetRawMode) process.stdin.setRawMode(false)
@@ -1015,7 +1075,7 @@ export async function runApp(cliArgs, config) {
     refreshAutoPingMode()
     state.frame++
     // 📖 Cache visible+sorted models each frame so Enter handler always matches the display
-    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.installedModelsOpen && !state.commandPaletteOpen) {
+    if (!state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.incompatibleFallbackOpen && !state.recommendOpen && !state.feedbackOpen && !state.changelogOpen && !state.installedModelsOpen && !state.routerDashboardOpen && !state.commandPaletteOpen) {
       const visible = state.results.filter(r => !r.hidden)
       state.visibleSorted = sortResultsWithPinnedFavorites(visible, state.sortColumn, state.sortDirection, {
         pinFavorites: state.favoritesPinnedAndSticky,
@@ -1058,7 +1118,12 @@ export async function runApp(cliArgs, config) {
           state.lastReleaseDate,
           state.footerHidden,
           state.verdictFilterMode,
-          state.healthFilterMode
+          state.healthFilterMode,
+          state.routerFooterRunning,
+          state.routerFooterActiveSet,
+          state.routerFooterTodayTokens,
+          state.routerFooterAllTimeTokens,
+          state.routerFooterRequests
         )
       }
       tableContent = state.commandPaletteFrozenTable
@@ -1096,8 +1161,19 @@ export async function runApp(cliArgs, config) {
         state.lastReleaseDate,
         state.footerHidden,
         state.verdictFilterMode,
-        state.healthFilterMode
+        state.healthFilterMode,
+        state.routerFooterRunning,
+        state.routerFooterActiveSet,
+        state.routerFooterTodayTokens,
+        state.routerFooterAllTimeTokens,
+        state.routerFooterRequests
       )
+    }
+
+    // 📖 Router upgrade banner: inline notification for existing users not yet seen router
+    if (!state.routerOnboardingOpen && !state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.installedModelsOpen && !state.routerDashboardOpen && !state.setsOpen && !state.tokenUsageOpen && !state.commandPaletteOpen && !state.recommendOpen && !state.feedbackOpen && !state.helpVisible && !state.changelogOpen && !state.incompatibleFallbackOpen) {
+      const banner = overlays.renderRouterUpgradeBanner()
+      if (banner) tableContent = banner + '\n' + tableContent
     }
 
     const content = state.settingsOpen
@@ -1108,6 +1184,14 @@ export async function runApp(cliArgs, config) {
         ? overlays.renderToolInstallPrompt()
       : state.installedModelsOpen
         ? overlays.renderInstalledModels()
+      : state.routerDashboardOpen
+        ? overlays.renderRouterDashboard()
+      : state.setsOpen
+        ? overlays.renderSetsManager()
+      : state.tokenUsageOpen
+        ? overlays.renderTokenUsage()
+      : state.routerOnboardingOpen
+        ? overlays.renderRouterOnboarding()
       : state.incompatibleFallbackOpen
         ? overlays.renderIncompatibleFallback()
       : state.commandPaletteOpen
@@ -1227,6 +1311,62 @@ export async function runApp(cliArgs, config) {
       }
     } catch {}
   }, VERSION_RECHECK_INTERVAL_MS)
+
+  // 📖 Router footer stats: poll daemon every 30s so the main table footer always
+  // 📖 shows live token counts and daemon status even when the Router Dashboard is closed.
+  const ROUTER_FOOTER_POLL_INTERVAL_MS = 30_000
+  const ROUTER_FOOTER_FETCH_TIMEOUT_MS = 1200
+
+  async function fetchRouterFooterStats() {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), ROUTER_FOOTER_FETCH_TIMEOUT_MS)
+      const pidPath = `${process.env.HOME}/.free-coding-models-daemon.pid`
+      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
+      let port = 19280
+      try {
+        const { readFileSync: rfs } = await import('node:fs')
+        const savedPort = rfs(portPath, 'utf8').trim()
+        if (/^\d+$/.test(savedPort)) port = Number(savedPort)
+      } catch {}
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/stats`, {
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      if (!res.ok) { state.routerFooterRunning = false; return }
+      const raw = await res.json()
+      const tokens = raw.tokens || {}
+      const today = tokens.today || {}
+      const allTime = tokens.all_time || {}
+      state.routerFooterRunning = true
+      state.routerFooterActiveSet = raw.activeSet || null
+      state.routerFooterTodayTokens = today.total_tokens || 0
+      state.routerFooterAllTimeTokens = allTime.total_tokens || 0
+      state.routerFooterRequests = today.requests || 0
+      state.routerFooterLastFetchAt = Date.now()
+    } catch {
+      state.routerFooterRunning = false
+    }
+  }
+
+  state.routerFooterPollTimer = setInterval(() => {
+    void fetchRouterFooterStats()
+  }, ROUTER_FOOTER_POLL_INTERVAL_MS)
+  void fetchRouterFooterStats() // 📖 Initial fetch immediately so footer is populated on first render
+
+  // 📖 Router onboarding: detect first launch (config.router absent) or upgrade
+  // 📖 (existing config but router.onboardingSeen !== true) and show appropriate prompt.
+  const routerCfg = state.config?.router
+  const isFirstLaunch = !routerCfg
+  const isUpgrade = routerCfg && routerCfg.onboardingSeen !== true
+  const alreadyEnabled = routerCfg?.enabled === true
+  if (isFirstLaunch || (isUpgrade && !alreadyEnabled)) {
+    state.routerOnboardingOpen = true
+    state.routerOnboardingCursor = 0
+    state.routerOnboardingPhase = 'ask'
+    state.routerOnboardingError = null
+    state.routerOnboardingScrollOffset = 0
+  }
 
   // 📖 Keep interface running forever - user can select anytime or Ctrl+C to exit
   // 📖 The pings continue running in background with dynamic interval

@@ -64,6 +64,10 @@ Start the TUI pre-configured to a specific tool. Press `Enter` on a model to aut
 | Flag | Type | Description |
 |------|------|-------------|
 | `--ping-interval <ms>` | value | Override the ping interval in milliseconds (e.g. `--ping-interval 5000`). |
+| `--daemon` | boolean | Start the Smart Model Router daemon in the foreground for service managers. |
+| `--daemon-bg` | boolean | Start the Smart Model Router daemon detached in the background. |
+| `--daemon-status` | boolean | Print router daemon status JSON and exit. |
+| `--daemon-stop` | boolean | Gracefully stop the running router daemon. |
 | `--no-telemetry` | boolean | Disable anonymous usage telemetry for this session. |
 | `--help`, `-h` | boolean | Print the full help text with all flags and exit. |
 
@@ -83,6 +87,12 @@ free-coding-models --json | jq '.[] | select(.avgPing < 500)'
 
 # Most reliable model right now
 free-coding-models --fiable
+
+# Start the local Smart Model Router endpoint
+free-coding-models --daemon-bg
+
+# Inspect router port, active set, uptime, and request totals
+free-coding-models --daemon-status
 
 # Start with an elite-focused preset (resettable in-app)
 free-coding-models --premium

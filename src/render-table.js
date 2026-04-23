@@ -54,6 +54,7 @@ import { calculateViewport, sortResultsWithPinnedFavorites, padEndDisplay, displ
 import { getToolMeta, TOOL_METADATA, TOOL_MODE_ORDER, isModelCompatibleWithTool } from './tool-metadata.js'
 import { getColumnSpacing } from './ui-config.js'
 import { detectPackageManager, getManualInstallCmd } from './updater.js'
+import { formatTokenTotalCompact } from './token-usage-reader.js'
 
 const require = createRequire(import.meta.url)
 const { version: LOCAL_VERSION } = require('../package.json')
@@ -109,7 +110,7 @@ export const PROVIDER_COLOR = new Proxy({}, {
 })
 
 // ─── renderTable: mode param controls footer hint text (opencode vs openclaw) ─────────
-export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null, lastReleaseDate = null, footerHidden = false, verdictFilterMode = 0, healthFilterMode = 0) {
+export function renderTable(results, pendingPings, frame, cursor = null, sortColumn = 'avg', sortDirection = 'asc', pingInterval = PING_INTERVAL, lastPingTime = Date.now(), mode = 'opencode', tierFilterMode = 0, scrollOffset = 0, terminalRows = 0, terminalCols = 0, originFilterMode = 0, legacyStatus = null, pingMode = 'normal', pingModeSource = 'auto', hideUnconfiguredModels = false, widthWarningStartedAt = null, widthWarningDismissed = false, widthWarningShowCount = 0, settingsUpdateState = 'idle', settingsUpdateLatestVersion = null, legacyFlag = false, startupLatestVersion = null, versionAlertsEnabled = true, favoritesPinnedAndSticky = false, customTextFilter = null, lastReleaseDate = null, footerHidden = false, verdictFilterMode = 0, healthFilterMode = 0, routerFooterRunning = false, routerFooterActiveSet = null, routerFooterTodayTokens = 0, routerFooterAllTimeTokens = 0, routerFooterRequests = 0) {
   // 📖 Filter out hidden models for display
   const visibleResults = results.filter(r => !r.hidden)
 
@@ -865,6 +866,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
         { text: '  •  ', key: null },
         { text: 'Q Smart Recommend', key: 'q' },
         { text: '  •  ', key: null },
+        { text: 'Shift+R Router', key: 'shift+r' },
+        { text: '  •  ', key: null },
         { text: 'G Theme', key: 'g' },
         { text: '  •  ', key: null },
         { text: 'I Feedback, bugs & requests', key: 'i' },
@@ -884,6 +887,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     lines.push(
       '  ' + paletteLabel + themeColors.dim(`  •  `) +
       hotkey('Q', ' Smart Recommend') + themeColors.dim(`  •  `) +
+      hotkey('Shift+R', ' Router') + themeColors.dim(`  •  `) +
+      hotkey('Shift+S', ' Sets') + themeColors.dim(`  •  `) +
       hotkey('G', ' Theme') + themeColors.dim(`  •  `) +
       hotkey('I', ' Feedback, bugs & requests')
     )
@@ -968,6 +973,27 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       (releaseLabel ? themeColors.dim('  •  ') + releaseLabel : '')
     )
 
+    // 📖 Router token stats + daemon status in the footer (shown when router is enabled)
+    if (routerFooterRunning) {
+      const todayStr = formatTokenTotalCompact(routerFooterTodayTokens)
+      const allTimeStr = formatTokenTotalCompact(routerFooterAllTimeTokens)
+      const reqStr = String(routerFooterRequests)
+      const setLabel = routerFooterActiveSet ? themeColors.info(routerFooterActiveSet) : themeColors.dim('?')
+      lines.push(
+        '  ' + themeColors.success('●') + ' ' +
+        themeColors.dim('Router:') + ' ' + setLabel +
+        themeColors.dim('  •  Today:') + ' ' + themeColors.textBold(todayStr + ' tok') +
+        themeColors.dim('  •  All-time:') + ' ' + themeColors.textBold(allTimeStr + ' tok') +
+        themeColors.dim('  •  ' + reqStr + ' req')
+      )
+    } else {
+      lines.push(
+        '  ' + themeColors.error('○') + ' ' +
+        themeColors.dim('Router:') + ' ' + themeColors.dim('daemon not running') +
+        themeColors.dim('  •  Shift+R Dashboard  •  Shift+S Sets')
+      )
+    }
+
     // 📖 Discord link at the very bottom of the TUI
     lines.push(
       '  💬 ' +
@@ -979,6 +1005,8 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
     // 📖 Collapsed footer: single line with toggle hint
     lines.push(
       '  ' + themeColors.hotkey('Ctrl+O') + themeColors.dim(' Toggle Footer') +
+      themeColors.dim('  •  ') +
+      themeColors.hotkey('Shift+R') + themeColors.dim(' Router') +
       themeColors.dim('  •  Ctrl+C Exit')
     )
   }
