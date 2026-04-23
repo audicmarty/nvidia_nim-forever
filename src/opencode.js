@@ -9,7 +9,7 @@ import { createServer as createHttpServer } from 'http'
 import { request as httpsRequest, Agent } from 'https'
 import { homedir, hostname } from 'os'
 import { join } from 'path'
-import { copyFileSync, existsSync, appendFileSync } from 'fs'
+import { copyFileSync, existsSync, appendFileSync, mkdirSync } from 'fs'
 import { PROVIDER_COLOR } from './render-table.js'
 import { loadOpenCodeConfig, saveOpenCodeConfig } from './opencode-config.js'
 import { getApiKey, listApiKeys } from './config.js'
@@ -428,7 +428,6 @@ function logToRealtimeFile(prefix, data) {
     // Ensure log directory exists
     const logDir = dirname(GLM_PROXY_LOG_PATH);
     if (!existsSync(logDir)) {
-      const { mkdirSync } = await import('fs');
       mkdirSync(logDir, { recursive: true });
     }
     
