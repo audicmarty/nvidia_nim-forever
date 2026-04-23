@@ -19,7 +19,7 @@
  * @see sources.js — model data validated here
  */
 
-import { describe, it } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync, accessSync, constants, chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
@@ -3932,6 +3932,18 @@ describe('MOUSE_ENABLE / MOUSE_DISABLE sequences', () => {
 
 // ─── Shell Env tests ─────────────────────────────────────────────────────────
 describe('Shell Env', () => {
+  let tmpHome
+  before(() => {
+    tmpHome = join(tmpdir(), `fcm-test-home-${Date.now()}`)
+    mkdirSync(tmpHome, { recursive: true })
+    process.env.FCM_TEST_HOME = tmpHome
+  })
+
+  after(() => {
+    delete process.env.FCM_TEST_HOME
+    try { rmSync(tmpHome, { recursive: true, force: true }) } catch { /* best effort */ }
+  })
+
   it('buildEnvContent generates export lines for bash/zsh', () => {
     const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
     const content = buildEnvContent(config, 'bash')
@@ -3995,11 +4007,10 @@ describe('Shell Env', () => {
   })
 
   it('buildRcSourceLine uses ~/ relative path for home dir', () => {
-    const home = homedir()
-    const envPath = join(home, '.free-coding-models.env')
+    const envPath = join(tmpHome, '.free-coding-models.env')
     const line = buildRcSourceLine(envPath, 'zsh')
     assert.ok(line.includes('~/.free-coding-models.env'))
-    assert.ok(!line.includes(home))
+    assert.ok(!line.includes(tmpHome))
   })
 
   it('getEnvFilePath returns absolute path in home directory', () => {
@@ -4016,9 +4027,6 @@ describe('Shell Env', () => {
   })
 
   it('syncShellEnv writes env file and removes it when no keys', () => {
-    const tmpDir = join(tmpdir(), `fcm-test-shellenv-${Date.now()}`)
-    mkdirSync(tmpDir, { recursive: true })
-
     const config = { apiKeys: { nvidia: 'nvapi-test' }, settings: { shellEnvEnabled: true } }
     const result = syncShellEnv(config)
     assert.ok(result.success)

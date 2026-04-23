@@ -43,6 +43,8 @@ import chalk from 'chalk'
 import { ENV_VAR_NAMES } from './provider-metadata.js'
 import { saveConfig } from './config.js'
 
+const getHome = () => process.env.FCM_TEST_HOME || homedir()
+
 // 📖 Unique marker used to identify the source line we inject into shell rc files.
 // 📖 This allows idempotent add/remove without relying on exact path matching.
 export const ENV_FILE_MARKER = '# free-coding-models-env'
@@ -55,7 +57,7 @@ const ENV_FILE_NAME = '.free-coding-models.env'
  * @returns {string}
  */
 export function getEnvFilePath() {
-  return join(homedir(), ENV_FILE_NAME)
+  return join(getHome(), ENV_FILE_NAME)
 }
 
 /**
@@ -68,7 +70,7 @@ export function getEnvFilePath() {
  */
 export function detectShellInfo() {
   const shellEnv = (process.env.SHELL || '').toLowerCase()
-  const home = homedir()
+  const home = getHome()
 
   if (shellEnv.includes('zsh')) {
     return { shell: 'zsh', rcPath: join(home, '.zshrc') }
@@ -150,7 +152,7 @@ export function buildEnvContent(config, shell) {
  * @returns {string} A single line to append to the rc file
  */
 export function buildRcSourceLine(envFilePath, shell) {
-  const home = homedir()
+  const home = getHome()
   // 📖 Use ~/ relative path in rc for portability
   const relativePath = envFilePath.startsWith(home)
     ? '~/' + envFilePath.slice(home.length + 1)
