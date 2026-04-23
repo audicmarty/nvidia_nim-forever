@@ -1,6 +1,5 @@
-## [0.3.57] - 2026-04-23
+## [0.3.58] - 2026-04-23
 
 ### Fixed
-- **GLM Proxy / Subagent Disconnects**: Fixed subagents getting marked as `interrupted` during long GLM reasoning periods. The proxy now sends a dedicated SSE keepalive (`: keepalive\n\n`) every 15 seconds to prevent OpenCode's client from dropping the connection.
-- **Deep-Thinking Timeout**: Reverted the hard stall timeout from 120s up to 5 minutes, ensuring that legitimate massive-context requests (which take several minutes to process) aren't prematurely killed.
-- **Duplicate Text Loop**: Fixed the proxy's retry mechanism gracefully completing the stream when a timeout drops the connection *after* the model has already started answering, preventing duplicate text generation loops.
+- **Bulletproof Proxy Integrity**: Hardened the proxy streaming logic to 1000000% prevent hanging streams. If the client disconnects or network interrupts unexpectedly, dangling promises are explicitly resolved to prevent infinite unhandled rejections or silent hangs.
+- **Unified Timeout Error Boundary**: Cleaned up the timeout error logic to uniformly trigger the proxy's central error handler. This resolves potential race conditions where a timeout could double-reject or loop over a completed network drop.

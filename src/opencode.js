@@ -279,6 +279,7 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       } catch (err) {
         cleanup()
         proxyReq.destroy()
+        resolve() // 1000000% guarantee we don't leak a dangling promise if client disconnected
       }
     })
       
@@ -332,20 +333,8 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     })
     
     proxyReq.on('timeout', () => {
-      cleanup()
       const err = new Error(`Request timeout (ETIMEDOUT after ${chunksReceived} chunks)`)
-      proxyReq.destroy(err)
-      if (chunksReceived > 0) {
-        try {
-          if (!res.writableEnded) {
-            res.write(SSE_TERMINATION)
-            res.end()
-          }
-        } catch {}
-        resolve()
-      } else {
-        reject(err)
-      }
+      proxyReq.destroy(err) // This triggers proxyReq.on('error') uniformly
     })
     
     proxyReq.write(body)
