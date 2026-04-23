@@ -696,7 +696,10 @@ export function getApiKey(config, providerKey) {
 
   // 📖 Config file value
   const key = config?.apiKeys?.[providerKey]
-  if (key) return key
+  if (key) {
+    // 📖 If key is an array, return first element (multi-key support)
+    return Array.isArray(key) ? key[0] : key
+  }
 
   return null
 }

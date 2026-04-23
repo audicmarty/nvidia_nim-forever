@@ -43,12 +43,15 @@ export const nvidiaNim = [
   // ── S+ tier — SWE-bench Verified ≥70% ──
   ['deepseek-ai/deepseek-v3.2',                    'DeepSeek V3.2',       'S+', '73.1%', '128k'],
   ['moonshotai/kimi-k2.5',                         'Kimi K2.5',           'S+', '76.8%', '128k'],
-  ['z-ai/glm5',                                    'GLM 5',               'S+', '77.8%', '128k'],
-  ['z-ai/glm4.7',                                  'GLM 4.7',             'S+', '73.8%', '200k'],
+  ['z-ai/glm5', 'GLM 5', 'S+', '77.8%', '128k'],
+  ['z-ai/glm-5.1', 'GLM 5.1', 'S+', '58.4%', '131k'], // 📖 Supports thinking via chat_template_kwargs.enable_thinking
+  ['z-ai/glm-5.1-thinking', 'GLM 5.1 Thinking', 'S+', '58.4%', '131k'], // 📖 Same as GLM 5.1 but with visible reasoning in OpenCode
+  ['z-ai/glm4.7', 'GLM 4.7', 'S+', '73.8%', '200k'],
   ['moonshotai/kimi-k2-thinking',                  'Kimi K2 Thinking',    'S+', '71.3%', '256k'],
   ['minimaxai/minimax-m2.1',                       'MiniMax M2.1',        'S+', '74.0%', '200k'],
-  ['minimaxai/minimax-m2.5',                       'MiniMax M2.5',        'S+', '80.2%', '200k'],
-  ['stepfun-ai/step-3.5-flash',                    'Step 3.5 Flash',      'S+', '74.4%', '256k'],
+  ['minimaxai/minimax-m2.5', 'MiniMax M2.5', 'S+', '80.2%', '200k'],
+  ['minimaxai/minimax-m2.7', 'MiniMax M2.7', 'S+', '56.2%', '204k'], // 📖 230B MoE, temp=1.0, top_p=0.95 recommended
+  ['stepfun-ai/step-3.5-flash', 'Step 3.5 Flash', 'S+', '74.4%', '256k'],
   ['qwen/qwen3-coder-480b-a35b-instruct',          'Qwen3 Coder 480B',    'S+', '70.6%', '256k'],
   ['qwen/qwen3-235b-a22b',                         'Qwen3 235B',          'S+', '70.0%', '128k'],
   ['mistralai/devstral-2-123b-instruct-2512',      'Devstral 2 123B',     'S+', '72.2%', '256k'],

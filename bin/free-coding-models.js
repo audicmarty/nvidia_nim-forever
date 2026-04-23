@@ -54,8 +54,25 @@ async function main() {
     return
   }
 
-  // 📖 Load JSON config
+  // 📖 Load JSON config (needed before agents mode)
   const config = loadConfig();
+  
+  // 📖 --agents mode: launch multi-agent orchestrator
+  if (cliArgs.agentsMode) {
+    const { runAgentsMode } = await import('../src/agents/cli.js')
+    const apiKeys = [
+      config?.apiKeys?.nvidia || process.env.NVIDIA_API_KEY,
+      Array.isArray(config?.apiKeys?.nvidia) ? config.apiKeys.nvidia[1] : null
+    ].filter(Boolean)
+    
+    if (apiKeys.length === 0) {
+      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: free-coding-models'))
+      process.exit(1)
+    }
+    
+    await runAgentsMode(cliArgs, apiKeys)
+    return
+  }
   ensureTelemetryConfig(config);
   ensureFavoritesConfig(config);
 

@@ -37,7 +37,9 @@ const SERVER_SIGNATURE = 'free-coding-models-web'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-let config = loadConfig()
+// 📖 CRITICAL: Copy config on load, don't reference live object
+// Tests and web API calls must not mutate the user's real config
+let config = JSON.parse(JSON.stringify(loadConfig()))
 
 // Build results array from MODELS (same shape as the TUI)
 const results = MODELS.map(([modelId, label, tier, sweScore, ctx, providerKey], idx) => ({

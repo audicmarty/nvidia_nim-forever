@@ -425,12 +425,25 @@ export function parseArgs(argv) {
     ? pingIntervalIdx + 1
     : -1
 
+  // 📖 --agents mode arguments
+  const projectIdx = args.findIndex(a => a.toLowerCase() === '--project')
+  const projectValueIdx = (projectIdx !== -1 && args[projectIdx + 1] && !args[projectIdx + 1].startsWith('--'))
+    ? projectIdx + 1
+    : -1
+
+  const taskIdx = args.findIndex(a => a.toLowerCase() === '--task')
+  const taskValueIdx = (taskIdx !== -1 && args[taskIdx + 1] && !args[taskIdx + 1].startsWith('--'))
+    ? taskIdx + 1
+    : -1
+
   // 📖 Set of arg indices that are values for flags (not API keys)
   const skipIndices = new Set()
   if (tierValueIdx !== -1) skipIndices.add(tierValueIdx)
   if (sortValueIdx !== -1) skipIndices.add(sortValueIdx)
   if (originValueIdx !== -1) skipIndices.add(originValueIdx)
   if (pingIntervalValueIdx !== -1) skipIndices.add(pingIntervalValueIdx)
+  if (projectValueIdx !== -1) skipIndices.add(projectValueIdx)
+  if (taskValueIdx !== -1) skipIndices.add(taskValueIdx)
 
   for (const [i, arg] of args.entries()) {
     if (arg.startsWith('--') || arg === '-h') {
@@ -482,11 +495,16 @@ export function parseArgs(argv) {
   let originFilter = originValueIdx !== -1 ? args[originValueIdx] : null
   let pingInterval = pingIntervalValueIdx !== -1 ? parseInt(args[pingIntervalValueIdx], 10) : null
   let sortDirection = sortDesc ? 'desc' : (sortAscFlag ? 'asc' : null)
+  let project = projectValueIdx !== -1 ? args[projectValueIdx] : null
+  let task = taskValueIdx !== -1 ? args[taskValueIdx] : null
 
   // 📖 Profile system removed - API keys now persist permanently across all sessions
 
-  // 📖 --recommend — launch directly into Smart Recommend mode (Q key equivalent)
+    // 📖 --recommend — launch directly into Smart Recommend mode (Q key equivalent)
   const recommendMode = flags.includes('--recommend')
+  
+  // 📖 --agents — launch multi-agent orchestrator
+  const agentsMode = flags.includes('--agents') || args[0] === 'agents'
 
   return {
     apiKey,
@@ -523,6 +541,9 @@ export function parseArgs(argv) {
     showUnconfigured,
     premiumMode,
     webMode,
+    agentsMode,
+    project,
+    task,
     // 📖 Profile system removed - API keys now persist permanently across all sessions
     recommendMode,
   }

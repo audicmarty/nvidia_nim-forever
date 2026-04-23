@@ -62,8 +62,8 @@ const SETTINGS_TEST_RETRY_DELAY_MS = 4000
 // 📖   - replicate: uses /v1/predictions (not /models) but needs a different payload
 // 📖   - cloudflare: no auth endpoint — only has chat completions, always uses ping fallback
 const PROVIDER_AUTH_ENDPOINTS = {
-  nvidia:       { url: 'https://api.nvidia.com/v1/account',           method: 'GET' },
-  groq:         { url: 'https://api.groq.com/v1/models',             method: 'GET' },
+  nvidia: null, // 📖 NVIDIA NIM doesn't have a reliable /v1/account endpoint; use ping only
+  groq: { url: 'https://api.groq.com/v1/models', method: 'GET' },
   cerebras:     { url: 'https://api.cerebras.ai/v1/models',          method: 'GET' },
   sambanova:    { url: 'https://api.sambanova.ai/v1/models',         method: 'GET' },
   openrouter:   { url: 'https://openrouter.ai/api/v1/models',        method: 'GET' },
@@ -2343,11 +2343,39 @@ export function createKeyHandler(ctx) {
       return
     }
 
-    // 📖 Q key: open Smart Recommend overlay
-    if (key.name === 'q') {
-      openRecommendOverlay()
-      return
-    }
+  // 📖 Q key: open Smart Recommend overlay
+  if (key.name === 'q') {
+    openRecommendOverlay()
+    return
+  }
+
+  // 📖 A key: launch Multi-Agent Orchestrator
+  if (key.name === 'a' && !key.ctrl && !key.meta) {
+    // Get current model context for the task
+    const currentModel = state.visibleSorted[state.cursor]
+    const modelContext = currentModel ? `Using ${currentModel.label}` : ''
+    
+    stopUi({ resetRawMode: true })
+    console.log(chalk.cyan('\n🤖 Launching Multi-Agent Orchestrator...'))
+    console.log(chalk.dim('Spawning Manager → Coders → Reviewers'))
+    console.log(chalk.dim('Press Ctrl+C to stop\n'))
+    
+    // Launch agents mode with current model as preference
+    import('../src/agents/cli.js').then(({ runAgentsMode }) => {
+      const apiKeys = [
+        state.config?.apiKeys?.nvidia,
+        Array.isArray(state.config?.apiKeys?.nvidia) ? state.config.apiKeys.nvidia[1] : null
+      ].filter(Boolean)
+      
+      if (apiKeys.length === 0) {
+        console.log(chalk.yellow('No NVIDIA API keys configured. Add them in Settings (P key).'))
+        process.exit(0)
+      }
+      
+      runAgentsMode({ project: 'fcm-project', task: modelContext || 'Code implementation' }, apiKeys)
+    })
+    return
+  }
 
     // 📖 Y key toggles favorites display mode (pinned+sticky vs normal rows).
     if (key.name === 'y' && !key.ctrl && !key.meta) {
