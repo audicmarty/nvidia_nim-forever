@@ -1,8 +1,8 @@
 /**
  * @file provider-metadata.js
  * @description Provider metadata, environment variable names, and OpenCode model ID mapping.
- *              Extracted from bin/free-coding-models.js to allow shared access by setup wizard,
- *              Settings overlay, and OpenCode integration helpers.
+ * Extracted from bin/nvidia-nim-forever.js to allow shared access by setup wizard,
+ * Settings overlay, and OpenCode integration helpers.
  *
  * @details
  *   This module owns three separate concerns that all relate to "knowing about providers":
@@ -25,7 +25,7 @@
  *   PROVIDER_METADATA, ENV_VAR_NAMES, OPENCODE_MODEL_MAP,
  *   isWindows, isMac, isLinux
  *
- * @see bin/free-coding-models.js  — consumes all exports from this module
+ * @see bin/nvidia-nim-forever.js — consumes all exports from this module
  * @see src/config.js              — resolveApiKeys / getApiKey use ENV_VAR_NAMES indirectly
  */
 
@@ -37,7 +37,7 @@ export const isMac     = process.platform === 'darwin'
 export const isLinux   = process.platform === 'linux'
 
 // 📖 ENV_VAR_NAMES: maps providerKey → shell env var name for passing resolved keys to child processes.
-// 📖 When a key is stored only in ~/.free-coding-models.json (not in the shell env), we inject it
+// 📖 When a key is stored only in ~/.nvidia-nim-forever.json (not in the shell env), we inject it
 // 📖 into the child's env so OpenCode's {env:VAR} references still resolve.
 export const ENV_VAR_NAMES = {
   nvidia: 'NVIDIA_API_KEY',

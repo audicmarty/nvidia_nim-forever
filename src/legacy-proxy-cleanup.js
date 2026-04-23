@@ -4,17 +4,17 @@
  *
  * @details
  *   📖 The old global proxy/daemon stack has been removed from the product, but
- *   📖 some users may still have persisted `fcm-proxy` entries, env files, or
+ * 📖 some users may still have persisted `nnf-proxy` entries, env files, or
  *   📖 runtime artifacts from earlier versions.
  *
- *   📖 This module removes only the legacy proxy markers that are now obsolete:
- *   - `fcm-proxy` providers inside tool configs
- *   - proxy-only env files for removed tools
- *   - daemon/log artifacts from the old bridge
- *   - stale proxy fields in `~/.free-coding-models.json`
+ * 📖 This module removes only the legacy proxy markers that are now obsolete:
+ * - `nnf-proxy` providers inside tool configs
+ * - proxy-only env files for removed tools
+ * - daemon/log artifacts from the old bridge
+ * - stale proxy fields in `~/.nvidia-nim-forever.json`
  *
- *   📖 It intentionally preserves current direct-provider installs such as
- *   📖 `fcm-nvidia`, `fcm-groq`, or the current OpenHands env file when it is
+ * 📖 It intentionally preserves current direct-provider installs such as
+ * 📖 `nnf-nvidia`, `nnf-groq`, or the current OpenHands env file when it is
  *   📖 clearly configured for direct provider usage instead of the removed proxy.
  *
  * @functions
@@ -29,12 +29,12 @@ import { join } from 'node:path'
 
 const LEGACY_TOOL_MODES = new Set(['claude-code', 'codex', 'gemini'])
 const LEGACY_RUNTIME_FILES = ['daemon.json', 'daemon-stdout.log', 'daemon-stderr.log', 'request-log.jsonl']
-const LEGACY_ENV_FILES = ['.fcm-claude-code-env', '.fcm-codex-env', '.fcm-gemini-env']
+const LEGACY_ENV_FILES = ['.nnf-claude-code-env', '.nnf-codex-env', '.nnf-gemini-env']
 
 function getDefaultPaths(homeDir) {
   return {
-    configPath: join(homeDir, '.free-coding-models.json'),
-    dataDir: join(homeDir, '.free-coding-models'),
+    configPath: join(homeDir, '.nvidia-nim-forever.json'),
+    dataDir: join(homeDir, '.nvidia-nim-forever'),
     opencodeConfigPath: join(homeDir, '.config', 'opencode', 'opencode.json'),
     openclawConfigPath: join(homeDir, '.openclaw', 'openclaw.json'),
     crushConfigPath: join(homeDir, '.config', 'crush', 'crush.json'),
@@ -46,8 +46,8 @@ function getDefaultPaths(homeDir) {
     aiderConfigPath: join(homeDir, '.aider.conf.yml'),
     ampConfigPath: join(homeDir, '.config', 'amp', 'settings.json'),
     qwenConfigPath: join(homeDir, '.qwen', 'settings.json'),
-    launchAgentPath: join(homeDir, 'Library', 'LaunchAgents', 'com.fcm.proxy.plist'),
-    systemdServicePath: join(homeDir, '.config', 'systemd', 'user', 'fcm-proxy.service'),
+    launchAgentPath: join(homeDir, 'Library', 'LaunchAgents', 'com.nnf.proxy.plist'),
+    systemdServicePath: join(homeDir, '.config', 'systemd', 'user', 'nnf-proxy.service'),
     shellProfilePaths: [
       join(homeDir, '.zshrc'),
       join(homeDir, '.bashrc'),
@@ -169,8 +169,8 @@ function cleanupLegacyEnvFiles(homeDir, summary) {
 
 function cleanupShellProfiles(profilePaths, summary) {
   const patterns = [
-    /# 📖 FCM Proxy — Claude Code env vars/,
-    /\.fcm-claude-code-env/,
+    /# 📖 NNF Proxy — Claude Code env vars/,
+    /\.nnf-claude-code-env/,
   ]
 
   for (const profilePath of profilePaths) {
@@ -192,12 +192,12 @@ function cleanupShellProfiles(profilePaths, summary) {
 function cleanupOpenCode(filePath, summary) {
   updateJsonFile(filePath, (config) => {
     let removedEntries = 0
-    if (config.provider?.['fcm-proxy']) {
-      delete config.provider['fcm-proxy']
+    if (config.provider?.['nnf-proxy']) {
+      delete config.provider['nnf-proxy']
       removedEntries += 1
       if (Object.keys(config.provider).length === 0) delete config.provider
     }
-    if (typeof config.model === 'string' && config.model.startsWith('fcm-proxy/')) {
+    if (typeof config.model === 'string' && config.model.startsWith('nnf-proxy/')) {
       delete config.model
       removedEntries += 1
     }
@@ -208,13 +208,13 @@ function cleanupOpenCode(filePath, summary) {
 function cleanupOpenClaw(filePath, summary) {
   updateJsonFile(filePath, (config) => {
     let removedEntries = 0
-    if (config.models?.providers?.['fcm-proxy']) {
-      delete config.models.providers['fcm-proxy']
+    if (config.models?.providers?.['nnf-proxy']) {
+      delete config.models.providers['nnf-proxy']
       removedEntries += 1
     }
     if (config.agents?.defaults?.models && typeof config.agents.defaults.models === 'object') {
       for (const key of Object.keys(config.agents.defaults.models)) {
-        if (key.startsWith('fcm-proxy/')) {
+        if (key.startsWith('nnf-proxy/')) {
           delete config.agents.defaults.models[key]
           removedEntries += 1
         }
@@ -227,15 +227,15 @@ function cleanupOpenClaw(filePath, summary) {
 function cleanupCrush(filePath, summary) {
   updateJsonFile(filePath, (config) => {
     let removedEntries = 0
-    if (config.providers?.['fcm-proxy']) {
-      delete config.providers['fcm-proxy']
+    if (config.providers?.['nnf-proxy']) {
+      delete config.providers['nnf-proxy']
       removedEntries += 1
     }
-    if (config.models?.large?.provider === 'fcm-proxy') {
+    if (config.models?.large?.provider === 'nnf-proxy') {
       delete config.models.large
       removedEntries += 1
     }
-    if (config.models?.small?.provider === 'fcm-proxy') {
+    if (config.models?.small?.provider === 'nnf-proxy') {
       delete config.models.small
       removedEntries += 1
     }
@@ -264,14 +264,14 @@ function writeSimpleYamlMap(filePath, entries) {
 }
 
 function cleanupGoose(paths, summary) {
-  deleteFileIfExists(join(paths.gooseProvidersDir, 'fcm-proxy.json'), summary)
+  deleteFileIfExists(join(paths.gooseProvidersDir, 'nnf-proxy.json'), summary)
 
   if (existsSync(paths.gooseSecretsPath)) {
     try {
       const secrets = readSimpleYamlMap(paths.gooseSecretsPath)
-      if ('FCM_PROXY_API_KEY' in secrets) {
-        delete secrets.FCM_PROXY_API_KEY
-        writeSimpleYamlMap(paths.gooseSecretsPath, secrets)
+    if ('NNF_PROXY_API_KEY' in secrets) {
+      delete secrets.NNF_PROXY_API_KEY
+      writeSimpleYamlMap(paths.gooseSecretsPath, secrets)
         noteUpdatedFile(summary, paths.gooseSecretsPath, 1)
       }
     } catch (error) {
@@ -282,10 +282,10 @@ function cleanupGoose(paths, summary) {
   if (existsSync(paths.gooseConfigPath)) {
     try {
       const lines = readFileSync(paths.gooseConfigPath, 'utf8').split(/\r?\n/)
-      const hadLegacyProvider = lines.some((line) => /^GOOSE_PROVIDER:\s*fcm-proxy\s*$/.test(line))
-      if (hadLegacyProvider) {
-        const filtered = lines.filter((line) => {
-          if (/^GOOSE_PROVIDER:\s*fcm-proxy\s*$/.test(line)) return false
+    const hadLegacyProvider = lines.some((line) => /^GOOSE_PROVIDER:\s*nnf-proxy\s*$/.test(line))
+    if (hadLegacyProvider) {
+      const filtered = lines.filter((line) => {
+        if (/^GOOSE_PROVIDER:\s*nnf-proxy\s*$/.test(line)) return false
           if (/^GOOSE_MODEL:\s*/.test(line)) return false
           return true
         })
@@ -301,8 +301,8 @@ function cleanupGoose(paths, summary) {
 function cleanupPi(paths, summary) {
   updateJsonFile(paths.piModelsPath, (config) => {
     let removedEntries = 0
-    if (config.providers?.['fcm-proxy']) {
-      delete config.providers['fcm-proxy']
+    if (config.providers?.['nnf-proxy']) {
+      delete config.providers['nnf-proxy']
       removedEntries += 1
     }
     return removedEntries
@@ -310,11 +310,11 @@ function cleanupPi(paths, summary) {
 
   updateJsonFile(paths.piSettingsPath, (config) => {
     let removedEntries = 0
-    if (config.defaultProvider === 'fcm-proxy') {
+    if (config.defaultProvider === 'nnf-proxy') {
       delete config.defaultProvider
       removedEntries += 1
     }
-    if (typeof config.defaultModel === 'string' && config.defaultModel.startsWith('fcm-proxy/')) {
+    if (typeof config.defaultModel === 'string' && config.defaultModel.startsWith('nnf-proxy/')) {
       delete config.defaultModel
       removedEntries += 1
     }
@@ -326,7 +326,7 @@ function cleanupAider(filePath, summary) {
   if (!existsSync(filePath)) return
   try {
     const content = readFileSync(filePath, 'utf8')
-    const isLegacyProxyConfig = content.includes('FCM Proxy V2') || /openai-api-base:\s*http:\/\/127\.0\.0\.1:/i.test(content)
+    const isLegacyProxyConfig = content.includes('NNF Proxy V2') || /openai-api-base:\s*http:\/\/127\.0\.0\.1:/i.test(content)
     if (isLegacyProxyConfig) {
       unlinkSync(filePath)
       noteRemovedFile(summary, filePath)
@@ -359,9 +359,9 @@ function cleanupQwen(filePath, summary) {
     if (Array.isArray(config.modelProviders?.openai)) {
       const next = []
       for (const entry of config.modelProviders.openai) {
-        const isLegacyEntry = entry?.envKey === 'FCM_PROXY_API_KEY'
-          || (typeof entry?.baseUrl === 'string' && /127\.0\.0\.1|localhost/.test(entry.baseUrl))
-          || (typeof entry?.id === 'string' && entry.id.startsWith('fcm-proxy/'))
+      const isLegacyEntry = entry?.envKey === 'NNF_PROXY_API_KEY'
+        || (typeof entry?.baseUrl === 'string' && /127\.0\.0\.1|localhost/.test(entry.baseUrl))
+        || (typeof entry?.id === 'string' && entry.id.startsWith('nnf-proxy/'))
         if (isLegacyEntry) {
           if (typeof entry?.id === 'string') removedIds.add(entry.id)
           removedEntries += 1
@@ -371,7 +371,7 @@ function cleanupQwen(filePath, summary) {
       }
       config.modelProviders.openai = next
     }
-    if (typeof config.model === 'string' && (config.model.startsWith('fcm-proxy/') || removedIds.has(config.model))) {
+    if (typeof config.model === 'string' && (config.model.startsWith('nnf-proxy/') || removedIds.has(config.model))) {
       delete config.model
       removedEntries += 1
     }

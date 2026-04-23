@@ -1,5 +1,5 @@
 {
-  "name": "free-coding-models",
+  "name": "nvidia-nim-forever",
   "version": "1.1.2",
   "description": "NVIDIA NIM models launcher with multi-key GLM proxy — optimized for NVIDIA's free tier with thinking support.",
   "keywords": [
@@ -23,22 +23,21 @@
     "openai",
     "api"
   ],
-  "homepage": "https://github.com/vava-nessa/free-coding-models#readme",
+  "homepage": "https://github.com/vava-nessa/nvidia-nim-forever#readme",
   "bugs": {
-    "url": "https://github.com/vava-nessa/free-coding-models/issues"
+    "url": "https://github.com/vava-nessa/nvidia-nim-forever/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vava-nessa/free-coding-models.git"
+    "url": "git+https://github.com/vava-nessa/nvidia-nim-forever.git"
   },
   "license": "MIT",
   "author": "vava",
   "type": "module",
-  "main": "bin/free-coding-models.js",
+  "main": "bin/nvidia-nim-forever.js",
   "bin": {
-    "free-coding-models": "./bin/free-coding-models.js",
-    "fcm": "./bin/free-coding-models.js",
-    "nnf": "./bin/free-coding-models.js"
+    "nvidia-nim-forever": "./bin/nvidia-nim-forever.js",
+    "nnf": "./bin/nvidia-nim-forever.js"
   },
   "files": [
     "bin/",
@@ -52,14 +51,14 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "start": "node bin/free-coding-models.js",
+    "start": "node bin/nvidia-nim-forever.js",
     "test": "node --test test/test.js",
     "prepack": "npm run build:web",
     "dev:web": "node scripts/dev-web.mjs",
     "build:web": "vite build",
     "preview:web": "vite preview",
-    "test:fcm": "node scripts/testfcm-runner.mjs",
-    "test:fcm:mock": "node scripts/testfcm-runner.mjs --tool crush --tool-bin-dir test/fixtures/mock-bin"
+    "test:nnf": "node scripts/testnnf-runner.mjs",
+    "test:nnf:mock": "node scripts/testnnf-runner.mjs --tool crush --tool-bin-dir test/fixtures/mock-bin"
   },
   "dependencies": {
     "chalk": "^5.6.2"

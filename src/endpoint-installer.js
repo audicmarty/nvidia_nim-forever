@@ -52,7 +52,7 @@ import { getToolMeta } from './tool-metadata.js'
 const DIRECT_INSTALL_UNSUPPORTED_PROVIDERS = new Set(['replicate', 'zai', 'rovo', 'gemini', 'opencode-zen'])
 // 📖 Install Endpoints only lists tools whose persisted config shape is actually supported here.
 // 📖 Claude Code, Codex, and Gemini stay out while their dedicated bridges are being rebuilt.
-const INSTALL_TARGET_MODES = ['opencode', 'opencode-desktop', 'opencode-web', 'openclaw', 'kilo', 'crush', 'goose', 'pi', 'aider', 'qwen', 'openhands', 'amp', 'hermes', 'continue', 'cline', 'fcm_router']
+const INSTALL_TARGET_MODES = ['opencode', 'opencode-desktop', 'opencode-web', 'openclaw', 'kilo', 'crush', 'goose', 'pi', 'aider', 'qwen', 'openhands', 'amp', 'hermes', 'continue', 'cline', 'nnf_router']
 
 function getDefaultPaths() {
   const home = homedir()
@@ -132,7 +132,7 @@ function canonicalizeToolMode(toolMode) {
 }
 
 function getManagedProviderId(providerKey) {
-  return `fcm-${providerKey}`
+  return `nnf-${providerKey}`
 }
 
 function getProviderLabel(providerKey) {
@@ -140,7 +140,7 @@ function getProviderLabel(providerKey) {
 }
 
 function getManagedProviderLabel(providerKey) {
-  return `FCM ${getProviderLabel(providerKey)}`
+  return `NNF ${getProviderLabel(providerKey)}`
 }
 
 function parseContextWindow(ctx) {
@@ -316,13 +316,13 @@ function installIntoCrush(providerKey, models, apiKey, paths) {
 function installIntoGoose(providerKey, models, apiKey, paths) {
   const providerId = getManagedProviderId(providerKey)
   const providerFilePath = join(paths.gooseProvidersDir, `${providerId}.json`)
-  const secretEnvName = `FCM_${providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+  const secretEnvName = `NNF_${providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
 
   const providerConfig = {
     name: providerId,
     engine: 'openai',
     display_name: getManagedProviderLabel(providerKey),
-    description: `Managed by free-coding-models for ${getProviderLabel(providerKey)}`,
+    description: `Managed by nvidia-nim-forever for ${getProviderLabel(providerKey)}`,
     api_key_env: secretEnvName,
     base_url: resolveGooseBaseUrl(providerKey),
     models: models.map((model) => ({
@@ -488,7 +488,7 @@ function installIntoQwen(providerKey, models, apiKey, paths) {
 function installIntoEnvBasedTool(providerKey, models, apiKey, toolMode) {
   const providerId = getManagedProviderId(providerKey)
   const home = homedir()
-  const envFileName = `.fcm-${toolMode}-env`
+  const envFileName = `.nnf-${toolMode}-env`
   const envFilePath = join(home, envFileName)
   const primaryModel = models[0]
   const effectiveApiKey = apiKey
@@ -496,7 +496,7 @@ function installIntoEnvBasedTool(providerKey, models, apiKey, toolMode) {
   const effectiveModelId = primaryModel.modelId
 
   const envLines = [
-    '# 📖 Managed by free-coding-models — source this file before launching the tool',
+    '# 📖 Managed by nvidia-nim-forever — source this file before launching the tool',
     `# 📖 Provider: ${getProviderLabel(providerKey)} (${models.length} models)`,
     '# 📖 Connection: Direct provider',
     `export OPENAI_API_KEY="${effectiveApiKey}"`,
@@ -513,11 +513,11 @@ function installIntoEnvBasedTool(providerKey, models, apiKey, toolMode) {
   return { path: envFilePath, backupPath, providerId, modelCount: models.length }
 }
 
-// 📖 installIntoFcmRouter: adds provider endpoints to the running FCM Router daemon
+// 📖 installIntoNnfRouter: adds provider endpoints to the running NNF Router daemon
 // via the /sets API so the router can use them for failover routing.
-function installIntoFcmRouter(providerKey, models, apiKey) {
-  const baseUrl = `http://localhost:${process.env.FCM_ROUTER_PORT || '19280'}`
-  const routerSetName = `fcm-${providerKey}`
+function installIntoNnfRouter(providerKey, models, apiKey) {
+  const baseUrl = `http://localhost:${process.env.NNF_ROUTER_PORT || '19280'}`
+  const routerSetName = `nnf-${providerKey}`
   const routerModels = models.map((m) => ({
     providerKey,
     modelId: m.modelId,
@@ -536,7 +536,7 @@ function installIntoFcmRouter(providerKey, models, apiKey) {
     // 📖 Daemon not running or unreachable — non-fatal, user will see offline banner
   })
 
-  return { path: `FCM Router (${baseUrl})`, backupPath: null, providerId: providerKey, modelCount: models.length }
+  return { path: `NNF Router (${baseUrl})`, backupPath: null, providerId: providerKey, modelCount: models.length }
 }
 
 export function installProviderEndpoints(config, providerKey, toolMode, options = {}) {
@@ -574,8 +574,8 @@ export function installProviderEndpoints(config, providerKey, toolMode, options 
     installResult = installIntoQwen(providerKey, models, apiKey, paths)
   } else if (canonicalToolMode === 'openhands') {
     installResult = installIntoEnvBasedTool(providerKey, models, apiKey, canonicalToolMode, paths)
-  } else if (canonicalToolMode === 'fcm_router') {
-    installResult = installIntoFcmRouter(providerKey, models, apiKey)
+  } else if (canonicalToolMode === 'nnf_router') {
+    installResult = installIntoNnfRouter(providerKey, models, apiKey)
   } else {
     throw new Error(`Unsupported install target: ${toolMode}`)
   }

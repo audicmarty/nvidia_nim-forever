@@ -2,7 +2,7 @@
 
 ## Goal
 
-Run a repeatable AI-assisted end-to-end check of `free-coding-models` that:
+Run a repeatable AI-assisted end-to-end check of `nvidia-nim-forever` that:
 
 1. opens the real TUI in a PTY
 2. selects a model through the normal launcher path
@@ -35,7 +35,7 @@ pnpm test:fcm:mock:claude
 
 ## What the runner does
 
-The runner lives at [scripts/testfcm-runner.mjs](../scripts/testfcm-runner.mjs).
+The runner lives at [scripts/testnnf-runner.mjs](../scripts/testnnf-runner.mjs).
 
 It will:
 

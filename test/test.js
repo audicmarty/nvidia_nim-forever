@@ -81,13 +81,13 @@ import {
 import {
   buildFixTasks,
   classifyToolTranscript,
-  createTestfcmRunId,
+  createTestnnfRunId,
   extractJsonPayload,
   hasConfiguredKey,
-  normalizeTestfcmToolName,
-  pickTestfcmSelectionIndex,
-  resolveTestfcmToolSpec,
-} from '../src/testfcm.js'
+  normalizeTestnnfToolName,
+  pickTestnnfSelectionIndex,
+  resolveTestnnfToolSpec,
+} from '../src/testnnf.js'
 import {
   buildCommandPaletteEntries,
   fuzzyMatchCommand,
@@ -114,8 +114,8 @@ function mockResult(overrides = {}) {
 }
 
 const ROUTER_TEST_MODELS = Object.freeze({
-  groqFast: 'llama-3.3-70b-versatile',
-  groqBackup: 'openai/gpt-oss-120b',
+  nvidiaFast: 'deepseek-ai/deepseek-v3.2',
+  nvidiaBackup: 'openai/gpt-oss-120b',
   nvidiaFast: 'deepseek-ai/deepseek-v3.2',
 })
 
@@ -269,7 +269,7 @@ function buildRouterTestConfig(models, overrides = {}) {
 }
 
 async function withRouterTestServer(config, fn) {
-  const tokenPath = join(tmpdir(), `fcm-router-test-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`)
+  const tokenPath = join(tmpdir(), `nnf-router-test-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`)
   const runtime = createRouterRuntimeForTest({
     config,
     tokenPath,
@@ -1398,20 +1398,20 @@ describe('renderSettings provider test badges', () => {
       config,
     }
 
-    return createOverlayRenderers(state, {
-      chalk,
-      sources: { groq: sources.groq },
-      PROVIDER_METADATA: {
-        groq: {
-          label: 'Groq',
-          rateLimits: 'Free dev tier',
-          signupUrl: 'https://console.groq.com/keys',
-          signupHint: 'API Keys → Create API Key',
-        },
+  return createOverlayRenderers(state, {
+    chalk,
+    sources: { nvidia: sources.nvidia },
+    PROVIDER_METADATA: {
+      nvidia: {
+        label: 'NVIDIA NIM',
+        rateLimits: 'Free dev tier',
+        signupUrl: 'https://build.nvidia.com',
+        signupHint: 'API Keys → Create API Key',
       },
-      PROVIDER_COLOR: {
-        groq: [255, 204, 188],
-      },
+    },
+    PROVIDER_COLOR: {
+      nvidia: [76, 185, 0],
+    },
       LOCAL_VERSION: '0.2.1',
       getApiKey,
       resolveApiKeys: (cfg, providerKey) => {
@@ -1762,7 +1762,7 @@ describe('telemetry', () => {
       },
     })
 
-    assert.equal(properties.app, 'free-coding-models')
+    assert.equal(properties.app, 'nvidia-nim-forever')
     assert.equal(properties.mode, 'openclaw')
     assert.equal(properties.session_id, 'session_test')
     assert.equal(properties.tool_mode, 'openclaw')
@@ -1889,8 +1889,8 @@ describe('package.json sanity', () => {
   })
 
   it('bin entry points to existing file', () => {
-    const binPath = join(ROOT, pkg.bin['free-coding-models'])
-    assert.ok(existsSync(binPath), `bin entry ${pkg.bin['free-coding-models']} should exist`)
+    const binPath = join(ROOT, pkg.bin['nvidia-nim-forever'])
+    assert.ok(existsSync(binPath), `bin entry ${pkg.bin['nvidia-nim-forever']} should exist`)
   })
 
   it('main entry points to existing file', () => {
@@ -1918,7 +1918,7 @@ describe('package.json sanity', () => {
 })
 
 describe('CLI entry point sanity', () => {
-  const binContent = readFileSync(join(ROOT, 'bin/free-coding-models.js'), 'utf8')
+  const binContent = readFileSync(join(ROOT, 'bin/nvidia-nim-forever.js'), 'utf8')
 
   it('has shebang line', () => {
     assert.ok(binContent.startsWith('#!/usr/bin/env node'), 'Should start with shebang')
@@ -2181,39 +2181,38 @@ describe('config profile functions', () => {
 
 describe('buildPersistedConfig', () => {
   it('preserves disk apiKeys and favorites when a stale snapshot saves unrelated changes', () => {
-    const diskConfig = {
-      apiKeys: {
-        nvidia: 'disk-nvidia',
-        groq: 'disk-groq',
-      },
-      providers: {},
-      settings: { hideUnconfiguredModels: true },
-      favorites: ['nvidia/model-a', 'groq/model-b'],
-      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
-      endpointInstalls: [],
-      activeProfile: null,
-      profiles: {},
-    }
+  const diskConfig = {
+    apiKeys: {
+      nvidia: 'disk-nvidia-1',
+      nvidia: 'disk-nvidia-2',
+    },
+    providers: {},
+    settings: { hideUnconfiguredModels: true },
+    favorites: ['nvidia/model-a', 'nvidia/model-b'],
+    telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+    endpointInstalls: [],
+    activeProfile: null,
+    profiles: {},
+  }
 
-    const incomingConfig = {
-      apiKeys: {
-        nvidia: 'disk-nvidia',
-      },
-      providers: {},
-      settings: { hideUnconfiguredModels: false },
-      favorites: ['nvidia/model-a'],
-      telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
-      endpointInstalls: [],
-      activeProfile: null,
-      profiles: {},
-    }
+  const incomingConfig = {
+    apiKeys: {
+      nvidia: 'disk-nvidia-1',
+    },
+    providers: {},
+    settings: { hideUnconfiguredModels: false },
+    favorites: ['nvidia/model-a'],
+    telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
+    endpointInstalls: [],
+    activeProfile: null,
+    profiles: {},
+  }
 
-    const persisted = buildPersistedConfig(incomingConfig, diskConfig)
-    assert.deepEqual(persisted.apiKeys, {
-      nvidia: 'disk-nvidia',
-      groq: 'disk-groq',
-    })
-    assert.deepEqual(persisted.favorites, ['nvidia/model-a', 'groq/model-b'])
+  const persisted = buildPersistedConfig(incomingConfig, diskConfig)
+  assert.deepEqual(persisted.apiKeys, {
+    nvidia: ['disk-nvidia-1', 'disk-nvidia-2'],
+  })
+  assert.deepEqual(persisted.favorites, ['nvidia/model-a', 'nvidia/model-b'])
     assert.equal(persisted.settings.hideUnconfiguredModels, false)
   })
 
@@ -2222,7 +2221,7 @@ describe('buildPersistedConfig', () => {
       apiKeys: {},
       providers: {},
       settings: { hideUnconfiguredModels: true },
-      favorites: ['nvidia/model-a', 'groq/model-b'],
+      favorites: ['nvidia/model-a', 'nvidia/model-b'],
       telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
       endpointInstalls: [],
       activeProfile: null,
@@ -2233,7 +2232,7 @@ describe('buildPersistedConfig', () => {
       apiKeys: {},
       providers: {},
       settings: { hideUnconfiguredModels: true },
-      favorites: ['groq/model-b'],
+      favorites: ['nvidia/model-b'],
       telemetry: { enabled: null, consentVersion: 0, anonymousId: null },
       endpointInstalls: [],
       activeProfile: null,
@@ -2241,14 +2240,14 @@ describe('buildPersistedConfig', () => {
     }
 
     const persisted = buildPersistedConfig(incomingConfig, diskConfig, { replaceFavorites: true })
-    assert.deepEqual(persisted.favorites, ['groq/model-b'])
+    assert.deepEqual(persisted.favorites, ['nvidia/model-b'])
   })
 
   it('can exactly replace apiKeys when a provider key is intentionally removed', () => {
     const diskConfig = {
       apiKeys: {
-        nvidia: 'disk-nvidia',
-        groq: 'disk-groq',
+        nvidia: 'disk-nvidia-1',
+        nvidia: 'disk-nvidia-2',
       },
       providers: {},
       settings: { hideUnconfiguredModels: true },
@@ -2261,7 +2260,7 @@ describe('buildPersistedConfig', () => {
 
     const incomingConfig = {
       apiKeys: {
-        nvidia: 'disk-nvidia',
+        nvidia: 'disk-nvidia-1',
       },
       providers: {},
       settings: { hideUnconfiguredModels: true },
@@ -2273,7 +2272,7 @@ describe('buildPersistedConfig', () => {
     }
 
     const persisted = buildPersistedConfig(incomingConfig, diskConfig, { replaceApiKeys: true })
-    assert.deepEqual(persisted.apiKeys, { nvidia: 'disk-nvidia' })
+    assert.deepEqual(persisted.apiKeys, { nvidia: 'disk-nvidia-1' })
   })
 
   it('can exactly replace tracked endpoint installs when managed catalogs are rewritten', () => {
@@ -2429,7 +2428,7 @@ describe('router daemon integration hardening', () => {
           const payload = await response.json()
 
           assert.equal(response.status, 200)
-          assert.equal(response.headers.get('x-fcm-router-model'), `groq/${ROUTER_TEST_MODELS.groqFast}`)
+          assert.equal(response.headers.get('x-nnf-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
           assert.equal(payload.id, 'chatcmpl-success')
           assert.equal(groqProvider.requests.length, 1)
           assert.equal(groqProvider.requests[0].headers.authorization, 'Bearer gsk-router-test')
@@ -2453,7 +2452,7 @@ describe('router daemon integration hardening', () => {
             const payload = await response.json()
 
             assert.equal(response.status, 200)
-            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.equal(response.headers.get('x-nnf-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
             assert.equal(payload.id, 'chatcmpl-failover')
             assert.equal(groqProvider.requests.length, 1)
             assert.equal(nvidiaProvider.requests.length, 1)
@@ -2479,7 +2478,7 @@ describe('router daemon integration hardening', () => {
             const text = await response.text()
 
             assert.equal(response.status, 200)
-            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.equal(response.headers.get('x-nnf-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
             assert.match(text, /"ok"/)
             assert.equal(groqProvider.requests.length, 1)
             assert.equal(nvidiaProvider.requests.length, 1)
@@ -2529,7 +2528,7 @@ describe('router daemon integration hardening', () => {
             const response = await postRouterChat(baseUrl)
 
             assert.equal(response.status, 200)
-            assert.equal(response.headers.get('x-fcm-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
+            assert.equal(response.headers.get('x-nnf-router-model'), `nvidia/${ROUTER_TEST_MODELS.nvidiaFast}`)
             assert.equal(groqProvider.requests.length, 1)
             assert.equal(nvidiaProvider.requests.length, 1)
           })
@@ -2830,12 +2829,12 @@ describe('token-usage-reader', () => {
 
 describe('/testfcm helpers', () => {
   it('normalizes common tool aliases to canonical launcher modes', () => {
-    assert.equal(normalizeTestfcmToolName('opencodecli'), 'opencode')
-    assert.equal(normalizeTestfcmToolName('crush'), 'crush')
+    assert.equal(normalizeTestnnfToolName('opencodecli'), 'opencode')
+    assert.equal(normalizeTestnnfToolName('crush'), 'crush')
   })
 
   it('resolves a known tool spec and keeps its CLI flag', () => {
-    const spec = resolveTestfcmToolSpec('goose')
+    const spec = resolveTestnnfToolSpec('goose')
     assert.equal(spec?.mode, 'goose')
     assert.equal(spec?.flag, '--goose')
   })
@@ -2848,7 +2847,7 @@ describe('/testfcm helpers', () => {
   })
 
   it('builds compact run ids from timestamps', () => {
-    assert.equal(createTestfcmRunId(new Date('2026-03-16T18:45:12.345Z')), '20260316-184512-345')
+    assert.equal(createTestnnfRunId(new Date('2026-03-16T18:45:12.345Z')), '20260316-184512-345')
   })
 
   it('extracts JSON arrays from mixed stdout text', () => {
@@ -2857,7 +2856,7 @@ describe('/testfcm helpers', () => {
   })
 
   it('picks the first clearly healthy preflight row before pressing Enter', () => {
-    const index = pickTestfcmSelectionIndex([
+    const index = pickTestnnfSelectionIndex([
       { status: 'down', httpCode: 'ERR' },
       { status: 'up', httpCode: '401' },
       { status: 'up', httpCode: '200' },

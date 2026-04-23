@@ -620,7 +620,7 @@ function getOpenCodeModelId(providerKey, modelId) {
 // ─── Shared OpenCode spawn helper ─────────────────────────────────────────────
 
 // 📖 spawnOpenCode: Resolve API keys + spawn opencode CLI with correct env.
-async function spawnOpenCode(args, providerKey, fcmConfig, existingZaiProxy = null, model = null, existingGlmProxy = null) {
+async function spawnOpenCode(args, providerKey, nnfConfig, existingZaiProxy = null, model = null, existingGlmProxy = null) {
   const envVarName = ENV_VAR_NAMES[providerKey]
   const resolvedKey = getApiKey(fcmConfig, providerKey)
   const childEnv = { ...process.env }
@@ -685,10 +685,10 @@ async function spawnOpenCode(args, providerKey, fcmConfig, existingZaiProxy = nu
       if (providerKey === 'nvidia') {
         try {
           const cfg = loadOpenCodeConfig()
-          if (cfg.provider?.['fcm-glm']) delete cfg.provider['fcm-glm']
-          if (cfg.provider?.['fcm-nvidia']) delete cfg.provider['fcm-nvidia']
-          if (typeof cfg.model === 'string' && cfg.model.startsWith('fcm-glm/')) delete cfg.model
-          if (typeof cfg.model === 'string' && cfg.model.startsWith('fcm-nvidia/')) delete cfg.model
+  if (cfg.provider?.['nnf-glm']) delete cfg.provider['nnf-glm']
+  if (cfg.provider?.['nnf-nvidia']) delete cfg.provider['nnf-nvidia']
+  if (typeof cfg.model === 'string' && cfg.model.startsWith('nnf-glm/')) delete cfg.model
+  if (typeof cfg.model === 'string' && cfg.model.startsWith('nnf-nvidia/')) delete cfg.model
           saveOpenCodeConfig(cfg)
         } catch { /* best-effort cleanup */ }
       }
@@ -710,7 +710,7 @@ async function spawnOpenCode(args, providerKey, fcmConfig, existingZaiProxy = nu
 
 // ─── Start OpenCode CLI ───────────────────────────────────────────────────────
 
-export async function startOpenCode(model, fcmConfig) {
+export async function startOpenCode(model, nnfConfig) {
   const providerKey = model.providerKey ?? 'nvidia'
   const ocModelId = getOpenCodeModelId(providerKey, model.modelId)
   const modelRef = `${providerKey}/${ocModelId}`
@@ -724,14 +724,14 @@ export async function startOpenCode(model, fcmConfig) {
       console.log(chalk.dim(` Backup: ${backupPath}`))
     }
     
-    // 📖 Cleanup: Remove stale fcm-nvidia entries (leftover from old versions with hardcoded test keys)
-    if (config.provider?.['fcm-nvidia']) {
-      delete config.provider['fcm-nvidia']
-      if (typeof config.model === 'string' && config.model.startsWith('fcm-nvidia/')) delete config.model
+  // 📖 Cleanup: Remove stale nnf-nvidia entries (leftover from old versions with hardcoded test keys)
+  if (config.provider?.['nnf-nvidia']) {
+    delete config.provider['nnf-nvidia']
+    if (typeof config.model === 'string' && config.model.startsWith('nnf-nvidia/')) delete config.model
       saveOpenCodeConfig(config)
     }
     
-    const allKeys = listApiKeys(fcmConfig, 'nvidia')
+    const allKeys = listApiKeys(nnfConfig, 'nvidia')
     const primaryKey = allKeys[0] || resolvedKey
     const secondaryKey = allKeys[1] || null
     const isMultiKey = allKeys.length > 1
@@ -747,18 +747,18 @@ export async function startOpenCode(model, fcmConfig) {
       if (!config.provider) config.provider = {}
       const thinkingModelId = (isGlmModel && !ocModelId.includes('thinking')) ? `${ocModelId}-thinking` : ocModelId
       
-      // 📖 Always sync/update the fcm-nvidia provider for proxy mode
-      config.provider['fcm-nvidia'] = {
-        npm: '@ai-sdk/openai-compatible',
-        name: isGlmModel ? 'FCM NIM (with thinking)' : 'FCM NIM (multi-key)',
-        options: {
-          baseURL: `http://127.0.0.1:${nimProxyPort}/v1`,
-          apiKey: '{env:NVIDIA_API_KEY}'
-        },
-        models: {}
-      }
-      config.provider['fcm-nvidia'].models[thinkingModelId] = { name: isGlmModel ? `${model.label} (Thinking)` : model.label }
-      const nimModelRef = `fcm-nvidia/${thinkingModelId}`
+  // 📖 Always sync/update the nnf-nvidia provider for proxy mode
+  config.provider['nnf-nvidia'] = {
+    npm: '@ai-sdk/openai-compatible',
+    name: isGlmModel ? 'NNF NIM (with thinking)' : 'NNF NIM (multi-key)',
+    options: {
+      baseURL: `http://127.0.0.1:${nimProxyPort}/v1`,
+      apiKey: '{env:NVIDIA_API_KEY}'
+    },
+    models: {}
+  }
+  config.provider['nnf-nvidia'].models[thinkingModelId] = { name: isGlmModel ? `${model.label} (Thinking)` : model.label }
+  const nimModelRef = `nnf-nvidia/${thinkingModelId}`
       config.model = nimModelRef
       
       saveOpenCodeConfig(config)
@@ -781,7 +781,7 @@ export async function startOpenCode(model, fcmConfig) {
       console.log(chalk.dim(' Starting OpenCode...'))
       console.log()
       
-      await spawnOpenCode(['--model', nimModelRef], providerKey, fcmConfig, null, model, nimProxyServer)
+      await spawnOpenCode(['--model', nimModelRef], providerKey, nnfConfig, null, model, nimProxyServer)
       return
     }
     
@@ -825,7 +825,7 @@ export async function startOpenCode(model, fcmConfig) {
     console.log(chalk.dim(' Starting OpenCode...'))
     console.log()
     
-    await spawnOpenCode(['--model', modelRef], providerKey, fcmConfig)
+    await spawnOpenCode(['--model', modelRef], providerKey, nnfConfig)
     return
   }
   
@@ -838,7 +838,7 @@ export async function startOpenCode(model, fcmConfig) {
   }
   
   if (providerKey === 'zai') {
-    const resolvedKey = getApiKey(fcmConfig, providerKey)
+  const resolvedKey = getApiKey(nnfConfig, providerKey)
     if (!resolvedKey) {
       console.log(chalk.yellow(' ZAI API key not found. Set ZAI_API_KEY environment variable.'))
       console.log()
@@ -894,7 +894,7 @@ export async function startOpenCode(model, fcmConfig) {
     console.log(chalk.dim(' Starting OpenCode...'))
     console.log()
     
-    await spawnOpenCode(['--model', modelRef], providerKey, fcmConfig, zaiProxyServer)
+    await spawnOpenCode(['--model', modelRef], providerKey, nnfConfig, zaiProxyServer)
     return
   }
   
@@ -919,7 +919,7 @@ async function launchWeb(port) {
   })
 }
 
-export async function startOpenCodeWeb(model, fcmConfig) {
+export async function startOpenCodeWeb(model, nnfConfig) {
   console.log(chalk.green(` Starting OpenCode Web with ${chalk.bold(model.label)}...`))
   await launchWeb(3000)
 }
@@ -940,7 +940,7 @@ async function launchDesktop() {
   })
 }
 
-export async function startOpenCodeDesktop(model, fcmConfig) {
+export async function startOpenCodeDesktop(model, nnfConfig) {
   const providerKey = model.providerKey ?? 'nvidia'
   const ocModelId = getOpenCodeModelId(providerKey, model.modelId)
   const modelRef = `${providerKey}/${ocModelId}`

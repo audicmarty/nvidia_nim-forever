@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/** 
-* @file free-coding-models.js
-* @description Live terminal availability checker for NVIDIA NIM models with OpenCode integration.
-*/
+/**
+ * @file nvidia-nim-forever.js
+ * @description Live terminal availability checker for NVIDIA NIM models with OpenCode integration.
+ */
 
 import chalk from 'chalk';
 import { parseArgs, TIER_LETTER_MAP } from '../src/utils.js';
@@ -22,7 +22,7 @@ process.on('uncaughtException', (err) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled exception occurred.'));
   console.error(err);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+    console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
 
@@ -34,7 +34,7 @@ process.on('unhandledRejection', (reason, promise) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled promise rejection occurred.'));
   console.error(reason);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+    console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
 
@@ -43,7 +43,7 @@ async function main() {
 
   if (cliArgs.helpMode) {
     console.log();
-    console.log(buildCliHelpText({ chalk, title: 'free-coding-models' }));
+    console.log(buildCliHelpText({ chalk, title: 'nvidia-nim-forever' }));
     console.log();
     process.exit(0);
   }
@@ -59,7 +59,7 @@ async function main() {
   // 📖 --web mode: launch the web dashboard instead of the TUI
   if (cliArgs.webMode) {
     const { startWebServer } = await import('../web/server.js')
-    const port = parseInt(process.env.FCM_PORT || '3333', 10)
+    const port = parseInt(process.env.NNF_PORT || '3333', 10)
     await startWebServer(port, { open: true })
     return
   }
@@ -76,7 +76,7 @@ async function main() {
     ].filter(Boolean)
     
     if (apiKeys.length === 0) {
-      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: free-coding-models'))
+      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: nvidia-nim-forever'))
       process.exit(1)
     }
     
@@ -93,7 +93,7 @@ main().catch((err) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error]'));
   console.error(err);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+    console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
 

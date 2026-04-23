@@ -1,36 +1,36 @@
 /**
- * @file src/testfcm.js
- * @description Shared helpers for the AI-driven `/testfcm` workflow.
+ * @file src/testnnf.js
+ * @description Shared helpers for the AI-driven `/testnnf` workflow.
  *
  * @details
  *   📖 These helpers stay side-effect free on purpose so the reporting logic can
  *   📖 be unit-tested without spawning a PTY or touching the user's machine.
  *
- *   📖 The runner in `scripts/testfcm-runner.mjs` handles the live terminal work:
+ * 📖 The runner in `scripts/testnnf-runner.mjs` handles the live terminal work:
  *   📖 copying config into an isolated HOME, driving the TUI, launching a tool,
  *   📖 sending a prompt, collecting logs, and writing the final Markdown report.
  *   📖 This module focuses on the pieces that should remain stable and reusable:
  *   📖 tool metadata, transcript classification, JSON extraction, and report text.
  *
  * @functions
- *   → `normalizeTestfcmToolName` — map aliases like `claude` to canonical FCM tool modes
- *   → `resolveTestfcmToolSpec` — return the runner metadata for one tool mode
- *   → `hasConfiguredKey` — decide whether a config entry really contains an API key
- *   → `createTestfcmRunId` — build a stable timestamp-based run id for artifacts
- *   → `extractJsonPayload` — recover JSON mode output even when logs prefix stdout
- *   → `pickTestfcmSelectionIndex` — pick the most promising preflight row before sending Enter
- *   → `detectTranscriptFindings` — map raw tool output to actionable failure findings
- *   → `classifyToolTranscript` — classify a run as passed, failed, or inconclusive
- *   → `buildFixTasks` — convert findings into concrete follow-up work items
- *   → `buildTestfcmReport` — render the final Markdown report written under `task/`
+ * → `normalizeTestnnfToolName` — map aliases like `claude` to canonical NNF tool modes
+ * → `resolveTestnnfToolSpec` — return the runner metadata for one tool mode
+ * → `hasConfiguredKey` — decide whether a config entry really contains an API key
+ * → `createTestnnfRunId` — build a stable timestamp-based run id for artifacts
+ * → `extractJsonPayload` — recover JSON mode output even when logs prefix stdout
+ * → `pickTestnnfSelectionIndex` — pick the most promising preflight row before sending Enter
+ * → `detectTranscriptFindings` — map raw tool output to actionable failure findings
+ * → `classifyToolTranscript` — classify a run as passed, failed, or inconclusive
+ * → `buildFixTasks` — convert findings into concrete follow-up work items
+ * → `buildTestnnfReport` — render the final Markdown report written under `task/`
  *
- * @exports TESTFCM_TOOL_SPECS, normalizeTestfcmToolName, resolveTestfcmToolSpec
- * @exports hasConfiguredKey, createTestfcmRunId, extractJsonPayload, pickTestfcmSelectionIndex
+ * @exports TESTNNF_TOOL_SPECS, normalizeTestnnfToolName, resolveTestnnfToolSpec
+ * @exports hasConfiguredKey, createTestnnfRunId, extractJsonPayload, pickTestnnfSelectionIndex
  * @exports detectTranscriptFindings, classifyToolTranscript, buildFixTasks
- * @exports buildTestfcmReport
+ * @exports buildTestnnfReport
  */
 
-export const TESTFCM_TOOL_SPECS = {
+export const TESTNNF_TOOL_SPECS = {
   crush: {
     mode: 'crush',
     label: 'Crush',
@@ -97,7 +97,7 @@ export const TESTFCM_TOOL_SPECS = {
   },
 }
 
-const TESTFCM_TOOL_ALIASES = {
+const TESTNNF_TOOL_ALIASES = {
   opencodecli: 'opencode',
 }
 
@@ -148,27 +148,27 @@ const SUCCESS_PATTERNS = [
 ]
 
 /**
- * 📖 Normalize a user/tool alias to the canonical FCM tool mode.
+ * 📖 Normalize a user/tool alias to the canonical NNF tool mode.
  *
  * @param {string | null | undefined} value
  * @returns {string | null}
  */
-export function normalizeTestfcmToolName(value) {
+export function normalizeTestnnfToolName(value) {
   if (typeof value !== 'string' || value.trim().length === 0) return null
   const normalized = value.trim().toLowerCase()
-  return TESTFCM_TOOL_ALIASES[normalized] || normalized
+  return TESTNNF_TOOL_ALIASES[normalized] || normalized
 }
 
 /**
- * 📖 Resolve one `/testfcm` tool spec from user input.
+ * 📖 Resolve one `/testnnf` tool spec from user input.
  *
  * @param {string | null | undefined} value
- * @returns {typeof TESTFCM_TOOL_SPECS[keyof typeof TESTFCM_TOOL_SPECS] | null}
+ * @returns {typeof TESTNNF_TOOL_SPECS[keyof typeof TESTNNF_TOOL_SPECS] | null}
  */
-export function resolveTestfcmToolSpec(value) {
-  const normalized = normalizeTestfcmToolName(value)
+export function resolveTestnnfToolSpec(value) {
+  const normalized = normalizeTestnnfToolName(value)
   if (!normalized) return null
-  return TESTFCM_TOOL_SPECS[normalized] || null
+  return TESTNNF_TOOL_SPECS[normalized] || null
 }
 
 /**
@@ -186,13 +186,13 @@ export function hasConfiguredKey(value) {
 
 /**
  * 📖 Build an artifact-friendly run id such as `20260316-184512-123`.
- * 📖 Milliseconds keep concurrent `/testfcm` runs from clobbering each other's
+ * 📖 Milliseconds keep concurrent `/testnnf` runs from clobbering each other's
  * 📖 reports and isolated HOME directories when they start in the same second.
  *
  * @param {Date} [date]
  * @returns {string}
  */
-export function createTestfcmRunId(date = new Date()) {
+export function createTestnnfRunId(date = new Date()) {
   const iso = date.toISOString()
   return iso
     .replace(/Z$/, '')
@@ -233,7 +233,7 @@ export function extractJsonPayload(text) {
  * @param {{ preferProxy?: boolean }} [options]
  * @returns {number}
  */
-export function pickTestfcmSelectionIndex(results, options = {}) {
+export function pickTestnnfSelectionIndex(results, options = {}) {
   if (!Array.isArray(results) || results.length === 0) return 0
 
   if (options.preferProxy === true) {
@@ -404,7 +404,7 @@ export function buildTestfcmReport(input) {
   const configuredProviders = Array.isArray(input.configuredProviders) ? input.configuredProviders : []
   const transcriptExcerpt = String(input.transcriptExcerpt || '').trim()
 
-  lines.push(`# /testfcm Report - ${input.runId}`)
+  lines.push(`# /testnnf Report - ${input.runId}`)
   lines.push('')
   lines.push(`- Status: **${input.status.toUpperCase()}**`)
   lines.push(`- Started: ${input.startedAt}`)

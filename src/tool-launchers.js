@@ -75,7 +75,7 @@ function getDefaultToolPaths(homeDir = homedir()) {
     ampConfigPath: join(homeDir, '.config', 'amp', 'settings.json'),
     piModelsPath: join(homeDir, '.pi', 'agent', 'models.json'),
     piSettingsPath: join(homeDir, '.pi', 'agent', 'settings.json'),
-    openHandsEnvPath: join(homeDir, '.fcm-openhands-env'),
+    openHandsEnvPath: join(homeDir, '.nnf-openhands-env'),
     hermesConfigPath: join(homeDir, '.hermes', 'config.yaml'),
     continueConfigPath: join(homeDir, '.continue', 'config.yaml'),
     clineConfigPath: join(homeDir, '.cline', 'globalState.json'),
@@ -322,9 +322,9 @@ function writePiConfig(model, apiKey, baseUrl, paths = getDefaultToolPaths()) {
 // 📖 API key in secrets.yaml, and update config.yaml with GOOSE_PROVIDER + GOOSE_MODEL
 // 📖 so Goose auto-selects the model on launch.
 function writeGooseConfig(model, apiKey, baseUrl, providerKey, paths = getDefaultToolPaths()) {
-  const providerId = `fcm-${providerKey}`
+  const providerId = `nnf-${providerKey}`
   const providerLabel = PROVIDER_METADATA[providerKey]?.label || sources[providerKey]?.name || providerKey
-  const secretEnvName = `FCM_${providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
+  const secretEnvName = `NNF_${providerKey.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
 
   // 📖 Step 1: Write custom provider JSON (same format as endpoint-installer)
   const providerFilePath = join(paths.gooseProvidersDir, `${providerId}.json`)
@@ -332,8 +332,8 @@ function writeGooseConfig(model, apiKey, baseUrl, providerKey, paths = getDefaul
   const providerConfig = {
     name: providerId,
     engine: 'openai',
-    display_name: `FCM ${providerLabel}`,
-    description: `Managed by free-coding-models for ${providerLabel}`,
+    display_name: `NNF ${providerLabel}`,
+    description: `Managed by nvidia-nim-forever for ${providerLabel}`,
     api_key_env: secretEnvName,
     base_url: baseUrl?.endsWith('/chat/completions') ? baseUrl : (baseUrl || ''),
     models: [{ name: model.modelId, context_limit: 128000 }],
@@ -630,7 +630,7 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
     const gooseBaseUrl = sources[model.providerKey]?.url || baseUrl || ''
     const gooseModelId = resolveLauncherModelId(model)
     const result = writeGooseConfig({ ...model, modelId: gooseModelId }, apiKey, gooseBaseUrl, model.providerKey, paths)
-    env.GOOSE_PROVIDER = `fcm-${model.providerKey}`
+    env.GOOSE_PROVIDER = `nnf-${model.providerKey}`
     env.GOOSE_MODEL = gooseModelId
     applyOpenAiCompatEnv(env, apiKey, gooseBaseUrl.replace(/\/chat\/completions$/, ''), gooseModelId)
     return {
@@ -818,7 +818,7 @@ export function prepareExternalToolLaunch(mode, model, config, options = {}) {
       ...env,
       OPENAI_BASE_URL: providerBaseUrl,
       OPENAI_API_KEY: apiKey,
-      OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || 'fcm-bypass',
+      OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || 'nnf-bypass',
     }
     console.log(chalk.dim(`  📖 jcode will use provider: openai-compatible / model: ${jcodeModelId}`))
     return {

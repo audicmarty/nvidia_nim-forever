@@ -50,13 +50,13 @@ import { sendUsageTelemetry } from './telemetry.js'
 
 export const ROUTER_DEFAULT_PORT = 19280
 export const ROUTER_MAX_PORT = 19289
-export const ROUTER_PID_PATH = join(homedir(), '.free-coding-models-daemon.pid')
-export const ROUTER_PORT_PATH = join(homedir(), '.free-coding-models-daemon.port')
-export const ROUTER_LOG_PATH = join(homedir(), '.free-coding-models-daemon.log')
-export const ROUTER_TOKENS_PATH = join(homedir(), '.free-coding-models-tokens.json')
+export const ROUTER_PID_PATH = join(homedir(), '.nvidia-nim-forever-daemon.pid')
+export const ROUTER_PORT_PATH = join(homedir(), '.nvidia-nim-forever-daemon.port')
+export const ROUTER_LOG_PATH = join(homedir(), '.nvidia-nim-forever-daemon.log')
+export const ROUTER_TOKENS_PATH = join(homedir(), '.nvidia-nim-forever-tokens.json')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const CLI_ENTRY_PATH = join(__dirname, '..', 'bin', 'free-coding-models.js')
+const CLI_ENTRY_PATH = join(__dirname, '..', 'bin', 'nvidia-nim-forever.js')
 const MAX_BODY_BYTES = 10 * 1024 * 1024
 const MAX_REQUEST_LOG = 200
 const MAX_SSE_CLIENTS = 10
@@ -1153,7 +1153,7 @@ class RouterRuntime {
         this.logger.info(`Routed to ${key} — ${latencyMs}ms`, { request_id: requestId, status: response.status })
         res.writeHead(response.status, {
           ...headerEntries(response.headers),
-          'x-fcm-router-model': key,
+          'x-nnf-router-model': key,
           'x-request-id': requestId,
         })
         res.end(text)
@@ -1174,7 +1174,7 @@ class RouterRuntime {
 
       res.writeHead(response.status, {
         ...headerEntries(response.headers),
-        'x-fcm-router-model': key,
+        'x-nnf-router-model': key,
         'x-request-id': requestId,
       })
       res.end(text)
@@ -1239,7 +1239,7 @@ class RouterRuntime {
         }
         res.writeHead(response.status, {
           ...headerEntries(response.headers),
-          'x-fcm-router-model': key,
+          'x-nnf-router-model': key,
           'x-request-id': requestId,
         })
         res.end(await response.text())
@@ -1266,7 +1266,7 @@ class RouterRuntime {
 
       res.writeHead(response.status, {
         ...headerEntries(response.headers),
-        'x-fcm-router-model': key,
+        'x-nnf-router-model': key,
         'x-request-id': requestId,
       })
       sentToClient = true

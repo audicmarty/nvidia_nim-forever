@@ -2893,7 +2893,7 @@ export function createKeyHandler(ctx) {
         process.exit(0)
       }
       
-      runAgentsMode({ project: 'fcm-project', task: modelContext || 'Code implementation' }, apiKeys)
+      runAgentsMode({ project: 'nnf-project', task: modelContext || 'Code implementation' }, apiKeys)
     })
     return
   }

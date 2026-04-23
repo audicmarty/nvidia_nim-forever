@@ -3,8 +3,8 @@
  * @description Exposes NVIDIA API keys as shell environment variables via a sourced dotfile.
  *
  * @details
- * Creates `~/.free-coding-models.env` containing `export NVIDIA_API_KEY="value"` lines,
- * and injects a single `[ -f ~/.free-coding-models.env ] && source ...`
+ * Creates `~/.nvidia-nim-forever.env` containing `export NVIDIA_API_KEY="value"` lines,
+ * and injects a single `[ -f ~/.nvidia-nim-forever.env ] && source ...`
  * line into the user's shell rc file (`.zshrc`, `.bashrc`, or fish `config.fish`).
  *
  * The env file is kept in sync automatically: every time `saveConfig()` or
@@ -24,7 +24,7 @@
  * → `ensureShellRcSource()` — add the source line to the detected shell rc (idempotent)
  * → `removeShellEnv()` — delete the .env file and remove the source line from rc
  * → `detectShellInfo()` — return { shell, rcPath } for the current user
- * → `getEnvFilePath()` — return the absolute path to ~/.free-coding-models.env
+ * → `getEnvFilePath()` — return the absolute path to ~/.nvidia-nim-forever.env
  * → `buildEnvContent(config, shell)` — build the env file body (pure function, testable)
  * → `buildRcSourceLine(envFilePath, shell)` — build the rc source line for a given shell
  *
@@ -43,14 +43,14 @@ import chalk from 'chalk'
 import { ENV_VAR_NAMES } from './provider-metadata.js'
 import { saveConfig } from './config.js'
 
-const getHome = () => process.env.FCM_TEST_HOME || homedir()
+const getHome = () => process.env.NNF_TEST_HOME || homedir()
 
 // 📖 Unique marker used to identify the source line we inject into shell rc files.
 // 📖 This allows idempotent add/remove without relying on exact path matching.
-export const ENV_FILE_MARKER = '# free-coding-models-env'
+export const ENV_FILE_MARKER = '# nvidia-nim-forever-env'
 
 // 📖 The env dotfile path — always next to the JSON config in $HOME.
-const ENV_FILE_NAME = '.free-coding-models.env'
+const ENV_FILE_NAME = '.nvidia-nim-forever.env'
 
 /**
  * 📖 Returns the absolute path to the env dotfile.

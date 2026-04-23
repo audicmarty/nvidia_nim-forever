@@ -33,7 +33,7 @@ import {
 } from '../src/utils.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const SERVER_SIGNATURE = 'free-coding-models-web'
+const SERVER_SIGNATURE = 'nvidia-nim-forever-web'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -219,7 +219,7 @@ function serveDistFile(res, pathname) {
 }
 
 function handleRequest(req, res) {
-  res.setHeader('X-FCM-Server', SERVER_SIGNATURE)
+  res.setHeader('X-NNF-Server', SERVER_SIGNATURE)
 
   // CORS for local dev
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -348,7 +348,7 @@ function checkPortInUse(port) {
 
 export async function inspectExistingWebServer(port) {
   const inUse = await checkPortInUse(port)
-  if (!inUse) return { inUse: false, isFcm: false }
+    if (!inUse) return { inUse: false, isNnf: false }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 750)
@@ -361,13 +361,13 @@ export async function inspectExistingWebServer(port) {
       headers: { Accept: 'application/json' },
     })
     const payload = await response.json().catch(() => null)
-    const signature = response.headers.get('x-fcm-server')
-    return {
-      inUse: true,
-      isFcm: signature === SERVER_SIGNATURE || payload?.app === SERVER_SIGNATURE,
-    }
+    const signature = response.headers.get('x-nnf-server')
+  return {
+    inUse: true,
+    isNnf: signature === SERVER_SIGNATURE || payload?.app === SERVER_SIGNATURE,
+  }
   } catch {
-    return { inUse: true, isFcm: false }
+    return { inUse: true, isNnf: false }
   } finally {
     clearTimeout(timeout)
   }
@@ -394,11 +394,11 @@ function openBrowser(url) {
 export async function startWebServer(port = 3333, { open = true, startPingLoop = true } = {}) {
   const portStatus = await inspectExistingWebServer(port)
 
-  if (portStatus.inUse && portStatus.isFcm) {
+  if (portStatus.inUse && portStatus.isNnf) {
     const url = `http://localhost:${port}`
 
     console.log()
-    console.log(`  ⚡ free-coding-models Web Dashboard already running`)
+    console.log(` ⚡ NVIDIA-NIM-Forever Web Dashboard already running`)
     console.log(`  🌐 ${url}`)
     console.log()
     if (open) openBrowser(url)
@@ -406,11 +406,11 @@ export async function startWebServer(port = 3333, { open = true, startPingLoop =
   }
 
   let resolvedPort = port
-  if (portStatus.inUse && !portStatus.isFcm) {
+  if (portStatus.inUse && !portStatus.isNnf) {
     resolvedPort = await findAvailablePort(port + 1)
     console.log()
     console.log(`  ⚠️ Port ${port} is already in use by another local app`)
-    console.log(`  ↪ Starting free-coding-models Web Dashboard on port ${resolvedPort} instead`)
+  console.log(` ↪ Starting NVIDIA-NIM-Forever Web Dashboard on port ${resolvedPort} instead`)
     console.log()
   }
 
@@ -421,7 +421,7 @@ export async function startWebServer(port = 3333, { open = true, startPingLoop =
 
   server.listen(resolvedPort, () => {
     console.log()
-    console.log(`  ⚡ free-coding-models Web Dashboard`)
+    console.log(` ⚡ NVIDIA-NIM-Forever Web Dashboard`)
     console.log(`  🌐 ${url}`)
     console.log(`  📊 Monitoring ${results.filter(r => !r.cliOnly).length} models across ${Object.keys(sources).length} providers`)
     console.log()

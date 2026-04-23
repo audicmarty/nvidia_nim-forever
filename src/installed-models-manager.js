@@ -17,7 +17,7 @@
  *   - Kilo (~/.config/kilo/opencode.json)
  *   - Qwen (~/.qwen/settings.json)
  *   - Pi (~/.pi/agent/models.json + settings.json)
- *   - OpenHands (~/.fcm-openhands-env)
+ * - OpenHands (~/.nnf-openhands-env)
  *   - Amp (~/.config/amp/settings.json)
  *
  *   📖 Backup system:
@@ -50,7 +50,7 @@ import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { sources } from '../sources.js'
 
-const BACKUP_PATH = join(homedir(), '.free-coding-models-backups.json')
+const BACKUP_PATH = join(homedir(), '.nvidia-nim-forever-backups.json')
 
 /**
  * 📖 Get tool config paths
@@ -64,7 +64,7 @@ function getToolConfigPaths(homeDir = homedir()) {
     qwen: join(homeDir, '.qwen', 'settings.json'),
     piModels: join(homeDir, '.pi', 'agent', 'models.json'),
     piSettings: join(homeDir, '.pi', 'agent', 'settings.json'),
-    openHands: join(homeDir, '.fcm-openhands-env'),
+    openHands: join(homeDir, '.nnf-openhands-env'),
     amp: join(homeDir, '.config', 'amp', 'settings.json'),
   }
 }
@@ -143,7 +143,7 @@ function parseGooseConfig(paths = getToolConfigPaths()) {
 
     return {
       isValid: true,
-      hasManagedMarker: yaml['GOOSE_PROVIDER']?.startsWith('fcm-'),
+      hasManagedMarker: yaml['GOOSE_PROVIDER']?.startsWith('nnf-'),
       models,
       configPath,
     }
