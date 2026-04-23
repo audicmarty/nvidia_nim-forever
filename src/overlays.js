@@ -180,6 +180,7 @@ export function createOverlayRenderers(state, deps) {
       else if (testResult === 'ok')   testBadge = themeColors.successBold('[Test ✅]')
       else if (testResult === 'missing_key') testBadge = themeColors.dim('[Missing Key 🔑]')
       else if (testResult === 'auth_error') testBadge = themeColors.error('[Auth ❌]')
+      else if (testResult === 'forbidden') testBadge = themeColors.warning('[Forbidden ⛔]')
       else if (testResult === 'rate_limited') testBadge = themeColors.warning('[Rate limit ⏳]')
       else if (testResult === 'no_callable_model') testBadge = chalk.rgb(...getProviderRgb('openrouter'))('[No model ⚠]')
       else if (testResult === 'fail') testBadge = themeColors.error('[Test ❌]')

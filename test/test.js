@@ -593,7 +593,7 @@ describe('provider key test model discovery', () => {
     assert.deepEqual(
       listProviderTestModels('nvidia', sources.nvidia, ['openai/gpt-oss-120b', 'deepseek-ai/deepseek-v3.2']).slice(0, 5),
       [
-        'deepseek-ai/deepseek-v3.1-terminus',
+        'meta/llama-3.1-8b-instruct',
         'openai/gpt-oss-120b',
         'deepseek-ai/deepseek-v3.2',
         'moonshotai/kimi-k2.5',
@@ -615,8 +615,9 @@ describe('classifyProviderTestOutcome', () => {
     assert.equal(classifyProviderTestOutcome(['404', '200']), 'ok')
   })
 
-  it('returns fail on auth errors', () => {
-    assert.equal(classifyProviderTestOutcome(['403']), 'auth_error')
+  it('returns auth_error for 401 and forbidden for 403', () => {
+    assert.equal(classifyProviderTestOutcome(['401']), 'auth_error')
+    assert.equal(classifyProviderTestOutcome(['403']), 'forbidden')
   })
 
   it('returns rate_limited when all attempted probes are throttled', () => {

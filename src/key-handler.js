@@ -68,7 +68,7 @@ import {
 // 📖 is not guaranteed to be accepted by their chat endpoint.
 const PROVIDER_TEST_MODEL_OVERRIDES = {
   sambanova: ['DeepSeek-V3-0324'],
-  nvidia: ['deepseek-ai/deepseek-v3.1-terminus', 'openai/gpt-oss-120b'],
+  nvidia: ['meta/llama-3.1-8b-instruct'],
 }
 
 // 📖 Settings key tests retry retryable failures across several models so a
@@ -212,7 +212,8 @@ export function listProviderTestModels(providerKey, src, discoveredModelIds = []
  */
 export function classifyProviderTestOutcome(codes) {
   if (codes.includes('200')) return 'ok'
-  if (codes.includes('401') || codes.includes('403')) return 'auth_error'
+  if (codes.includes('401')) return 'auth_error'
+  if (codes.includes('403')) return 'forbidden'
   if (codes.length > 0 && codes.every(code => code === '429')) return 'rate_limited'
   if (codes.length > 0 && codes.every(code => code === '404' || code === '410')) return 'no_callable_model'
   return 'fail'
@@ -226,6 +227,7 @@ export function buildProviderTestDetail(providerLabel, outcome, attempts = [], d
     missing_key: `${providerLabel} has no saved API key right now, so no authenticated test could be sent.`,
     ok: `${providerLabel} accepted the key.`,
     auth_error: `${providerLabel} rejected the configured key with an authentication error.`,
+    forbidden: `${providerLabel} recognized the key but denied access to the models (403 Forbidden).`,
     rate_limited: `${providerLabel} throttled every probe, so the key may still be valid but is currently rate-limited.`,
     no_callable_model: `${providerLabel} answered the requests, but none of the probed models were callable on its chat endpoint.`,
     fail: `${providerLabel} never returned a successful probe during the retry window.`,
@@ -235,6 +237,7 @@ export function buildProviderTestDetail(providerLabel, outcome, attempts = [], d
     missing_key: 'Save the key with Enter in Settings, then rerun T.',
     ok: attempts.length > 0 ? `Validated on ${attempts[attempts.length - 1].model}.` : 'The provider returned a success response.',
     auth_error: 'This usually means the saved key is invalid, expired, revoked, or truncated before it reached disk.',
+    forbidden: 'This usually means your account is out of credits, or the models require explicit opt-in on the provider\'s website.',
     rate_limited: 'Wait for the provider quota window to reset, then rerun T.',
     no_callable_model: 'The provider catalog or repo defaults likely drifted; try another model family or refresh the catalog.',
     fail: 'This can be caused by timeouts, 5xx responses, or a provider-side outage.',
@@ -663,9 +666,9 @@ export function createKeyHandler(ctx) {
         settled = true
         continue
       }
-      if (outcome === 'auth_error') {
-        state.settingsTestResults[providerKey] = 'auth_error'
-        state.settingsTestDetails[providerKey] = buildProviderTestDetail(providerLabel, 'auth_error', attempts, discoveryNote)
+      if (outcome === 'auth_error' || outcome === 'forbidden') {
+        state.settingsTestResults[providerKey] = outcome
+        state.settingsTestDetails[providerKey] = buildProviderTestDetail(providerLabel, outcome, attempts, discoveryNote)
         settled = true
         continue
       }
