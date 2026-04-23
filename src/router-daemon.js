@@ -1131,6 +1131,17 @@ class RouterRuntime {
         const usage = extractUsage(parsed.value)
         this.tokenTracker.record(candidate.provider, candidate.model, usage)
         this.totalRequestsRouted += 1
+        // 📖 Fire app_router_use telemetry once per 10 routed requests
+        if (this.totalRequestsRouted % 10 === 0) {
+          void sendUsageTelemetry(this.config, {}, {
+            event: 'app_router_use',
+            mode: 'daemon',
+            properties: {
+              total_requests: this.totalRequestsRouted,
+              active_set: this.routerConfig().activeSet,
+            },
+          })
+        }
         this.addRequestLog({
           request_id: requestId,
           model: key,

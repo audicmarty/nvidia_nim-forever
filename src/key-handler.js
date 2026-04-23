@@ -33,7 +33,10 @@
 
 import { loadChangelog } from './changelog-loader.js'
 import { getToolMeta, isModelCompatibleWithTool, getCompatibleTools, findSimilarCompatibleModels } from './tool-metadata.js'
-import { loadConfig, replaceConfigContents } from './config.js'
+import { loadConfig, saveConfig, replaceConfigContents } from './config.js'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
 import { cleanupLegacyProxyArtifacts } from './legacy-proxy-cleanup.js'
 import { getLastLayout, COLUMN_SORT_MAP } from './render-table.js'
 import { cycleThemeSetting, detectActiveTheme } from './theme.js'
@@ -2222,6 +2225,81 @@ export function createKeyHandler(ctx) {
       }
       if (key.name === 'end') {
         state.tokenUsageScrollOffset = Number.MAX_SAFE_INTEGER
+        return
+      }
+      return
+    }
+
+    // 📖 Router Onboarding overlay: shown on first launch. Y=yes enable, N=not now, Esc=cancel.
+    if (state.routerOnboardingOpen) {
+      if (key.ctrl && key.name === 'c') { exit(0); return }
+      if (state.routerOnboardingPhase === 'loading' || state.routerOnboardingPhase === 'success' || state.routerOnboardingPhase === 'error') {
+        if (key.name === 'escape' || key.name === 'return') {
+          state.routerOnboardingOpen = false
+          // 📖 Mark onboarding as seen (don't show again)
+          if (state.config?.router) {
+            state.config.router.onboardingSeen = true
+          }
+          return
+        }
+        return
+      }
+      if (key.name === 'escape' || key.name === 'n') {
+        state.routerOnboardingOpen = false
+        // 📖 Mark as seen and disabled
+        if (state.config?.router) {
+          state.config.router.onboardingSeen = true
+          state.config.router.enabled = false
+        }
+        return
+      }
+      if (key.name === 'up' || key.name === 'k') {
+        state.routerOnboardingCursor = 0
+        return
+      }
+      if (key.name === 'down' || key.name === 'j') {
+        state.routerOnboardingCursor = 1
+        return
+      }
+      if (key.name === 'return' || key.name === 'y') {
+        const shouldEnable = key.name === 'return' ? true : (state.routerOnboardingCursor === 0)
+        if (!shouldEnable) {
+          state.routerOnboardingOpen = false
+          if (state.config?.router) {
+            state.config.router.onboardingSeen = true
+            state.config.router.enabled = false
+          }
+          return
+        }
+        // 📖 Enable router: start daemon in background and mark onboarding seen
+        state.routerOnboardingPhase = 'loading'
+        state.routerOnboardingError = null
+        void (async () => {
+          try {
+            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'free-coding-models.js')
+            const child = spawn('node', [binPath, '--daemon-bg'], {
+              detached: true,
+              stdio: 'ignore',
+            })
+            child.unref()
+            await new Promise((r) => setTimeout(r, 2000))
+            if (state.routerOnboardingPhase === 'loading') {
+              state.routerOnboardingPhase = 'success'
+              if (state.config?.router) {
+                state.config.router.enabled = true
+                state.config.router.onboardingSeen = true
+                saveConfig(state.config)
+              }
+              trackTelemetryEvent('app_router_install', { router_version: '0.4.0' })
+              await new Promise((r) => setTimeout(r, 1500))
+              state.routerOnboardingOpen = false
+              openRouterDashboardOverlay(state)
+            }
+          } catch (err) {
+            state.routerOnboardingPhase = 'error'
+            state.routerOnboardingError = err?.message || 'Failed to start router'
+          }
+        })()
         return
       }
       return

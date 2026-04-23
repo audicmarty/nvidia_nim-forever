@@ -571,6 +571,15 @@ export async function runApp(cliArgs, config) {
     tokenUsageError: null,        // 📖 Error message if fetch failed
     tokenUsageScrollOffset: 0,   // 📖 Vertical scroll offset
     tokenUsageLastFetchAt: 0,    // 📖 Timestamp of last fetch
+    // 📖 Router onboarding overlay state (shown on first launch to new users)
+    routerOnboardingOpen: false, // 📖 Whether the router onboarding overlay is active
+    routerOnboardingCursor: 0,   // 📖 Selected option (0=Yes enable, 1=Not now, 2=Learn more)
+    routerOnboardingPhase: 'ask', // 📖 'ask' | 'loading' | 'success' | 'error'
+    routerOnboardingError: null,  // 📖 Error message if enable failed
+    routerOnboardingScrollOffset: 0,
+    // 📖 Router upgrade banner (shown once to existing users who haven't seen router)
+    routerUpgradeBannerShownAt: 0, // 📖 Timestamp when banner was shown (0 = not shown)
+    routerUpgradeBannerDismissedAt: 0, // 📖 Timestamp when banner was dismissed (0 = not dismissed)
     // 📖 Custom text filter (Ctrl+P palette → type text → Enter). Ephemeral — not saved to config.
     customTextFilter: null,       // 📖 Active free-text filter string (null = off). Matches model name, ctx, provider key/name.
   }
@@ -1161,6 +1170,12 @@ export async function runApp(cliArgs, config) {
       )
     }
 
+    // 📖 Router upgrade banner: inline notification for existing users not yet seen router
+    if (!state.routerOnboardingOpen && !state.settingsOpen && !state.installEndpointsOpen && !state.toolInstallPromptOpen && !state.installedModelsOpen && !state.routerDashboardOpen && !state.setsOpen && !state.tokenUsageOpen && !state.commandPaletteOpen && !state.recommendOpen && !state.feedbackOpen && !state.helpVisible && !state.changelogOpen && !state.incompatibleFallbackOpen) {
+      const banner = overlays.renderRouterUpgradeBanner()
+      if (banner) tableContent = banner + '\n' + tableContent
+    }
+
     const content = state.settingsOpen
       ? overlays.renderSettings()
       : state.installEndpointsOpen
@@ -1175,6 +1190,8 @@ export async function runApp(cliArgs, config) {
         ? overlays.renderSetsManager()
       : state.tokenUsageOpen
         ? overlays.renderTokenUsage()
+      : state.routerOnboardingOpen
+        ? overlays.renderRouterOnboarding()
       : state.incompatibleFallbackOpen
         ? overlays.renderIncompatibleFallback()
       : state.commandPaletteOpen
@@ -1336,6 +1353,20 @@ export async function runApp(cliArgs, config) {
     void fetchRouterFooterStats()
   }, ROUTER_FOOTER_POLL_INTERVAL_MS)
   void fetchRouterFooterStats() // 📖 Initial fetch immediately so footer is populated on first render
+
+  // 📖 Router onboarding: detect first launch (config.router absent) or upgrade
+  // 📖 (existing config but router.onboardingSeen !== true) and show appropriate prompt.
+  const routerCfg = state.config?.router
+  const isFirstLaunch = !routerCfg
+  const isUpgrade = routerCfg && routerCfg.onboardingSeen !== true
+  const alreadyEnabled = routerCfg?.enabled === true
+  if (isFirstLaunch || (isUpgrade && !alreadyEnabled)) {
+    state.routerOnboardingOpen = true
+    state.routerOnboardingCursor = 0
+    state.routerOnboardingPhase = 'ask'
+    state.routerOnboardingError = null
+    state.routerOnboardingScrollOffset = 0
+  }
 
   // 📖 Keep interface running forever - user can select anytime or Ctrl+C to exit
   // 📖 The pings continue running in background with dynamic interval

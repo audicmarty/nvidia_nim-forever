@@ -52,7 +52,7 @@ import { getToolMeta } from './tool-metadata.js'
 const DIRECT_INSTALL_UNSUPPORTED_PROVIDERS = new Set(['replicate', 'zai', 'rovo', 'gemini', 'opencode-zen'])
 // 📖 Install Endpoints only lists tools whose persisted config shape is actually supported here.
 // 📖 Claude Code, Codex, and Gemini stay out while their dedicated bridges are being rebuilt.
-const INSTALL_TARGET_MODES = ['opencode', 'opencode-desktop', 'opencode-web', 'openclaw', 'kilo', 'crush', 'goose', 'pi', 'aider', 'qwen', 'openhands', 'amp', 'hermes', 'continue', 'cline']
+const INSTALL_TARGET_MODES = ['opencode', 'opencode-desktop', 'opencode-web', 'openclaw', 'kilo', 'crush', 'goose', 'pi', 'aider', 'qwen', 'openhands', 'amp', 'hermes', 'continue', 'cline', 'fcm_router']
 
 function getDefaultPaths() {
   const home = homedir()
@@ -509,6 +509,32 @@ function installIntoEnvBasedTool(providerKey, models, apiKey, toolMode) {
   return { path: envFilePath, backupPath, providerId, modelCount: models.length }
 }
 
+// 📖 installIntoFcmRouter: adds provider endpoints to the running FCM Router daemon
+// via the /sets API so the router can use them for failover routing.
+function installIntoFcmRouter(providerKey, models, apiKey) {
+  const baseUrl = `http://localhost:${process.env.FCM_ROUTER_PORT || '19280'}`
+  const routerSetName = `fcm-${providerKey}`
+  const routerModels = models.map((m) => ({
+    providerKey,
+    modelId: m.modelId,
+    label: m.label || m.modelId,
+    baseUrl: resolveProviderBaseUrl(providerKey),
+    apiKey,
+  }))
+
+  // 📖 First try to create a set for this provider; if it already exists, update it.
+  // 📖 The daemon handles idempotency via upsert behavior.
+  fetch(`${baseUrl}/sets/${encodeURIComponent(routerSetName)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: routerSetName, models: routerModels }),
+  }).catch(() => {
+    // 📖 Daemon not running or unreachable — non-fatal, user will see offline banner
+  })
+
+  return { path: `FCM Router (${baseUrl})`, backupPath: null, providerId: providerKey, modelCount: models.length }
+}
+
 export function installProviderEndpoints(config, providerKey, toolMode, options = {}) {
   const canonicalToolMode = canonicalizeToolMode(toolMode)
   const support = getDirectInstallSupport(providerKey)
@@ -544,6 +570,8 @@ export function installProviderEndpoints(config, providerKey, toolMode, options 
     installResult = installIntoQwen(providerKey, models, apiKey, paths)
   } else if (canonicalToolMode === 'openhands') {
     installResult = installIntoEnvBasedTool(providerKey, models, apiKey, canonicalToolMode, paths)
+  } else if (canonicalToolMode === 'fcm_router') {
+    installResult = installIntoFcmRouter(providerKey, models, apiKey)
   } else {
     throw new Error(`Unsupported install target: ${toolMode}`)
   }
