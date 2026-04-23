@@ -773,7 +773,7 @@ export async function startOpenCode(model, nnfConfig) {
       console.log()
       
       if (savedConfig.model === config.model) {
-        console.log(chalk.green(` Default model set to: ${glmModelRef}`))
+        console.log(chalk.green(` Default model set to: ${nimModelRef}`))
       } else {
         console.log(chalk.yellow(` Config might not have been saved correctly`))
       }
