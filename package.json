@@ -1,6 +1,6 @@
 {
   "name": "nvidia-nim-forever",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "NVIDIA NIM models launcher with multi-key GLM proxy — optimized for NVIDIA's free tier with thinking support.",
   "keywords": [
     "nvidia",

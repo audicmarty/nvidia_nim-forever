@@ -36,12 +36,54 @@ const glmAgent = new Agent({
 let glmCurrentKeyIndex = 0
 let glmApiKeys = []
 
-// 📖 getNextGlmApiKey: Round-robin through multiple API keys
+// 📖 Per-key rate limit cooldown tracking
+// Maps key → timestamp when it can be used again (0 = available now)
+const glmKeyCooldowns = new Map()
+const GLM_KEY_COOLDOWN_MS = 60000 // 60s cooldown after a 429
+
+// 📖 markKeyRateLimited: Park a key for 60 seconds after a 429
+function markKeyRateLimited(apiKey) {
+  const cooldownUntil = Date.now() + GLM_KEY_COOLDOWN_MS
+  glmKeyCooldowns.set(apiKey, cooldownUntil)
+}
+
+// 📖 isKeyAvailable: Check if a key is not in cooldown
+function isKeyAvailable(apiKey) {
+  const cooldownUntil = glmKeyCooldowns.get(apiKey)
+  if (!cooldownUntil) return true
+  if (Date.now() >= cooldownUntil) {
+    glmKeyCooldowns.delete(apiKey)
+    return true
+  }
+  return false
+}
+
+// 📖 getNextGlmApiKey: Round-robin through available API keys (skip rate-limited ones)
+// Returns { key, allCoolingDown } where allCoolingDown=true means every key is rate-limited
 function getNextGlmApiKey() {
-  if (glmApiKeys.length === 0) return null
-  const key = glmApiKeys[glmCurrentKeyIndex]
-  glmCurrentKeyIndex = (glmCurrentKeyIndex + 1) % glmApiKeys.length
-  return key
+  if (glmApiKeys.length === 0) return { key: null, allCoolingDown: false }
+  
+  // Try each key starting from current index, skip rate-limited ones
+  for (let i = 0; i < glmApiKeys.length; i++) {
+    const idx = (glmCurrentKeyIndex + i) % glmApiKeys.length
+    const key = glmApiKeys[idx]
+    if (isKeyAvailable(key)) {
+      glmCurrentKeyIndex = (idx + 1) % glmApiKeys.length
+      return { key, allCoolingDown: false }
+    }
+  }
+  
+  // All keys are in cooldown — return the one with shortest remaining cooldown
+  let shortestCooldownKey = glmApiKeys[0]
+  let shortestCooldown = glmKeyCooldowns.get(glmApiKeys[0]) ?? 0
+  for (const key of glmApiKeys) {
+    const cooldown = glmKeyCooldowns.get(key) ?? 0
+    if (cooldown < shortestCooldown) {
+      shortestCooldown = cooldown
+      shortestCooldownKey = key
+    }
+  }
+  return { key: shortestCooldownKey, allCoolingDown: true, cooldownUntil: shortestCooldown }
 }
 
 // 📖 SSE termination marker
@@ -74,8 +116,8 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId 
 
   while (attempt < maxAttempts && clientRef.connected) {
     attempt++
-    const apiKey = getNextGlmApiKey();
-    logToRealtimeFile(`REQ ${reqId}`, `makeGlmNvidiaRequest Attempt ${attempt} (apiKey starts with ${apiKey?.slice(0, 8)})`);
+    const { key: apiKey, allCoolingDown, cooldownUntil } = getNextGlmApiKey();
+    logToRealtimeFile(`REQ ${reqId}`, `makeGlmNvidiaRequest Attempt ${attempt} (apiKey starts with ${apiKey?.slice(0, 8)}, allCoolingDown=${allCoolingDown})`);
     if (!apiKey) {
       if (!res.writableEnded) {
         const errorPayload = {
@@ -94,6 +136,17 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId 
         res.end()
       }
       return
+    }
+
+    // 📖 If all keys are cooling down, wait for the shortest remaining cooldown
+    if (allCoolingDown && cooldownUntil) {
+      const waitMs = Math.max(0, cooldownUntil - Date.now())
+      logToRealtimeFile(`REQ ${reqId}`, `All keys rate-limited. Waiting ${waitMs}ms for cooldown...`);
+      try {
+        if (!res.writableEnded) res.write(`: all keys rate-limited, waiting ${Math.ceil(waitMs/1000)}s...\n\n`)
+      } catch {}
+      if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs))
+      continue // Re-check key availability after cooldown
     }
 
     try {
@@ -115,6 +168,12 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId 
         || err.message?.includes('timeout')
         || err.message?.includes('socket hang up')
       
+      // 📖 Park rate-limited keys for 60s so we stop hammering them
+      if (isRateLimit) {
+        markKeyRateLimited(apiKey)
+        logToRealtimeFile(`REQ ${reqId}`, `Key ${apiKey.slice(0, 8)}... rate-limited, parked for ${GLM_KEY_COOLDOWN_MS/1000}s`);
+      }
+      
       // 📖 ETIMEDOUT FIX: SSE is append-only — we can retry upstream and keep piping
       // Only give up if the response stream itself is dead (writableEnded)
       if (!isRetryable) {
@@ -126,11 +185,13 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId 
         return
       }
 
-      // 🚀 SPEED FIX 5: Zero-delay key rotation on rate limits with multiple keys
+      // 🚀 SPEED FIX 5: Zero-delay key rotation on rate limits with another available key
       let delay = Math.min(500 * Math.pow(2, attempt - 1), 5000)
-      if (isRateLimit && glmApiKeys.length > 1) {
-        delay = 50 // Instant retry with next key
-      } else if (!isRateLimit) {
+      if (isRateLimit) {
+        // Check if another key is immediately available (pure check, no index mutation)
+        const anotherKeyAvailable = glmApiKeys.some(k => k !== apiKey && isKeyAvailable(k))
+        delay = anotherKeyAvailable ? 50 : 0 // 50ms switch to next available key, or 0 (cooldown handled above)
+      } else {
         // For ETIMEDOUT/ECONNRESET, use shorter retry delay (the model is still thinking)
         delay = Math.min(1000, delay)
       }
@@ -140,7 +201,7 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId 
         if (!res.writableEnded) res.write(': retrying upstream connection...\n\n')
       } catch {}
 
-      await new Promise(r => setTimeout(r, delay))
+      if (delay > 0) await new Promise(r => setTimeout(r, delay))
     }
   }
 
@@ -233,18 +294,19 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       timeout: 1200000 // 20 minutes
     }, (proxyRes) => {
       const status = proxyRes.statusCode;
-      logToRealtimeFile(`REQ ${reqId}`, `NIM responded with HTTP ${status}`);
+      logToRealtimeFile(`REQ ${reqId}`, `NIM responded with HTTP ${status} | headers: ${JSON.stringify(proxyRes.headers)}`);
 
       if (status < 200 || status >= 300) {
         let errorData = ''
         proxyRes.on('data', chunk => { errorData += chunk })
         proxyRes.on('end', () => {
-      logToRealtimeFile(`REQ ${reqId}`, `NIM Response stream ENDED. Total chunks: ${chunksReceived}`);
+          logToRealtimeFile(`REQ ${reqId}`, `NIM Response stream ENDED. Total chunks: ${chunksReceived}. Body: ${errorData.slice(0, 500)}`);
           cleanup()
           
           // 📖 RETRY on 429 rate limit - don't give up!
           if (status === 429) {
-            reject(new Error(`Rate limited (429)`))
+            logToRealtimeFile(`REQ ${reqId}`, `429 RATE LIMIT body: ${errorData}`);
+            reject(new Error(`Rate limited (429): ${errorData.slice(0, 200)}`))
             return
           }
           
@@ -356,7 +418,7 @@ function logToRealtimeFile(prefix, data) {
   try {
     const ts = new Date().toISOString();
     let msg = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-    appendFileSync(require('path').join(process.cwd(), 'glm-proxy.log'), `[${ts}] ${prefix} | ${msg}\n`);
+    appendFileSync(join(process.cwd(), 'glm-proxy.log'), `[${ts}] ${prefix} | ${msg}\n`);
   } catch (e) {}
 }
 
