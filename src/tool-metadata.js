@@ -24,76 +24,24 @@
 // 📖 Each tool has a unique `color` RGB tuple used for the "Compatible with" column
 // 📖 and for coloring the tool name in the Z cycle header badge.
 // 📖 `emoji` is the unique icon shown everywhere (header badge, compat column, palette, overlays).
-// 📖 OpenCode CLI and Desktop share 📦 — they are the same platform, split only for launch logic.
+// 📖 OpenCode CLI, Desktop, and Web are the only supported tools for nvidia-nim-forever.
 export const TOOL_METADATA = {
-  opencode:          { label: 'OpenCode CLI',     emoji: '📦', flag: '--opencode',         color: [110, 214, 255] },
+  opencode: { label: 'OpenCode CLI', emoji: '📦', flag: '--opencode', color: [110, 214, 255] },
   'opencode-desktop': { label: 'OpenCode Desktop', emoji: '📦', flag: '--opencode-desktop', color: [149, 205, 255] },
-  'opencode-web':     { label: 'OpenCode Web',     emoji: '📦', flag: '--opencode-web',     color: [180, 220, 255] },
-  openclaw:          { label: 'OpenClaw',          emoji: '🦞', flag: '--openclaw',         color: [255, 129, 129] },
-  crush:             { label: 'Crush',             emoji: '💘', flag: '--crush',            color: [255, 168, 209] },
-  goose:             { label: 'Goose',             emoji: '🪿', flag: '--goose',            color: [132, 235, 168] },
-  pi:                { label: 'Pi',                emoji: 'π',  flag: '--pi',               color: [173, 216, 230] },
-  aider:             { label: 'Aider',             emoji: '🛠', flag: '--aider',            color: [255, 208, 102] },
-  kilo:              { label: 'Kilo CLI',          emoji: '⚡️', flag: '--kilo',             color: [255, 107, 107] },
-  qwen:              { label: 'Qwen Code',         emoji: '🐉', flag: '--qwen',             color: [255, 213, 128] },
-  openhands:         { label: 'OpenHands',         emoji: '🤲', flag: '--openhands',        color: [228, 191, 239] },
-  amp:               { label: 'Amp',               emoji: '⚡', flag: '--amp',              color: [255, 232, 98] },
-  hermes:            { label: 'Hermes',            emoji: '🔮', flag: '--hermes',           color: [200, 160, 255] },
-  'continue':        { label: 'Continue CLI',     emoji: '▶️', flag: '--continue',         color: [255, 100, 100] },
-  cline:             { label: 'Cline',             emoji: '🧠', flag: '--cline',            color: [100, 220, 180] },
-  rovo:              { label: 'Rovo Dev CLI',      emoji: '🦘', flag: '--rovo',             color: [148, 163, 184], cliOnly: true },
-  gemini:            { label: 'Gemini CLI',        emoji: '♊', flag: '--gemini',           color: [66, 165, 245],  cliOnly: true },
-  jcode:             { label: 'jcode',              emoji: '🪼', flag: '--jcode',             color: [255, 140, 0]  },
-  xcode:             { label: 'Xcode Intelligence',emoji: '🛠️', flag: '--xcode',            color: [20, 126, 251] },
-  fcm_router:        { label: 'FCM Router',        emoji: '🧭', flag: '--fcm-router',        color: [80, 200, 120] },
+  'opencode-web': { label: 'OpenCode Web', emoji: '📦', flag: '--opencode-web', color: [180, 220, 255] },
 }
 
 // 📖 Deduplicated emoji order for the "Compatible with" column.
-// 📖 OpenCode CLI + Desktop are merged into a single 📦 slot since they share compatibility.
+// 📖 OpenCode CLI + Desktop + Web are merged into a single 📦 slot since they share compatibility.
 // 📖 Each slot maps to one or more toolKeys for compatibility checking.
 export const COMPAT_COLUMN_SLOTS = [
   { emoji: '📦', toolKeys: ['opencode', 'opencode-desktop', 'opencode-web'], color: [110, 214, 255] },
-  { emoji: '🦞', toolKeys: ['openclaw'],                     color: [255, 129, 129] },
-  { emoji: '💘', toolKeys: ['crush'],                        color: [255, 168, 209] },
-  { emoji: '🪿', toolKeys: ['goose'],                        color: [132, 235, 168] },
-  { emoji: 'π',  toolKeys: ['pi'],                           color: [173, 216, 230] },
-  { emoji: '🛠', toolKeys: ['aider'],                        color: [255, 208, 102] },
-  { emoji: '⚡️', toolKeys: ['kilo'],                         color: [255, 107, 107] },
-  { emoji: '🐉', toolKeys: ['qwen'],                         color: [255, 213, 128] },
-  { emoji: '🤲', toolKeys: ['openhands'],                    color: [228, 191, 239] },
-  { emoji: '⚡', toolKeys: ['amp'],                          color: [255, 232, 98] },
-  { emoji: '🔮', toolKeys: ['hermes'],                       color: [200, 160, 255] },
-  { emoji: '▶️', toolKeys: ['continue'],                     color: [255, 100, 100] },
-{ emoji: '🧠', toolKeys: ['cline'],                       color: [100, 220, 180] },
-  { emoji: '🧭', toolKeys: ['fcm_router'],                  color: [80, 200, 120] },
-  { emoji: '🦘', toolKeys: ['rovo'],                        color: [148, 163, 184] },
-  { emoji: '♊', toolKeys: ['gemini'],                       color: [66, 165, 245] },
-  { emoji: '🪼', toolKeys: ['jcode'],                        color: [255, 140, 0]  },
-  { emoji: '🛠️', toolKeys: ['xcode'],                        color: [20, 126, 251] },
-  { emoji: '🧭', toolKeys: ['fcm_router'],                  color: [80, 200, 120] },
 ]
 
 export const TOOL_MODE_ORDER = [
   'opencode',
-  'pi',
-  'jcode',
   'opencode-desktop',
   'opencode-web',
-  'openclaw',
-  'crush',
-  'goose',
-  'aider',
-  'kilo',
-  'qwen',
-  'openhands',
-  'amp',
-  'hermes',
-  'continue',
-  'cline',
-  'xcode',
-  'fcm_router',
-  'rovo',
-  'gemini',
 ]
 
 export function getToolMeta(mode) {
@@ -104,27 +52,17 @@ export function getToolModeOrder() {
   return [...TOOL_MODE_ORDER]
 }
 
-// 📖 Regular tools: all tools EXCEPT rovo, gemini (which are CLI-only exclusives).
-// 📖 Used as the default compatible set for normal provider models.
-const REGULAR_TOOLS = Object.keys(TOOL_METADATA).filter(k => !TOOL_METADATA[k].cliOnly)
-
-// 📖 Zen-only tools: OpenCode Zen models can ONLY run on OpenCode CLI / OpenCode Desktop.
-const ZEN_COMPATIBLE_TOOLS = ['opencode', 'opencode-desktop', 'opencode-web']
+// 📖 All OpenCode tools are compatible with all models.
+const ALL_OPENCODE_TOOLS = ['opencode', 'opencode-desktop', 'opencode-web']
 
 /**
  * 📖 Returns the list of tool keys a model is compatible with.
- *   - Rovo models → only 'rovo'
- *   - Gemini models → only 'gemini'
- *   - OpenCode Zen models → only 'opencode', 'opencode-desktop'
- *   - Regular models → all non-cliOnly tools
- * @param {string} providerKey — the source key from sources.js (e.g. 'nvidia', 'rovo', 'opencode-zen')
+ * All models are compatible with all OpenCode tools.
+ * @param {string} providerKey — the source key from sources.js (always 'nvidia')
  * @returns {string[]} — array of compatible tool keys
  */
 export function getCompatibleTools(providerKey) {
-  if (providerKey === 'rovo') return ['rovo']
-  if (providerKey === 'gemini') return ['gemini']
-  if (providerKey === 'opencode-zen') return ZEN_COMPATIBLE_TOOLS
-  return REGULAR_TOOLS
+  return ALL_OPENCODE_TOOLS
 }
 
 /**

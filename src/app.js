@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-/**
- * @file free-coding-models.js
- * @description Live terminal availability checker for coding LLM models with OpenCode & OpenClaw integration.
+/** 
+* @file nvidia-nim-forever.js
+* @description Live terminal availability checker for NVIDIA NIM models with OpenCode integration.
  *
  * @details
  *   This CLI tool discovers and benchmarks language models optimized for coding.
@@ -18,10 +18,10 @@
  *   - Instant OpenCode / OpenClaw / external-tool action on Enter key press
  *   - Direct mode flags plus an in-app Z-cycle for the public launcher set
  *   - Automatic config detection and model setup for both tools
- *   - JSON config stored in ~/.free-coding-models.json (auto-migrates from old plain-text)
- *   - Multi-provider support via sources.js (NIM/Groq/Cerebras/OpenRouter/Hugging Face/Replicate/DeepInfra/... — extensible)
+ * - JSON config stored in ~/.nvidia-nim-forever.json (auto-migrates from old plain-text)
+ * - NVIDIA NIM models with OpenCode integration
  *   - Settings screen (P key) to manage API keys, provider toggles, manual updates, and provider-key diagnostics
- *   - Install Endpoints flow (Settings / Command Palette) to push provider catalogs into OpenCode, OpenClaw, Crush, and Goose
+ * - Install Endpoints flow (Settings / Command Palette) to push provider catalogs into OpenCode
  *   - Favorites system: toggle with F, switch pinning mode with Y, persist between sessions
  *   - Uptime percentage tracking (successful pings / total pings)
  *   - Sortable columns (R/O/M/L/A/S/C/H/V/B/U/G keys)
@@ -57,14 +57,14 @@
  *   - sources.js: Model definitions from all providers
  *
  *   ⚙️ Configuration:
- *   - API keys stored per-provider in ~/.free-coding-models.json (0600 perms)
- *   - Old ~/.free-coding-models plain-text auto-migrated as nvidia key on first run
- *   - Env vars override config: NVIDIA_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY/HF_TOKEN, REPLICATE_API_TOKEN, DEEPINFRA_API_KEY/DEEPINFRA_TOKEN, FIREWORKS_API_KEY, SILICONFLOW_API_KEY, TOGETHER_API_KEY, PERPLEXITY_API_KEY, ZAI_API_KEY, etc.
+ * - API keys stored in ~/.nvidia-nim-forever.json (0600 perms)
+ * - Old ~/.nvidia-nim-forever plain-text auto-migrated as nvidia key on first run
+ * - Env vars override config: NVIDIA_API_KEY
  *   - ZAI (z.ai) uses a non-standard base path; cloudflare needs CLOUDFLARE_ACCOUNT_ID in env.
  *   - Cloudflare Workers AI requires both CLOUDFLARE_API_TOKEN (or CLOUDFLARE_API_KEY) and CLOUDFLARE_ACCOUNT_ID
  *   - Models loaded from sources.js — all provider/model definitions are centralized there
  *   - OpenCode config: ~/.config/opencode/opencode.json
- *   - OpenClaw config: ~/.openclaw/openclaw.json
+ * - OpenCode config: ~/.config/opencode/opencode.json
  *   - Ping timeout: 15s per attempt
  *   - Ping cadence: 2s startup burst for 60s, 10s steady state, 30s after 5m idle, forced 4s via `W`
  *   - Animation: 12 FPS with braille spinners
@@ -255,21 +255,6 @@ export async function runApp(cliArgs, config) {
       opencode: cliArgs.openCodeMode,
       'opencode-desktop': cliArgs.openCodeDesktopMode,
       'opencode-web': cliArgs.openCodeWebMode,
-      openclaw: cliArgs.openClawMode,
-      aider: cliArgs.aiderMode,
-      crush: cliArgs.crushMode,
-      goose: cliArgs.gooseMode,
-      kilo: cliArgs.kiloMode,
-      qwen: cliArgs.qwenMode,
-      openhands: cliArgs.openHandsMode,
-      amp: cliArgs.ampMode,
-      hermes: cliArgs.hermesMode,
-      'continue': cliArgs.continueMode,
-      cline: cliArgs.clineMode,
-      xcode: cliArgs.xcodeMode,
-      pi: cliArgs.piMode,
-      rovo: cliArgs.rovoMode,
-      gemini: cliArgs.geminiMode,
     }
     return flagByMode[toolMode] === true
   })

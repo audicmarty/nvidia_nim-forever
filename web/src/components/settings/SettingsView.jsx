@@ -161,10 +161,10 @@ export default function SettingsView({ onToast }) {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>⚙️ Provider Settings</h1>
-        <p className={styles.pageSubtitle}>
-          Manage your API keys and provider configurations. Keys are stored locally in{' '}
-          <code>~/.free-coding-models.json</code>
-        </p>
+      <p className={styles.pageSubtitle}>
+        Manage your API keys and provider configurations. Keys are stored locally in{' '}
+        <code>~/.nvidia-nim-forever.json</code>
+      </p>
       </div>
 
       <div className={styles.toolbar}>

@@ -1,56 +1,21 @@
 /**
  * @file lib/config.js
- * @description JSON config management for free-coding-models multi-provider support.
+ * @description JSON config management for nvidia-nim-forever.
  *
- * 📖 This module manages ~/.free-coding-models.json, the new config file that
- *    stores API keys and per-provider enabled/disabled state for all providers
- *    (NVIDIA NIM, Groq, Cerebras, etc.).
+ * 📖 This module manages ~/.nvidia-nim-forever.json, the config file that
+ * stores NVIDIA API keys and provider settings.
  *
- * 📖 Config file location: ~/.free-coding-models.json
+ * 📖 Config file location: ~/.nvidia-nim-forever.json
  * 📖 File permissions: 0o600 (user read/write only — contains API keys)
  *
  * 📖 Config JSON structure:
- *   {
- *     "apiKeys": {
- *       "nvidia":     "nvapi-xxx",
- *       "groq":       "gsk_xxx",
- *       "cerebras":   "csk_xxx",
- *       "sambanova":  "sn-xxx",
- *       "openrouter": "sk-or-xxx",
- *       "huggingface":"hf_xxx",
- *       "replicate":  "r8_xxx",
- *       "deepinfra":  "di_xxx",
- *       "fireworks":  "fw_xxx",
- *       "codestral":  "csk-xxx",
- *       "hyperbolic": "eyJ...",
- *       "scaleway":   "scw-xxx",
- *       "googleai":   "AIza...",
- *       "siliconflow":"sk-xxx",
- *       "together":   "together-xxx",
- *       "cloudflare": "cf-xxx",
- *       "perplexity": "pplx-xxx",
- *       "zai":        "zai-xxx"
- *     },
- *     "providers": {
- *       "nvidia":     { "enabled": true },
- *       "groq":       { "enabled": true },
- *       "cerebras":   { "enabled": true },
- *       "sambanova":  { "enabled": true },
- *       "openrouter": { "enabled": true },
- *       "huggingface":{ "enabled": true },
- *       "replicate":  { "enabled": true },
- *       "deepinfra":  { "enabled": true },
- *       "fireworks":  { "enabled": true },
- *       "codestral":  { "enabled": true },
- *       "hyperbolic": { "enabled": true },
- *       "scaleway":   { "enabled": true },
- *       "googleai":   { "enabled": true },
- *       "siliconflow":{ "enabled": true },
- *       "together":   { "enabled": true },
- *       "cloudflare": { "enabled": true },
- *       "perplexity": { "enabled": true },
- *       "zai":        { "enabled": true }
- *     },
+ * {
+ *   "apiKeys": {
+ *     "nvidia": "nvapi-xxx"
+ *   },
+ *   "providers": {
+ *     "nvidia": { "enabled": true }
+ *   },
  *     "favorites": [
  *       "nvidia/deepseek-ai/deepseek-v3.2"
  *     ],
@@ -117,38 +82,19 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { syncShellEnv } from './shell-env.js'
 
-// 📖 New JSON config path — stores all providers' API keys + enabled state
-export const CONFIG_PATH = join(homedir(), '.free-coding-models.json')
+// 📖 New JSON config path — stores NVIDIA API keys + enabled state
+export const CONFIG_PATH = join(homedir(), '.nvidia-nim-forever.json')
 
 // 📖 Runtime data directory — backups and local snapshots live here.
-export const DAEMON_DATA_DIR = join(homedir(), '.free-coding-models')
+export const DAEMON_DATA_DIR = join(homedir(), '.nvidia-nim-forever')
 
 // 📖 Old plain-text config path — used only for migration
-const LEGACY_CONFIG_PATH = join(homedir(), '.free-coding-models')
+const LEGACY_CONFIG_PATH = join(homedir(), '.nvidia-nim-forever')
 
 // 📖 Environment variable names per provider
 // 📖 These allow users to override config via env vars (useful for CI/headless setups)
 const ENV_VARS = {
-  nvidia:     'NVIDIA_API_KEY',
-  groq:       'GROQ_API_KEY',
-  cerebras:   'CEREBRAS_API_KEY',
-  sambanova:  'SAMBANOVA_API_KEY',
-  openrouter: 'OPENROUTER_API_KEY',
-  huggingface:['HUGGINGFACE_API_KEY', 'HF_TOKEN'],
-  replicate:  'REPLICATE_API_TOKEN',
-  deepinfra:  ['DEEPINFRA_API_KEY', 'DEEPINFRA_TOKEN'],
-  fireworks:  'FIREWORKS_API_KEY',
-  codestral:  'CODESTRAL_API_KEY',
-  hyperbolic: 'HYPERBOLIC_API_KEY',
-  scaleway:   'SCALEWAY_API_KEY',
-  googleai:   'GOOGLE_API_KEY',
-  siliconflow:'SILICONFLOW_API_KEY',
-  together:   'TOGETHER_API_KEY',
-  cloudflare: ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY'],
-  perplexity: ['PERPLEXITY_API_KEY', 'PPLX_API_KEY'],
-  qwen:       'DASHSCOPE_API_KEY',
-  zai:        'ZAI_API_KEY',
-  iflow:      'IFLOW_API_KEY',
+  nvidia: 'NVIDIA_API_KEY',
 }
 
 // 📖 Smart Router defaults are intentionally conservative: balanced probing,

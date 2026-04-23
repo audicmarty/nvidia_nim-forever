@@ -9,7 +9,7 @@ import { createServer as createHttpServer } from 'http'
 import { request as httpsRequest, Agent } from 'https'
 import { homedir } from 'os'
 import { join } from 'path'
-import { copyFileSync, existsSync } from 'fs'
+import { copyFileSync, existsSync, appendFileSync } from 'fs'
 import { PROVIDER_COLOR } from './render-table.js'
 import { loadOpenCodeConfig, saveOpenCodeConfig } from './opencode-config.js'
 import { getApiKey, listApiKeys } from './config.js'
@@ -49,7 +49,7 @@ const SSE_TERMINATION = '\n\ndata: [DONE]\n\n'
 
 // 📖 makeGlmNvidiaRequest: Try with retries and key rotation
 // Note: Headers already sent by caller, clientConnected tracked by caller via object ref
-async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef) {
+async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId = 'UNKNOWN') {
   let attempt = 0
   const maxAttempts = 20  // Increased for rate limit retries with 2 keys (40 RPM each)
 
@@ -74,7 +74,8 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef) {
 
   while (attempt < maxAttempts && clientRef.connected) {
     attempt++
-    const apiKey = getNextGlmApiKey()
+    const apiKey = getNextGlmApiKey();
+    logToRealtimeFile(`REQ ${reqId}`, `makeGlmNvidiaRequest Attempt ${attempt} (apiKey starts with ${apiKey?.slice(0, 8)})`);
     if (!apiKey) {
       if (!res.writableEnded) {
         const errorPayload = {
@@ -96,7 +97,10 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef) {
     }
 
     try {
-      return await tryGlmRequest(req, body, res, apiKey, attempt, startTime, () => clientRef.connected)
+      logToRealtimeFile(`REQ ${reqId}`, `Calling tryGlmRequest for Attempt ${attempt}`);
+      await tryGlmRequest(req, body, res, apiKey, attempt, startTime, () => clientRef.connected, reqId);
+      logToRealtimeFile(`REQ ${reqId}`, `tryGlmRequest finished successfully`);
+      return;
     } catch (err) {
       if (!clientRef.connected) {
         return
@@ -160,7 +164,7 @@ async function makeGlmNvidiaRequest(req, body, res, startTime, clientRef) {
 
 // 📖 tryGlmRequest: Single attempt with bulletproof error handling
 // Note: Headers are ALREADY sent by makeGlmNvidiaRequest before calling this function
-function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConnected) {
+function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConnected, reqId = 'UNKNOWN') {
   return new Promise((resolve, reject) => {
     // Check connection status immediately
     if (isClientConnected && !isClientConnected()) {
@@ -209,7 +213,8 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       }, 305000)
     }
 
-    resetActivityTimeout()
+    resetActivityTimeout();
+      if (chunksReceived <= 3 || chunksReceived % 50 === 0) logToRealtimeFile(`REQ ${reqId}`, `Received chunk #${chunksReceived} (${chunk.length} bytes)`);
     
     // 📖 3. THE ENDPOINT FIX: Use the public NIM endpoint for API keys!
     // The HAR endpoint (api.ngc.nvidia.com) requires a captcha token. API keys MUST use integrate.api.nvidia.com.
@@ -228,12 +233,14 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       agent: glmAgent, // Uses TCP Keep-Alive
       timeout: 1200000 // 20 minutes
     }, (proxyRes) => {
-      const status = proxyRes.statusCode
+      const status = proxyRes.statusCode;
+      logToRealtimeFile(`REQ ${reqId}`, `NIM responded with HTTP ${status}`);
 
       if (status < 200 || status >= 300) {
         let errorData = ''
         proxyRes.on('data', chunk => { errorData += chunk })
         proxyRes.on('end', () => {
+      logToRealtimeFile(`REQ ${reqId}`, `NIM Response stream ENDED. Total chunks: ${chunksReceived}`);
           cleanup()
           
           // 📖 RETRY on 429 rate limit - don't give up!
@@ -295,6 +302,7 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     })
       
       proxyRes.on('error', (err) => {
+        logToRealtimeFile(`REQ ${reqId}`, `NIM proxyRes Error: ${err.message}`);
         cleanup()
         if (chunksReceived > 0) {
           // If we already started streaming, we can't cleanly retry without duplicating text.
@@ -333,13 +341,24 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     })
     
     proxyReq.on('timeout', () => {
+      logToRealtimeFile(`REQ ${reqId}`, `NIM proxyReq Timeout fired!`);
       const err = new Error(`Request timeout (ETIMEDOUT after ${chunksReceived} chunks)`)
       proxyReq.destroy(err) // This triggers proxyReq.on('error') uniformly
     })
     
-    proxyReq.write(body)
-    proxyReq.end()
+    logToRealtimeFile(`REQ ${reqId}`, `Writing body to NIM (length: ${Buffer.byteLength(body)})`);
+    proxyReq.write(body);
+    proxyReq.end();
   })
+}
+
+
+function logToRealtimeFile(prefix, data) {
+  try {
+    const ts = new Date().toISOString();
+    let msg = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+    appendFileSync(require('path').join(process.cwd(), 'glm-proxy.log'), `[${ts}] ${prefix} | ${msg}\n`);
+  } catch (e) {}
 }
 
 // 📖 createGlmProxy: Localhost reverse proxy with multi-key rotation
@@ -355,6 +374,8 @@ async function createGlmProxy(primaryKey, secondaryKey = null) {
     // 🚀 SPEED FIX 1: Disable Nagle's algorithm for instant packet sending
     req.socket.setNoDelay(true)
     
+    const reqId = Math.random().toString(36).slice(2, 8);
+    logToRealtimeFile(`REQ ${reqId}`, `Incoming ${req.method} ${req.url}`);
     if (req.url !== '/v1/chat/completions' || req.method !== 'POST') {
       res.writeHead(404)
       res.end()
@@ -428,10 +449,14 @@ async function createGlmProxy(primaryKey, secondaryKey = null) {
           }
         }
 
-        body = JSON.stringify(json)
-      } catch {}
+        body = JSON.stringify(json);
+        logToRealtimeFile(`REQ ${reqId}`, `Parsed body with model ${actualModel}`);
+      } catch (e) {
+        logToRealtimeFile(`REQ ${reqId}`, `Failed to parse body: ${e.message}`);
+      }
 
-      await makeGlmNvidiaRequest(req, body, res, startTime, clientRef)
+      logToRealtimeFile(`REQ ${reqId}`, `Calling makeGlmNvidiaRequest`);
+      await makeGlmNvidiaRequest(req, body, res, startTime, clientRef, reqId)
     })
     
     req.on('error', (err) => {

@@ -29,7 +29,6 @@ const ANALYSIS_FLAGS = [
   { flag: '--premium', description: 'Start with S-tier filter + verdict sort (you can reset it in-app)' },
   { flag: '--sort <column>', description: 'Sort by column (rank, tier, origin, model, ping, avg, swe, ctx, condition, verdict, uptime, stability, usage)' },
   { flag: '--desc | --asc', description: 'Set sort direction (descending or ascending)' },
-  { flag: '--origin <provider>', description: 'Filter models by provider origin' },
   { flag: '--ping-interval <ms>', description: 'Override ping interval in milliseconds' },
   { flag: '--hide-unconfigured', description: 'Hide models without configured API keys' },
   { flag: '--show-unconfigured', description: 'Show all models regardless of API key config' },
@@ -37,21 +36,15 @@ const ANALYSIS_FLAGS = [
 
 const CONFIG_FLAGS = [
   { flag: '--web', description: 'Launch the web dashboard in your browser' },
-  { flag: '--daemon', description: 'Start the FCM Router daemon in the foreground' },
-  { flag: '--daemon-bg', description: 'Start the FCM Router daemon in the background' },
-  { flag: '--daemon-status', description: 'Print FCM Router daemon status JSON' },
-  { flag: '--daemon-stop', description: 'Gracefully stop the FCM Router daemon' },
   { flag: '--no-telemetry', description: 'Disable anonymous telemetry for this run' },
   { flag: '--help, -h', description: 'Print this help and exit' },
 ]
 
 const EXAMPLES = [
-  'free-coding-models --help',
-  'free-coding-models --web',
-  'free-coding-models --daemon-bg',
-  'free-coding-models --daemon-status',
-  'free-coding-models --openclaw --tier S',
-  "free-coding-models --json | jq '.[0]'",
+  'nnf --help',
+  'nnf --web',
+  'nnf --opencode --tier S',
+  "nnf --json | jq '.[0]'",
 ]
 
 function paint(chalk, formatter, text) {
@@ -73,7 +66,8 @@ export function buildCliHelpLines({ chalk = null, indent = '', title = 'CLI Help
     .map((meta) => ({ flag: meta.flag, description: `${meta.label} mode` }))
 
   lines.push(`${indent}${paint(chalk, chalk?.bold, title)}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: free-coding-models [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: nnf [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, '       nvidia-nim-forever [apiKey] [options]')}`)
   lines.push('')
   lines.push(`${indent}${paint(chalk, chalk?.bold, 'Tool Flags')}`)
   for (const entry of launchFlags) {
@@ -91,7 +85,7 @@ export function buildCliHelpLines({ chalk = null, indent = '', title = 'CLI Help
   }
   lines.push('')
   lines.push(`${indent}${paint(chalk, chalk?.dim, 'Default launcher with no tool flag: OpenCode CLI')}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Flags can be combined: --openclaw --tier S --json')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Flags can be combined: --opencode --tier S --json')}`)
   lines.push('')
   lines.push(`${indent}${paint(chalk, chalk?.bold, 'Examples')}`)
   for (const example of EXAMPLES) {

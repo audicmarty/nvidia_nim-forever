@@ -386,17 +386,14 @@ export function findBestModel(results) {
 // 📖 Slices from index 2 to get user-provided arguments only.
 //
 // 📖 Argument types:
-//   - API key: first positional arg that does not look like a CLI flag (e.g., "nvapi-xxx")
-//   - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --opencode-web, --openclaw,
-//     --aider, --crush, --goose, --qwen, --kilo,
-//     --openhands, --amp, --pi, --daemon, --daemon-bg, --daemon-stop,
-//     --daemon-status, --no-telemetry, --json, --help/-h (case-insensitive)
-//   - Value flag: --tier <letter> (the next non-flag arg is the tier value)
+// - API key: first positional arg that does not look like a CLI flag (e.g., "nvapi-xxx")
+// - Boolean flags: --best, --fiable, --opencode, --opencode-desktop, --opencode-web,
+// --no-telemetry, --json, --help/-h (case-insensitive)
+// - Value flag: --tier <letter> (the next non-flag arg is the tier value)
 //
 // Returns:
-//   { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openCodeWebMode, openClawMode,
-//     aiderMode, crushMode, gooseMode, qwenMode, openHandsMode, ampMode,
-//     piMode, jcodeMode, noTelemetry, jsonMode, helpMode, tierFilter }
+// { apiKey, bestMode, fiableMode, openCodeMode, openCodeDesktopMode, openCodeWebMode,
+// noTelemetry, jsonMode, helpMode, tierFilter }
 //
 // 📖 Note: apiKey may be null here — the main CLI falls back to env vars and saved config.
 export function parseArgs(argv) {
@@ -448,30 +445,10 @@ export function parseArgs(argv) {
   const openCodeMode = flags.includes('--opencode')
   const openCodeDesktopMode = flags.includes('--opencode-desktop')
   const openCodeWebMode = flags.includes('--opencode-web')
-  const openClawMode = flags.includes('--openclaw')
-  const aiderMode = flags.includes('--aider')
-  const crushMode = flags.includes('--crush')
-  const gooseMode = flags.includes('--goose')
-  const qwenMode = flags.includes('--qwen')
-  const kiloMode = flags.includes('--kilo')
-  const openHandsMode = flags.includes('--openhands')
-  const ampMode = flags.includes('--amp')
-  const piMode = flags.includes('--pi')
-  const rovoMode = flags.includes('--rovo')
-  const hermesMode = flags.includes('--hermes')
-  const continueMode = flags.includes('--continue')
-  const clineMode = flags.includes('--cline')
-  const xcodeMode = flags.includes('--xcode')
-  const geminiMode = flags.includes('--gemini')
-  const jcodeMode = flags.includes('--jcode')
   const noTelemetry = flags.includes('--no-telemetry')
   const jsonMode = flags.includes('--json')
   const helpMode = flags.includes('--help') || flags.includes('-h')
   const premiumMode = flags.includes('--premium')
-  const daemonMode = flags.includes('--daemon')
-  const daemonBackgroundMode = flags.includes('--daemon-bg')
-  const daemonStopMode = flags.includes('--daemon-stop')
-  const daemonStatusMode = flags.includes('--daemon-status')
 
   // 📖 --web / --gui / web subcommand — launch the web dashboard instead of the TUI
   const webMode = flags.includes('--web') || flags.includes('--gui') || args[0] === 'web'
@@ -500,22 +477,6 @@ export function parseArgs(argv) {
     openCodeMode,
     openCodeDesktopMode,
     openCodeWebMode,
-    openClawMode,
-    aiderMode,
-    crushMode,
-    gooseMode,
-    qwenMode,
-    kiloMode,
-    openHandsMode,
-    ampMode,
-    piMode,
-    hermesMode,
-    continueMode,
-    clineMode,
-    xcodeMode,
-    rovoMode,
-    geminiMode,
-    jcodeMode,
     noTelemetry,
     jsonMode,
     helpMode,
@@ -528,10 +489,6 @@ export function parseArgs(argv) {
     showUnconfigured,
     premiumMode,
     webMode,
-    daemonMode,
-    daemonBackgroundMode,
-    daemonStopMode,
-    daemonStatusMode,
     // 📖 Profile system removed - API keys now persist permanently across all sessions
     recommendMode,
   }

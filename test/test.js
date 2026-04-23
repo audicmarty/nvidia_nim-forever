@@ -344,7 +344,7 @@ describe('command palette fuzzy search', () => {
     const ids = new Set(entries.map((entry) => entry.id))
     assert.ok(ids.has('action-set-tool-opencode'))
     assert.ok(ids.has('action-set-tool-opencode-desktop'))
-    assert.ok(ids.has('action-set-tool-openclaw'))
+    assert.ok(ids.has('action-set-tool-opencode-web'))
     assert.ok(ids.has('action-toggle-favorite-mode'))
     assert.ok(ids.has('action-favorites-mode-pinned'))
     assert.ok(ids.has('action-favorites-mode-normal'))
