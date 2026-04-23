@@ -1,29 +1,6 @@
-## [0.3.55] - 2026-04-22
-
-### Added
-
-- **Smart Model Router daemon** — Added the first production slice of the FCM Router: a localhost OpenAI-compatible daemon that can run in the background, expose `/v1/chat/completions`, and route `model: "fcm"` requests through a persistent model set.
-- **Router lifecycle CLI flags** — Added `--daemon`, `--daemon-bg`, `--daemon-status`, and `--daemon-stop` so users can run the router in foreground service mode, start it detached, inspect it from scripts, or shut it down cleanly.
-- **Model sets and named routing endpoints** — Added persisted router config under `router` in `~/.free-coding-models.json`, auto-created the default `fast-coding` set, and exposed `/v1/sets/:name/chat/completions` plus `/v1/models` virtual model discovery for tool compatibility.
-- **Health probes, scoring, and failover** — Added cold-start probing, rolling health windows, priority-aware scoring, auth-error detection, stale-model detection, retryable upstream error handling, and per-model circuit breaker state.
-- **Token and request stats** — Added metadata-only token usage tracking in `~/.free-coding-models-tokens.json`, `/health`, `/stats`, `/stats/tokens`, and SSE events for future TUI dashboard integration.
-- **Router hardening integration tests** — Added deterministic fake-provider tests for success routing, non-streaming failover, streaming failover before first byte, partial stream failures, auth handling, all-models-down `503` payloads, malformed upstream responses, timeouts, connection refused, and client disconnects.
-- **Router Dashboard TUI** — Added a `Shift+R` dashboard inside the terminal app for daemon status, active set, port, uptime, probe mode, model circuit state, token totals, and the live routed-request log.
-- **Live dashboard data path** — The dashboard safely consumes `/health`, `/stats`, and `/stream/events`, with polling as a fallback so the screen remains useful even if the event stream drops.
-- **Probe mode control** — Added `POST /daemon/probe-mode` and the dashboard `I` key to cycle `eco`, `balanced`, and `aggressive` probe intensity without hand-editing config.
-
-### Changed
-
-- **Config persistence now preserves router data** — The config normalizer now understands the router schema, clamps timing and circuit-breaker settings, normalizes model priorities, and avoids dropping router sets when unrelated settings are saved.
-- **Documentation now includes router setup** — README usage examples now explain how to start the daemon, configure coding tools with `http://localhost:19280/v1`, inspect status, and stop the service.
-- **Router auth and quota behavior is stricter** — A `401` or `403` now skips remaining candidates from the same provider for the current request, and final router `503` responses include structured quota details such as retry and rate-limit headers when providers expose them.
-- **Daemon restart API is intentionally hidden** — Removed the placeholder `/daemon/restart` behavior until a real launchd/systemd/TUI service-manager restart path exists.
-- **`Shift+R` now opens Router Dashboard** — Reset view remains available through the `Ctrl+P` command palette so the router can own the PRD-defined global shortcut.
+## [0.3.57] - 2026-04-23
 
 ### Fixed
-
-- **Daemon-safe process handling** — The CLI fatal error handlers now defer to the router daemon when `--daemon` is active, allowing the daemon's own recovery and logging path to keep long-running sessions alive.
-- **Upstream response hardening** — HTML maintenance pages and malformed successful JSON are now treated as retryable provider failures instead of being forwarded to coding tools.
-- **Client disconnect cleanup** — If a coding tool disconnects mid-request, the daemon now aborts the upstream request without marking the provider unhealthy.
-- **Package safety coverage** — Added a package sanity test that keeps `src/router-daemon.js` protected by the npm `files` allowlist.
-- **Dashboard crash resistance** — Malformed, partial, stopped, stale, or unreachable daemon responses are rendered as dashboard states instead of crashing the TUI render loop.
+- **GLM Proxy / Subagent Disconnects**: Fixed subagents getting marked as `interrupted` during long GLM reasoning periods. The proxy now sends a dedicated SSE keepalive (`: keepalive\n\n`) every 15 seconds to prevent OpenCode's client from dropping the connection.
+- **Deep-Thinking Timeout**: Reverted the hard stall timeout from 120s up to 5 minutes, ensuring that legitimate massive-context requests (which take several minutes to process) aren't prematurely killed.
+- **Duplicate Text Loop**: Fixed the proxy's retry mechanism gracefully completing the stream when a timeout drops the connection *after* the model has already started answering, preventing duplicate text generation loops.

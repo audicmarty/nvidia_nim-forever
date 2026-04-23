@@ -173,8 +173,21 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     let chunksReceived = 0
     let thinkingStartTime = Date.now()
 
+    let keepAliveInterval = setInterval(() => {
+      try {
+        if (!res.writableEnded) {
+          res.write(': keepalive\n\n')
+        } else {
+          clearInterval(keepAliveInterval)
+        }
+      } catch (e) {
+        clearInterval(keepAliveInterval)
+      }
+    }, 15000)
+
     const cleanup = () => {
       if (activityTimeout) clearTimeout(activityTimeout)
+      if (keepAliveInterval) clearInterval(keepAliveInterval)
     }
 
     // Send status message to client
@@ -189,11 +202,11 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       if (activityTimeout) clearTimeout(activityTimeout)
       activityTimeout = setTimeout(() => {
         const idle = Date.now() - lastActivity
-        if (idle > 120000 && !res.writableEnded) { // 2 minutes of no data
-          // Instead of silently completing the stream, abort so the retry loop catches it!
+        if (idle > 300000 && !res.writableEnded) { // 5 minutes of no data
+          // Instead of silently completing the stream, abort so the retry loop catches it (if chunks === 0)
           proxyReq.destroy(new Error(`Stalled connection (no data for ${idle}ms)`))
         }
-      }, 125000)
+      }, 305000)
     }
 
     resetActivityTimeout()
@@ -282,9 +295,19 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       
       proxyRes.on('error', (err) => {
         cleanup()
-        // 📖 ETIMEDOUT FIX: Don't end the response here — let the retry loop handle it.
-        // SSE is append-only, so the retry can pick up where this left off.
-        reject(err)
+        if (chunksReceived > 0) {
+          // If we already started streaming, we can't cleanly retry without duplicating text.
+          // Gracefully complete the stream so OpenCode processes what it got.
+          try {
+            if (!res.writableEnded) {
+              res.write(SSE_TERMINATION)
+              res.end()
+            }
+          } catch {}
+          resolve()
+        } else {
+          reject(err)
+        }
     })
   })
 
@@ -295,13 +318,34 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
 
    proxyReq.on('error', (err) => {
       cleanup()
-      reject(err)
+      if (chunksReceived > 0) {
+        try {
+          if (!res.writableEnded) {
+            res.write(SSE_TERMINATION)
+            res.end()
+          }
+        } catch {}
+        resolve()
+      } else {
+        reject(err)
+      }
     })
     
     proxyReq.on('timeout', () => {
       cleanup()
-      proxyReq.destroy()
-      reject(new Error(`Request timeout (ETIMEDOUT after ${chunksReceived} chunks)`))
+      const err = new Error(`Request timeout (ETIMEDOUT after ${chunksReceived} chunks)`)
+      proxyReq.destroy(err)
+      if (chunksReceived > 0) {
+        try {
+          if (!res.writableEnded) {
+            res.write(SSE_TERMINATION)
+            res.end()
+          }
+        } catch {}
+        resolve()
+      } else {
+        reject(err)
+      }
     })
     
     proxyReq.write(body)
