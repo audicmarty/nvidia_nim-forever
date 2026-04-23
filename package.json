@@ -1,7 +1,7 @@
 {
-  "name": "free-coding-models",
-  "version": "0.3.60",
-  "description": "Find the fastest coding LLM models in seconds — ping free models from multiple providers, pick the best one for OpenCode, Cursor, or any AI coding assistant.",
+  "name": "nvidia-nim-forever",
+  "version": "1.0.0",
+  "description": "NVIDIA NIM models launcher with multi-key GLM proxy — optimized for NVIDIA's free tier with thinking support.",
   "keywords": [
     "nvidia",
     "nim",
@@ -36,7 +36,8 @@
   "type": "module",
   "main": "bin/free-coding-models.js",
   "bin": {
-    "free-coding-models": "./bin/free-coding-models.js"
+    "nvidia-nim-forever": "./bin/free-coding-models.js",
+    "nnf": "./bin/free-coding-models.js"
   },
   "files": [
     "bin/",
