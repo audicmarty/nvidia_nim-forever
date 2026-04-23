@@ -282,7 +282,7 @@ function installIntoOpenCode(providerKey, models, apiKey, paths) {
     name: getManagedProviderLabel(providerKey),
     options: {
       baseURL: resolveProviderBaseUrl(providerKey),
-      headers: { Authorization: `Bearer ${apiKeyRef}` },
+      apiKey: apiKeyRef,
     },
     models: Object.fromEntries(models.map((model) => [model.modelId, { name: model.label }])),
   }

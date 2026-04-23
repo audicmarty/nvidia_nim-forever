@@ -7,7 +7,7 @@ import chalk from 'chalk'
 import { createServer } from 'net'
 import { createServer as createHttpServer } from 'http'
 import { request as httpsRequest, Agent } from 'https'
-import { homedir } from 'os'
+import { homedir, hostname } from 'os'
 import { join } from 'path'
 import { copyFileSync, existsSync, appendFileSync } from 'fs'
 import { PROVIDER_COLOR } from './render-table.js'
@@ -427,7 +427,7 @@ async function createGlmProxy(primaryKey, secondaryKey = null) {
   glmApiKeys = [primaryKey]
   if (secondaryKey) {
     glmApiKeys.push(secondaryKey)
-    console.log(chalk.dim(` [GLM Proxy] Using ${glmApiKeys.length} API keys (${glmApiKeys.length * 40} RPM)`))
+    console.log(chalk.dim(` [NIM Proxy] Using ${glmApiKeys.length} API keys for rotation`))
   }
   glmCurrentKeyIndex = 0
   
@@ -521,7 +521,7 @@ async function createGlmProxy(primaryKey, secondaryKey = null) {
     })
     
     req.on('error', (err) => {
-      console.error(chalk.red(` [GLM Proxy] Request error: ${err.message}`))
+      console.error(chalk.red(` [NIM Proxy] Request error: ${err.message}`))
       if (!res.headersSent) {
         res.writeHead(400)
         res.end(JSON.stringify({ error: 'Bad request' }))
@@ -699,40 +699,40 @@ export async function startOpenCode(model, fcmConfig) {
       saveOpenCodeConfig(config)
     }
     
-    const resolvedKey = getApiKey(fcmConfig, 'nvidia')
-    const isGlmModel = model?.modelId?.includes('glm-5.1') || model?.modelId?.includes('glm5')
+    const allKeys = listApiKeys(fcmConfig, 'nvidia')
+    const primaryKey = allKeys[0] || resolvedKey
+    const secondaryKey = allKeys[1] || null
+    const isMultiKey = allKeys.length > 1
     
-    // 📖 GLM models need thinking proxy
-    if (isGlmModel && resolvedKey) {
-      // 📖 Get all API keys for rotation (supports multiple accounts)
-      const allKeys = listApiKeys(fcmConfig, 'nvidia')
-      const primaryKey = allKeys[0] || resolvedKey
-      const secondaryKey = allKeys[1] || null
+    // 📖 Use proxy if:
+    // 1. It's a GLM model (needs thinking support)
+    // 2. User has multiple keys (needs rotation support)
+    if ((isGlmModel || isMultiKey) && resolvedKey) {
+      const { server: nimProxyServer, port: nimProxyPort } = await createGlmProxy(primaryKey, secondaryKey)
+      const proxyType = isGlmModel ? 'Thinking' : 'Rotation'
+      console.log(chalk.dim(` 🧠 NIM ${proxyType} proxy listening on port ${nimProxyPort}`))
       
-      const { server: glmProxyServer, port: glmProxyPort } = await createGlmProxy(primaryKey, secondaryKey)
-      console.log(chalk.dim(` 🧠 GLM thinking proxy listening on port ${glmProxyPort}`))
-      
-      // 📖 Create custom GLM-thinking provider that points to proxy
-      // 📖 Use 'thinking' suffix in model ID to trigger OpenCode's reasoning display
       if (!config.provider) config.provider = {}
-      const thinkingModelId = ocModelId.includes('thinking') ? ocModelId : `${ocModelId}-thinking`
-      config.provider['fcm-glm'] = {
+      const thinkingModelId = (isGlmModel && !ocModelId.includes('thinking')) ? `${ocModelId}-thinking` : ocModelId
+      
+      // 📖 Always sync/update the fcm-nvidia provider for proxy mode
+      config.provider['fcm-nvidia'] = {
         npm: '@ai-sdk/openai-compatible',
-        name: 'FCM GLM (with thinking)',
+        name: isGlmModel ? 'FCM NIM (with thinking)' : 'FCM NIM (multi-key)',
         options: {
-          baseURL: `http://127.0.0.1:${glmProxyPort}/v1`,
-          headers: { Authorization: 'Bearer {env:NVIDIA_API_KEY}' }
+          baseURL: `http://127.0.0.1:${nimProxyPort}/v1`,
+          apiKey: '{env:NVIDIA_API_KEY}'
         },
         models: {}
       }
-      config.provider['fcm-glm'].models[thinkingModelId] = { name: `${model.label} (Thinking)` }
-      const glmModelRef = `fcm-glm/${thinkingModelId}`
-      config.model = glmModelRef
+      config.provider['fcm-nvidia'].models[thinkingModelId] = { name: isGlmModel ? `${model.label} (Thinking)` : model.label }
+      const nimModelRef = `fcm-nvidia/${thinkingModelId}`
+      config.model = nimModelRef
       
       saveOpenCodeConfig(config)
       
-      console.log(chalk.green(` Setting ${chalk.bold(model.label)} as default (with thinking)...`))
-      console.log(chalk.dim(` Model: ${glmModelRef}`))
+      console.log(chalk.green(` Setting ${chalk.bold(model.label)} as default...`))
+      console.log(chalk.dim(` Model: ${nimModelRef}`))
       console.log()
       
       const savedConfig = loadOpenCodeConfig()
@@ -749,27 +749,25 @@ export async function startOpenCode(model, fcmConfig) {
       console.log(chalk.dim(' Starting OpenCode...'))
       console.log()
       
-      await spawnOpenCode(['--model', glmModelRef], providerKey, fcmConfig, null, model, glmProxyServer)
+      await spawnOpenCode(['--model', nimModelRef], providerKey, fcmConfig, null, model, nimProxyServer)
       return
     }
     
-    // 📖 Regular NVIDIA models (no proxy needed)
+    // 📖 Regular NVIDIA models (no proxy needed) - Always sync to ensure correct structure/key
     if (!config.provider) config.provider = {}
-    if (!config.provider.nvidia) {
-      config.provider.nvidia = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'NVIDIA NIM',
-        options: {
-          baseURL: 'https://integrate.api.nvidia.com/v1',
-          headers: { Authorization: 'Bearer {env:NVIDIA_API_KEY}' }
-        },
-        models: {}
-      }
-      // 📖 Color provider name the same way as in the main table
-      const providerRgb = PROVIDER_COLOR['nvidia'] ?? [105, 190, 245]
-      const coloredNimName = chalk.bold.rgb(...providerRgb)('NVIDIA NIM')
-      console.log(chalk.green(` + Auto-configured ${coloredNimName} provider in OpenCode`))
+    config.provider.nvidia = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'NVIDIA NIM',
+      options: {
+        baseURL: 'https://integrate.api.nvidia.com/v1',
+        apiKey: '{env:NVIDIA_API_KEY}'
+      },
+      models: config.provider.nvidia?.models || {}
     }
+    // 📖 Color provider name the same way as in the main table
+    const providerRgb = PROVIDER_COLOR['nvidia'] ?? [105, 190, 245]
+    const coloredNimName = chalk.bold.rgb(...providerRgb)('NVIDIA NIM')
+    console.log(chalk.green(` + Synced ${coloredNimName} provider in OpenCode`))
     
     console.log(chalk.green(` Setting ${chalk.bold(model.label)} as default...`))
     console.log(chalk.dim(` Model: ${modelRef}`))
@@ -964,135 +962,148 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
   }
   
   if (!config.provider) config.provider = {}
-  if (!config.provider[providerKey]) {
-    if (providerKey === 'groq') {
-      config.provider.groq = { options: { headers: { Authorization: 'Bearer {env:GROQ_API_KEY}' } }, models: {} }
-    } else if (providerKey === 'cerebras') {
-      config.provider.cerebras = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Cerebras',
-        options: { baseURL: 'https://api.cerebras.ai/v1', headers: { Authorization: 'Bearer {env:CEREBRAS_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'sambanova') {
-      config.provider.sambanova = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'SambaNova',
-        options: { baseURL: 'https://api.sambanova.ai/v1', headers: { Authorization: 'Bearer {env:SAMBANOVA_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'openrouter') {
-      config.provider.openrouter = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'OpenRouter',
-        options: { baseURL: 'https://openrouter.ai/api/v1', headers: { Authorization: 'Bearer {env:OPENROUTER_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'huggingface') {
-      config.provider.huggingface = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Hugging Face Inference',
-        options: { baseURL: 'https://router.huggingface.co/v1', headers: { Authorization: 'Bearer {env:HUGGINGFACE_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'deepinfra') {
-      config.provider.deepinfra = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'DeepInfra',
-        options: { baseURL: 'https://api.deepinfra.com/v1/openai', headers: { Authorization: 'Bearer {env:DEEPINFRA_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'fireworks') {
-      config.provider.fireworks = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Fireworks AI',
-        options: { baseURL: 'https://api.fireworks.ai/inference/v1', headers: { Authorization: 'Bearer {env:FIREWORKS_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'codestral') {
-      config.provider.codestral = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Codestral',
-        options: { baseURL: 'https://api.codestral.com/v1', headers: { Authorization: 'Bearer {env:CODESTRAL_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'hyperbolic') {
-      config.provider.hyperbolic = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Hyperbolic',
-        options: { baseURL: 'https://api.hyperbolic.xyz/v1', headers: { Authorization: 'Bearer {env:HYPERBOLIC_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'scaleway') {
-      config.provider.scaleway = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Scaleway',
-        options: { baseURL: 'https://api.scaleway.ai/v1', headers: { Authorization: 'Bearer {env:SCALEWAY_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'googleai') {
-      config.provider.googleai = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Google AI Studio',
-        options: { baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', headers: { Authorization: 'Bearer {env:GOOGLE_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'siliconflow') {
-      config.provider.siliconflow = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'SiliconFlow',
-        options: { baseURL: 'https://api.siliconflow.com/v1', headers: { Authorization: 'Bearer {env:SILICONFLOW_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'together') {
-      config.provider.together = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Together AI',
-        options: { baseURL: 'https://api.together.xyz/v1', headers: { Authorization: 'Bearer {env:TOGETHER_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'cloudflare') {
-      const cloudflareAccountId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim()
-      if (!cloudflareAccountId) {
-        console.log(chalk.yellow(' Cloudflare Workers AI requires CLOUDFLARE_ACCOUNT_ID for OpenCode integration.'))
-        console.log(chalk.dim(' Export CLOUDFLARE_ACCOUNT_ID and retry this selection.'))
-        console.log()
-        return
-      }
-      config.provider.cloudflare = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Cloudflare Workers AI',
-        options: { baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`, headers: { Authorization: 'Bearer {env:CLOUDFLARE_API_TOKEN}' } },
-        models: {}
-      }
-    } else if (providerKey === 'perplexity') {
-      config.provider.perplexity = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Perplexity API',
-        options: { baseURL: 'https://api.perplexity.ai', headers: { Authorization: 'Bearer {env:PERPLEXITY_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'iflow') {
-      config.provider.iflow = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'iFlow',
-        options: { baseURL: 'https://apis.iflow.cn/v1', headers: { Authorization: 'Bearer {env:IFLOW_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'chutes') {
-      config.provider.chutes = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Chutes AI',
-        options: { baseURL: 'https://chutes.ai/v1', headers: { Authorization: 'Bearer {env:CHUTES_API_KEY}' } },
-        models: {}
-      }
-    } else if (providerKey === 'ovhcloud') {
-      config.provider.ovhcloud = {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'OVHcloud AI',
-        options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', headers: { Authorization: 'Bearer {env:OVH_AI_ENDPOINTS_ACCESS_TOKEN}' } },
-        models: {}
-      }
+  
+  // 📖 Always sync provider configuration for Desktop to ensure latest FCM keys are used
+  const resolvedKey = getApiKey(fcmConfig, providerKey)
+  const apiKeyRef = resolvedKey // Use raw key for Desktop to ensure it works without global env vars
+  
+  if (providerKey === 'nvidia') {
+    config.provider.nvidia = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'NVIDIA NIM',
+      options: {
+        baseURL: 'https://integrate.api.nvidia.com/v1',
+        apiKey: apiKeyRef
+      },
+      models: config.provider.nvidia?.models || {}
+    }
+  } else if (providerKey === 'groq') {
+    config.provider.groq = { options: { apiKey: apiKeyRef }, models: config.provider.groq?.models || {} }
+  } else if (providerKey === 'cerebras') {
+    config.provider.cerebras = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Cerebras',
+      options: { baseURL: 'https://api.cerebras.ai/v1', apiKey: apiKeyRef },
+      models: config.provider.cerebras?.models || {}
+    }
+  } else if (providerKey === 'sambanova') {
+    config.provider.sambanova = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'SambaNova',
+      options: { baseURL: 'https://api.sambanova.ai/v1', apiKey: apiKeyRef },
+      models: config.provider.sambanova?.models || {}
+    }
+  } else if (providerKey === 'openrouter') {
+    config.provider.openrouter = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'OpenRouter',
+      options: { baseURL: 'https://openrouter.ai/api/v1', apiKey: apiKeyRef },
+      models: config.provider.openrouter?.models || {}
+    }
+  } else if (providerKey === 'huggingface') {
+    config.provider.huggingface = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Hugging Face Inference',
+      options: { baseURL: 'https://router.huggingface.co/v1', apiKey: apiKeyRef },
+      models: config.provider.huggingface?.models || {}
+    }
+  } else if (providerKey === 'deepinfra') {
+    config.provider.deepinfra = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'DeepInfra',
+      options: { baseURL: 'https://api.deepinfra.com/v1/openai', apiKey: apiKeyRef },
+      models: config.provider.deepinfra?.models || {}
+    }
+  } else if (providerKey === 'fireworks') {
+    config.provider.fireworks = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Fireworks AI',
+      options: { baseURL: 'https://api.fireworks.ai/inference/v1', apiKey: apiKeyRef },
+      models: config.provider.fireworks?.models || {}
+    }
+  } else if (providerKey === 'codestral') {
+    config.provider.codestral = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Codestral',
+      options: { baseURL: 'https://api.codestral.com/v1', apiKey: apiKeyRef },
+      models: config.provider.codestral?.models || {}
+    }
+  } else if (providerKey === 'hyperbolic') {
+    config.provider.hyperbolic = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Hyperbolic',
+      options: { baseURL: 'https://api.hyperbolic.xyz/v1', apiKey: apiKeyRef },
+      models: config.provider.hyperbolic?.models || {}
+    }
+  } else if (providerKey === 'scaleway') {
+    config.provider.scaleway = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Scaleway',
+      options: { baseURL: 'https://api.scaleway.ai/v1', apiKey: apiKeyRef },
+      models: config.provider.scaleway?.models || {}
+    }
+  } else if (providerKey === 'googleai') {
+    config.provider.googleai = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Google AI Studio',
+      options: { baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', apiKey: apiKeyRef },
+      models: config.provider.googleai?.models || {}
+    }
+  } else if (providerKey === 'siliconflow') {
+    config.provider.siliconflow = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'SiliconFlow',
+      options: { baseURL: 'https://api.siliconflow.com/v1', apiKey: apiKeyRef },
+      models: config.provider.siliconflow?.models || {}
+    }
+  } else if (providerKey === 'together') {
+    config.provider.together = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Together AI',
+      options: { baseURL: 'https://api.together.xyz/v1', apiKey: apiKeyRef },
+      models: config.provider.together?.models || {}
+    }
+  } else if (providerKey === 'cloudflare') {
+    const cloudflareAccountId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim()
+    if (!cloudflareAccountId) {
+      console.log(chalk.yellow(' Cloudflare Workers AI requires CLOUDFLARE_ACCOUNT_ID for OpenCode integration.'))
+      console.log(chalk.dim(' Export CLOUDFLARE_ACCOUNT_ID and retry this selection.'))
+      console.log()
+      return
+    }
+    config.provider.cloudflare = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Cloudflare Workers AI',
+      options: { baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`, apiKey: apiKeyRef },
+      models: config.provider.cloudflare?.models || {}
+    }
+  } else if (providerKey === 'perplexity') {
+    config.provider.perplexity = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Perplexity API',
+      options: { baseURL: 'https://api.perplexity.ai', apiKey: apiKeyRef },
+      models: config.provider.perplexity?.models || {}
+    }
+  } else if (providerKey === 'iflow') {
+    config.provider.iflow = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'iFlow',
+      options: { baseURL: 'https://apis.iflow.cn/v1', apiKey: apiKeyRef },
+      models: config.provider.iflow?.models || {}
+    }
+  } else if (providerKey === 'chutes') {
+    config.provider.chutes = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Chutes AI',
+      options: { baseURL: 'https://chutes.ai/v1', apiKey: apiKeyRef },
+      models: config.provider.chutes?.models || {}
+    }
+  } else if (providerKey === 'ovhcloud') {
+    config.provider.ovhcloud = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'OVHcloud AI',
+      options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', apiKey: apiKeyRef },
+      models: config.provider.ovhcloud?.models || {}
     }
   }
   
@@ -1115,5 +1126,4 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
   
   await launchDesktop()
 }
-
 export { createGlmProxy }
