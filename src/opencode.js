@@ -732,13 +732,14 @@ export async function startOpenCode(model, nnfConfig) {
     
     const allKeys = listApiKeys(nnfConfig, 'nvidia')
     const primaryKey = allKeys[0] || resolvedKey
-    const secondaryKey = allKeys[1] || null
-    const isMultiKey = allKeys.length > 1
-    
-    // 📖 Use proxy if:
-    // 1. It's a GLM model (needs thinking support)
-    // 2. User has multiple keys (needs rotation support)
-    if ((isGlmModel || isMultiKey) && resolvedKey) {
+  const secondaryKey = allKeys[1] || null
+  const isMultiKey = allKeys.length > 1
+  const isGlmModel = model.modelId?.includes('glm')
+
+  // 📖 Use proxy if:
+  // 1. It's a GLM model (needs thinking support)
+  // 2. User has multiple keys (needs rotation support)
+  if ((isGlmModel || isMultiKey) && resolvedKey) {
       const { server: nimProxyServer, port: nimProxyPort } = await createGlmProxy(primaryKey, secondaryKey)
       const proxyType = isGlmModel ? 'Thinking' : 'Rotation'
       console.log(chalk.dim(` 🧠 NIM ${proxyType} proxy listening on port ${nimProxyPort}`))

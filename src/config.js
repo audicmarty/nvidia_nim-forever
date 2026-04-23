@@ -1000,16 +1000,18 @@ export function isProviderEnabled(config, providerKey) {
  */
 export function _emptyProfileSettings() {
   return {
-    tierFilter: null,     // 📖 null = show all tiers, or 'S'|'A'|'B'|'C'|'D'
-    sortColumn: 'avg',    // 📖 default sort column
-    sortAsc: true,        // 📖 true = ascending (fastest first for latency)
-    pingInterval: 10000,  // 📖 default ms between pings in the steady "normal" mode
+    tierFilter: null, // 📖 null = show all tiers, or 'S'|'A'|'B'|'C'|'D'
+    sortColumn: 'avg', // 📖 default sort column
+    sortAsc: true, // 📖 true = ascending (fastest first for latency)
+    pingInterval: 10000, // 📖 default ms between pings in the steady "normal" mode
     hideUnconfiguredModels: true, // 📖 true = default to providers that are actually configured
     favoritesPinnedAndSticky: false, // 📖 default mode keeps favorites as normal starred rows; press Y to pin+stick them.
     preferredToolMode: 'opencode', // 📖 remember the last Z-selected launcher across app restarts
-    theme: 'auto',        // 📖 'auto' follows the terminal/OS theme, override with 'dark' or 'light' if needed
-    footerHidden: false,  // 📖 false = full footer shown; true = collapsed to a single "(W) Toggle Footer" hint
+    theme: 'auto', // 📖 'auto' follows the terminal/OS theme, override with 'dark' or 'light' if needed
+    footerHidden: false, // 📖 false = full footer shown; true = collapsed to a single "(W) Toggle Footer" hint
+    shellEnvEnabled: false, // 📖 false = don't prompt for shell env setup (user can enable manually in settings)
   }
+}
 }
 
 /**
