@@ -6,7 +6,7 @@
  *   📖 This module provides functions to:
  *   - Scan all supported tool configs for installed models
  *   - Parse tool-specific config files (YAML, JSON)
- *   - Soft-delete models with backup to ~/.free-coding-models-backups.json
+ *   - Soft-delete models with backup to ~/.nvidia-nim-forever-backups.json
  *   - Launch tools with selected models
  *   - Reinstall FCM endpoints for providers
  *
@@ -21,7 +21,7 @@
  *   - Amp (~/.config/amp/settings.json)
  *
  *   📖 Backup system:
- *   - Disabled models are saved to ~/.free-coding-models-backups.json
+ *   - Disabled models are saved to ~/.nvidia-nim-forever-backups.json
  * - Each entry includes: toolMode, modelId, originalConfig, configPath, disabledAt
  *
  * @functions
@@ -50,7 +50,7 @@ import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { sources } from '../sources.js'
 
-const BACKUP_PATH = join(homedir(), '.free-coding-models-backups.json')
+const BACKUP_PATH = join(homedir(), '.nvidia-nim-forever-backups.json')
 
 /**
  * 📖 Get tool config paths
@@ -417,7 +417,7 @@ function parseOpenHandsConfig(paths = getToolConfigPaths()) {
 
     return {
       isValid: true,
-      hasManagedMarker: content.includes('Managed by free-coding-models'),
+      hasManagedMarker: content.includes('Managed by nvidia-nim-forever'),
       models,
       configPath,
     }
@@ -551,7 +551,7 @@ function getToolEmoji(toolMode) {
 }
 
 /**
- * 📖 Load backups from ~/.free-coding-models-backups.json
+ * 📖 Load backups from ~/.nvidia-nim-forever-backups.json
  */
 function loadBackups() {
   if (!existsSync(BACKUP_PATH)) {
@@ -566,7 +566,7 @@ function loadBackups() {
 }
 
 /**
- * 📖 Save backups to ~/.free-coding-models-backups.json
+ * 📖 Save backups to ~/.nvidia-nim-forever-backups.json
  */
 function saveBackups(backups) {
   const dir = dirname(BACKUP_PATH)

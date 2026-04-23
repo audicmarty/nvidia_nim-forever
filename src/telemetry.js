@@ -56,21 +56,21 @@ const LOCAL_VERSION = pkg.version
 
 // 📖 PostHog capture endpoint and defaults.
 // 📖 These are public ingest tokens — safe to publish in open-source code.
-const TELEMETRY_TIMEOUT          = 1_200
-const POSTHOG_CAPTURE_PATH       = '/i/v0/e/'
-const POSTHOG_DEFAULT_HOST       = 'https://eu.i.posthog.com'
+const TELEMETRY_TIMEOUT = 1_200
+const POSTHOG_CAPTURE_PATH = '/i/v0/e/'
+const POSTHOG_DEFAULT_HOST = 'https://eu.i.posthog.com'
 const POSTHOG_PROJECT_KEY_DEFAULT = 'phc_5P1n8HaLof6nHM0tKJYt4bV5pj2XPb272fLVigwf1YQ'
-const POSTHOG_HOST_DEFAULT       = 'https://eu.i.posthog.com'
+const POSTHOG_HOST_DEFAULT = 'https://eu.i.posthog.com'
 
 // 📖 Discord feature request webhook configuration (anonymous feedback system).
-const DISCORD_WEBHOOK_URL   = 'https://discord.com/api/webhooks/1476709155992764427/hmnHNtpducvi5LClhv8DynENjUmmg9q8HI1Bx1lNix56UHqrqZf55rW95LGvNJ2W4j7D'
-const DISCORD_BOT_NAME      = 'TUI - Feature Requests'
-const DISCORD_EMBED_COLOR   = 0x39FF14  // Vert fluo (RGB: 57, 255, 20)
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1476709155992764427/hmnHNtpducvi5LClhv8DynENjUmmg9q8HI1Bx1lNix56UHqrqZf55rW95LGvNJ2W4j7D'
+const DISCORD_BOT_NAME = 'TUI - Feature Requests'
+const DISCORD_EMBED_COLOR = 0x39FF14  // Vert fluo (RGB: 57, 255, 20)
 
 // 📖 Discord bug report webhook configuration (anonymous bug reports).
-const DISCORD_BUG_WEBHOOK_URL  = 'https://discord.com/api/webhooks/1476715954409963743/5cOLf7U_891f1jwxRBLIp2RIP9xYhr4rWtOhipzKKwVdFVl1Bj89X_fB6I_uGXZiGT9E'
-const DISCORD_BUG_BOT_NAME     = 'TUI Bug Report'
-const DISCORD_BUG_EMBED_COLOR  = 0xFF5733  // Rouge (RGB: 255, 87, 51)
+const DISCORD_BUG_WEBHOOK_URL = 'https://discord.com/api/webhooks/1476715954409963743/5cOLf7U_891f1jwxRBLIp2RIP9xYhr4rWtOhipzKKwVdFVl1Bj89X_fB6I_uGXZiGT9E'
+const DISCORD_BUG_BOT_NAME = 'TUI Bug Report'
+const DISCORD_BUG_EMBED_COLOR = 0xFF5733  // Rouge (RGB: 255, 87, 51)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

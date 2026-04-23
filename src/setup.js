@@ -1,6 +1,6 @@
 /**
  * @file setup.js
- * @description First-run API key setup wizard, extracted from bin/free-coding-models.js.
+ * @description First-run API key setup wizard, extracted from bin/nvidia-nim-forever.js.
  *
  * @details
  *   `promptApiKey` is the interactive first-time setup wizard shown when NO provider has
@@ -9,7 +9,7 @@
  *   key (pressing Enter skips that provider).
  *
  *   The wizard is skipped on subsequent runs because `loadConfig()` finds existing keys in
- *   ~/.free-coding-models.json and the caller (`main()`) only invokes `promptApiKey` when
+ *   ~/.nvidia-nim-forever.json and the caller (`main()`) only invokes `promptApiKey` when
  *   `Object.values(config.apiKeys).every(v => !v)`.
  *
  *   ⚙️ How it works:
@@ -29,7 +29,7 @@
  * @see src/provider-metadata.js — PROVIDER_METADATA provides label/color/url/hint per provider
  * @see src/config.js            — saveConfig persists the collected keys
  * @see sources.js               — Object.keys(sources) drives the provider iteration order
- * @see bin/free-coding-models.js — calls promptApiKey when no keys are configured
+ * @see bin/nvidia-nim-forever.js — calls promptApiKey when no keys are configured
  */
 
 import chalk from 'chalk'
@@ -45,7 +45,7 @@ const readline = require('readline')
  * 📖 promptApiKey: Interactive first-run wizard for multi-provider API key setup.
  * 📖 Shown when NO provider has a key configured yet.
  * 📖 Steps through all configured providers sequentially — each is optional (Enter to skip).
- * 📖 At least one key must be entered to proceed. Keys saved to ~/.free-coding-models.json.
+ * 📖 At least one key must be entered to proceed. Keys saved to ~/.nvidia-nim-forever.json.
  * 📖 Returns the nvidia key (or null) for backward-compat with the rest of main().
  * @param {Record<string, unknown>} config
  * @returns {Promise<string|null>}
@@ -96,7 +96,7 @@ export async function promptApiKey(config) {
 
   saveConfig(config)
   const savedCount = Object.values(config.apiKeys).filter(v => v).length
-  console.log(chalk.green(`  ✅ ${savedCount} key(s) saved to ~/.free-coding-models.json`))
+  console.log(chalk.green(`  ✅ ${savedCount} key(s) saved to ~/.nvidia-nim-forever.json`))
   console.log(chalk.dim('  You can add or change keys anytime with the ') + chalk.yellow('P') + chalk.dim(' key in the TUI.'))
   console.log()
 

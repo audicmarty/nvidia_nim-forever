@@ -11,7 +11,7 @@
  *   - `fcm-proxy` providers inside tool configs
  *   - proxy-only env files for removed tools
  *   - daemon/log artifacts from the old bridge
- *   - stale proxy fields in `~/.free-coding-models.json`
+ *   - stale proxy fields in `~/.nvidia-nim-forever.json`
  *
  *   📖 It intentionally preserves current direct-provider installs such as
  *   📖 `fcm-nvidia`, `fcm-groq`, or the current OpenHands env file when it is
@@ -33,8 +33,8 @@ const LEGACY_ENV_FILES = ['.fcm-claude-code-env', '.fcm-codex-env', '.fcm-gemini
 
 function getDefaultPaths(homeDir) {
   return {
-    configPath: join(homeDir, '.free-coding-models.json'),
-    dataDir: join(homeDir, '.free-coding-models'),
+    configPath: join(homeDir, '.nvidia-nim-forever.json'),
+    dataDir: join(homeDir, '.nvidia-nim-forever'),
     opencodeConfigPath: join(homeDir, '.config', 'opencode', 'opencode.json'),
     openclawConfigPath: join(homeDir, '.openclaw', 'openclaw.json'),
     crushConfigPath: join(homeDir, '.config', 'crush', 'crush.json'),

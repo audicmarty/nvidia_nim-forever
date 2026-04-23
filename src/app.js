@@ -214,7 +214,7 @@ export async function runApp(cliArgs, config) {
     if (!result) {
       console.log()
       console.log(chalk.red('  ✖ No API key provided.'))
-      console.log(chalk.dim('  Run `free-coding-models` again or set NVIDIA_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY.'))
+      console.log(chalk.dim('  Run `nvidia-nim-forever` again or set NVIDIA_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY.'))
       console.log()
       process.exit(1)
     }
@@ -231,18 +231,19 @@ export async function runApp(cliArgs, config) {
   // 📖 Only show when user has keys but shellEnvEnabled is still undefined (never prompted)
   if (hasAnyKey && config.settings.shellEnvEnabled === undefined) {
     const choice = await promptShellEnvMigration(config)
+    if (!config.settings) config.settings = {}
     if (choice === 'enable') {
-      if (!config.settings) config.settings = {}
       config.settings.shellEnvEnabled = true
       saveConfig(config)
       syncShellEnv(config)
       ensureShellRcSource()
-    } else if (choice === 'never') {
-      if (!config.settings) config.settings = {}
+    } else {
+      // 📖 'skip' and 'never' both set shellEnvEnabled = false so this prompt never reappears.
+      // 📖 The only difference is intent: 'never' is explicit, 'skip' means "not now".
+      // 📖 Either way, leave shellEnvEnabled = false — user can always enable in Settings (P).
       config.settings.shellEnvEnabled = false
       saveConfig(config)
     }
-    // 📖 'skip' (Ctrl+C) now also sets shellEnvEnabled = false — prompt won't reappear
   }
 
   // 📖 Default mode: use the last persisted launcher choice when valid,
@@ -302,7 +303,7 @@ export async function runApp(cliArgs, config) {
       return // 📖 runUpdate relaunches the process — this line is a safety guard
     } else if (choice === 'changelogs') {
       const { execSync: _exec } = await import('child_process')
-      const url = 'https://github.com/vava-nessa/free-coding-models/releases'
+      const url = 'https://github.com/vava-nessa/nvidia-nim-forever/releases'
       try {
         if (process.platform === 'darwin') _exec(`open ${url}`)
         else if (process.platform === 'linux') _exec(`xdg-open ${url}`)
@@ -1036,7 +1037,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Error] An error occurred while handling a keypress.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   })
@@ -1198,7 +1199,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Render Error] An error occurred during UI rendering.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   }, Math.round(1000 / FPS))
@@ -1270,7 +1271,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Error] An error occurred in the ping loop.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   }
@@ -1306,8 +1307,8 @@ export async function runApp(cliArgs, config) {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), ROUTER_FOOTER_FETCH_TIMEOUT_MS)
-      const pidPath = `${process.env.HOME}/.free-coding-models-daemon.pid`
-      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
+      const pidPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.pid`
+      const portPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.port`
       let port = 19280
       try {
         const { readFileSync: rfs } = await import('node:fs')

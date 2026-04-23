@@ -33,7 +33,7 @@
 
 import { loadChangelog } from './changelog-loader.js'
 import { getToolMeta, isModelCompatibleWithTool, getCompatibleTools, findSimilarCompatibleModels } from './tool-metadata.js'
-import { loadConfig, saveConfig, replaceConfigContents } from './config.js'
+import { loadConfig, saveConfig, replaceConfigContents, readStoredConfigSnapshot, resolveApiKeys } from './config.js'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
@@ -68,13 +68,15 @@ import {
 // 📖 is not guaranteed to be accepted by their chat endpoint.
 const PROVIDER_TEST_MODEL_OVERRIDES = {
   sambanova: ['DeepSeek-V3-0324'],
+  // 📖 NVIDIA probe list: keep to models confirmed to return HTTP 200 quickly.
+  // 📖 Many older catalog entries return 403/404/410 or timeout — if probe models drift,
+  // 📖 valid keys appear broken. Verify these stay reachable before updating.
   nvidia: [
-    'meta/llama-3.3-70b-instruct',
-    'meta/llama-3.1-405b-instruct',
-    'deepseek-ai/deepseek-r1-distill-qwen-32b',
-    'qwen/qwen2.5-coder-32b-instruct',
-    'google/gemma-2-9b-it',
-    'microsoft/phi-4-mini-instruct',
+    'mistralai/magistral-small-2506',          // 📖 217ms, reliable
+    'meta/llama-4-maverick-17b-128e-instruct', // 📖 386ms, reliable
+    'qwen/qwen2.5-coder-32b-instruct',         // 📖 439ms, reliable
+    'mistralai/mistral-medium-3',              // 📖 Fast, consistently up
+    'nvidia/nemotron-super-49b-v1',            // 📖 Fast, consistently up
   ],
 }
 
@@ -132,8 +134,8 @@ async function testProviderKeyDirect(apiKey, providerKey) {
   const { url, method } = authConfig
   const headers = { Authorization: `Bearer ${apiKey}` }
   if (providerKey === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/free-coding-models'
-    headers['X-Title'] = 'free-coding-models'
+    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/nvidia-nim-forever'
+    headers['X-Title'] = 'nvidia-nim-forever'
   }
 
   const parallel = 3
@@ -598,7 +600,11 @@ export function createKeyHandler(ctx) {
   async function testProviderKey(providerKey) {
     const src = sources[providerKey]
     if (!src) return
-    const testKey = getApiKey(state.config, providerKey)
+    // 📖 Read directly from state.config — NOT getApiKey() which would return the env var
+    // 📖 override instead of what the user just saved via Settings. The env var may be stale
+    // 📖 (set before the session) while config was just updated. This makes the T-test
+    // 📖 verify the key the user can actually see and edit in the Settings UI.
+    const testKey = resolveApiKeys(state.config, providerKey)[0] ?? null
     const providerLabel = src.name || providerKey
     if (!state.settingsTestDetails) state.settingsTestDetails = {}
     if (!testKey) {
@@ -635,8 +641,8 @@ export function createKeyHandler(ctx) {
       try {
         const headers = { Authorization: `Bearer ${testKey}` }
         if (providerKey === 'openrouter') {
-          headers['HTTP-Referer'] = 'https://github.com/vava-nessa/free-coding-models'
-          headers['X-Title'] = 'free-coding-models'
+          headers['HTTP-Referer'] = 'https://github.com/vava-nessa/nvidia-nim-forever'
+          headers['X-Title'] = 'nvidia-nim-forever'
         }
         const modelsResp = await fetch(modelsUrl, { headers })
         if (modelsResp.ok) {
@@ -1012,7 +1018,7 @@ export function createKeyHandler(ctx) {
     let port = 19280
     try {
       const { readFileSync: rfs } = await import('node:fs')
-      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
+      const portPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.port`
       const savedPort = rfs(portPath, 'utf8').trim()
       if (/^\d+$/.test(savedPort)) port = Number(savedPort)
     } catch {}
@@ -2297,7 +2303,7 @@ export function createKeyHandler(ctx) {
         state.routerOnboardingError = null
         void (async () => {
           try {
-            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'free-coding-models.js')
+            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'nvidia-nim-forever.js')
             const child = spawn('node', [binPath, '--daemon-bg'], {
               detached: true,
               stdio: 'ignore',
@@ -2381,7 +2387,7 @@ export function createKeyHandler(ctx) {
         // 📖 Calculate total content lines for proper scroll boundary clamping
         const calcChangelogLines = () => {
           const lines = []
-          lines.push(`  🚀 free-coding-models`)
+          lines.push(`  🚀 nvidia-nim-forever`)
           lines.push(`  📋 v${state.changelogSelectedVersion}`)
           lines.push(`  — ↑↓ / PgUp / PgDn scroll • B back • Esc close`)
           lines.push('')
@@ -2739,6 +2745,14 @@ export function createKeyHandler(ctx) {
         // 📖 Enter edit mode for the selected provider's key
         const pk = providerKeys[state.settingsCursor]
         if (!pk) return
+        // 📖 Read fresh from disk to ensure we're showing the latest saved key,
+        // 📖 not stale in-memory state that may have drifted (e.g. after a failed save/restore cycle).
+        const freshDiskConfig = readStoredConfigSnapshot()
+        if (freshDiskConfig?.apiKeys) {
+          // 📖 Sync in-memory state from disk for API keys only
+          if (!state.config.apiKeys) state.config.apiKeys = {}
+          Object.assign(state.config.apiKeys, freshDiskConfig.apiKeys)
+        }
         state.settingsEditBuffer = resolveApiKeys(state.config, pk)[0] ?? ''
         state.settingsEditMode = true
         return

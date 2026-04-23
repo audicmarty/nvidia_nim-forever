@@ -136,8 +136,8 @@ async function fetchOpenRouterRaw(apiKey, fetchFn) {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://github.com/vava-nessa/free-coding-models',
-      'X-Title': 'free-coding-models',
+      'HTTP-Referer': 'https://github.com/vava-nessa/nvidia-nim-forever',
+      'X-Title': 'nvidia-nim-forever',
     },
     signal: AbortSignal.timeout(5000),
   })

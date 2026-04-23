@@ -83,8 +83,8 @@ export function buildPingRequest(apiKey, modelId, providerKey, url) {
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
   if (providerKey === 'openrouter') {
     // 📖 OpenRouter recommends optional app identification headers.
-    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/free-coding-models'
-    headers['X-Title'] = 'free-coding-models'
+    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/nvidia-nim-forever'
+    headers['X-Title'] = 'nvidia-nim-forever'
   }
 
   return {
@@ -173,7 +173,7 @@ export async function fetchProviderQuotaPercent(providerKey, apiKey) {
 
 // 📖 getProviderQuotaPercentCached: Wrapper for cached provider quota fetching.
 // 📖 The module already implements TTL cache and error backoff internally.
-// 📖 This wrapper preserves the existing call-site API from bin/free-coding-models.js.
+// 📖 This wrapper preserves the existing call-site API from bin/nvidia-nim-forever.js.
 export async function getProviderQuotaPercentCached(providerKey, apiKey) {
   return fetchProviderQuotaPercent(providerKey, apiKey)
 }

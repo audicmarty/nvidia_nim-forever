@@ -29,7 +29,7 @@
  *   - ../src/ping.js: usagePlaceholderForProvider
  *   - ../src/render-helpers.js: calculateViewport, sortResultsWithPinnedFavorites, padEndDisplay
  *
- *   @see bin/free-coding-models.js — main entry point that calls renderTable
+ *   @see bin/nvidia-nim-forever.js — main entry point that calls renderTable
  */
 
 import chalk from 'chalk'
@@ -318,7 +318,7 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
   })
 
   const lines = [
-    `  ${themeColors.accentBold(`🚀 free-coding-models v${LOCAL_VERSION}`)}${modeBadge}${pingControlBadge}${tierBadge}${originBadge}${chalk.reset('')}   ` +
+    `  ${themeColors.accentBold(`🚀 nvidia-nim-forever v${LOCAL_VERSION}`)}${modeBadge}${pingControlBadge}${tierBadge}${originBadge}${chalk.reset('')}   ` +
       themeColors.dim('📦 ') + themeColors.accentBold(`${completedPings}/${totalVisible}`) + themeColors.dim('  ') +
       themeColors.success(`✅ ${up}`) + themeColors.dim(' up  ') +
       themeColors.warning(`⏳ ${timeout}`) + themeColors.dim(' timeout  ') +
@@ -897,10 +897,10 @@ export function renderTable(results, pendingPings, frame, cursor = null, sortCol
       themeColors.footerLove('  Made with 💖 & ☕ by \x1b]8;;https://github.com/vava-nessa\x1b\\vava-nessa\x1b]8;;\x1b\\') +
       themeColors.dim('  •  ') +
       '⭐ ' +
-      themeColors.link('\x1b]8;;https://github.com/vava-nessa/free-coding-models\x1b\\Star on GitHub\x1b]8;;\x1b\\') +
+      themeColors.link('\x1b]8;;https://github.com/vava-nessa/nvidia-nim-forever\x1b\\Star on GitHub\x1b]8;;\x1b\\') +
       themeColors.dim('  •  ') +
       '🤝 ' +
-      themeColors.warning('\x1b]8;;https://github.com/vava-nessa/free-coding-models/graphs/contributors\x1b\\Contributors\x1b]8;;\x1b\\') +
+      themeColors.warning('\x1b]8;;https://github.com/vava-nessa/nvidia-nim-forever/graphs/contributors\x1b\\Contributors\x1b]8;;\x1b\\') +
       themeColors.dim('  •  ') +
       '☕ ' +
       themeColors.footerCoffee('\x1b]8;;https://buymeacoffee.com/vavanessadev\x1b\\Buy me a coffee\x1b]8;;\x1b\\')

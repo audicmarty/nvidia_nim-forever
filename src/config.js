@@ -49,13 +49,13 @@
  *
 
  *
- * 📖 Migration: On first run, if the old plain-text ~/.free-coding-models exists
+ * 📖 Migration: On first run, if the old plain-text ~/.nvidia-nim-forever exists
  *    and the new JSON file does not, the old key is auto-migrated as the nvidia key.
  *    The old file is left in place (not deleted) for safety.
  *
  * @functions
- *   → loadConfig() — Read ~/.free-coding-models.json; auto-migrate old plain-text config if needed
- *   → saveConfig(config, options?) — Write config to ~/.free-coding-models.json with atomic replace + merge safeguards
+ *   → loadConfig() — Read ~/.nvidia-nim-forever.json; auto-migrate old plain-text config if needed
+ *   → saveConfig(config, options?) — Write config to ~/.nvidia-nim-forever.json with atomic replace + merge safeguards
  *   → getApiKey(config, providerKey) — Get effective API key (env var override > config > null)
  *   → addApiKey(config, providerKey, key) — Append a key (string→array); ignores empty/duplicate
  *   → removeApiKey(config, providerKey, index?) — Remove key at index (or last); collapses array-of-1 to string; deletes when empty
@@ -73,7 +73,7 @@
  * @exports buildPersistedConfig, replaceConfigContents, persistApiKeysForProvider
  * @exports CONFIG_PATH — path to the JSON config file
  *
- * @see bin/free-coding-models.js — main CLI that uses these functions
+ * @see bin/nvidia-nim-forever.js — main CLI that uses these functions
  * @see sources.js — provider keys come from Object.keys(sources)
  */
 
@@ -377,7 +377,7 @@ function normalizeConfigShape(config) {
   return normalized
 }
 
-function readStoredConfigSnapshot() {
+export function readStoredConfigSnapshot() {
   if (!existsSync(CONFIG_PATH)) return _emptyConfig()
 
   try {
@@ -505,8 +505,8 @@ export function persistApiKeysForProvider(config, providerKey) {
  * 📖 loadConfig: Read the JSON config from disk.
  *
  * 📖 Fallback chain:
- *   1. Try to read ~/.free-coding-models.json (new format)
- *   2. If missing, check if ~/.free-coding-models (old plain-text) exists → migrate
+ *   1. Try to read ~/.nvidia-nim-forever.json (new format)
+ *   2. If missing, check if ~/.nvidia-nim-forever (old plain-text) exists → migrate
  *   3. If neither, return an empty default config
  *
  * 📖 Now includes automatic validation and repair from backups if config is corrupted.
@@ -522,7 +522,7 @@ export function loadConfig() {
     if (!validation.valid && !validation.repaired) {
       // 📖 Config is corrupted and repair failed - warn user but continue with empty config
       console.error(`⚠️  Warning: Config file is corrupted and could not be repaired: ${validation.error}`)
-      console.error('⚠️  Starting with fresh config. Your backups are in ~/.free-coding-models.backups/')
+      console.error('⚠️  Starting with fresh config. Your backups are in ~/.nvidia-nim-forever.backups/')
     }
 
     if (validation.repaired) {
@@ -561,7 +561,7 @@ export function loadConfig() {
 }
 
 /**
- * 📖 saveConfig: Write the config object to ~/.free-coding-models.json.
+ * 📖 saveConfig: Write the config object to ~/.nvidia-nim-forever.json.
  *
  * 📖 Uses mode 0o600 so the file is only readable by the owning user (API keys!).
  * 📖 Pretty-prints JSON for human readability.
@@ -623,19 +623,13 @@ export function saveConfig(config, options = {}) {
 
       return { success: true, backupCreated }
     } catch (verifyError) {
-      // 📖 Verification failed - this is critical!
-      let errorMsg = `Config verification failed: ${verifyError.message}`
-      
-      // 📖 Try to restore from backup if we have one
-      if (backupCreated) {
-        try {
-          restoreFromBackup()
-          errorMsg += ' (Restored from backup)'
-        } catch (restoreError) {
-          errorMsg += ` (Backup restoration failed: ${restoreError.message})`
-        }
-      }
-
+      // 📖 Verification failed — but the file was already written successfully (renameSync succeeded).
+      // 📖 DO NOT restore from backup here: the backup may be stale (e.g. contain nvapi-test),
+      // 📖 while the just-written file is actually correct. A false-negative verification check
+      // 📖 was previously trashing valid writes by restoring a corrupted backup.
+      // 📖 Just log a warning and return success=false so callers know to re-render.
+      const errorMsg = `Config verification warning: ${verifyError.message} (file kept as-is)`
+      replaceConfigContents(config, persistedConfig)
       return { success: false, error: errorMsg, backupCreated }
     }
   } catch (writeError) {
@@ -660,7 +654,7 @@ export function saveConfig(config, options = {}) {
 /**
  * 📖 createBackup: Creates a timestamped backup of the current config file.
  * 📖 Keeps only the 5 most recent backups to avoid disk space issues.
- * 📖 Backup files are stored in ~/.free-coding-models.backups/
+ * 📖 Backup files are stored in ~/.nvidia-nim-forever.backups/
  * 
  * @returns {boolean} true if backup was created, false otherwise
  */
@@ -671,7 +665,7 @@ function createBackup() {
     }
 
     // 📖 Create backup directory if it doesn't exist
-    const backupDir = join(homedir(), '.free-coding-models.backups')
+    const backupDir = join(homedir(), '.nvidia-nim-forever.backups')
     if (!existsSync(backupDir)) {
       mkdirSync(backupDir, { mode: 0o700, recursive: true })
     }
@@ -718,7 +712,7 @@ function createBackup() {
  * @throws {Error} if no backup exists or restoration fails
  */
 function restoreFromBackup() {
-  const backupDir = join(homedir(), '.free-coding-models.backups')
+  const backupDir = join(homedir(), '.nvidia-nim-forever.backups')
   
   if (!existsSync(backupDir)) {
     throw new Error('No backup directory found')
@@ -808,7 +802,7 @@ export function validateConfigFile(options = {}) {
  *
  * 📖 Priority order (first non-empty wins):
  *   1. Environment variable (e.g. NVIDIA_API_KEY) — for CI/headless
- *   2. Config file value — from ~/.free-coding-models.json
+ *   2. Config file value — from ~/.nvidia-nim-forever.json
  *   3. null — no key configured
  *
  * @param {{ apiKeys: Record<string,string> }} config
@@ -816,18 +810,26 @@ export function validateConfigFile(options = {}) {
  * @returns {string|null}
  */
 export function getApiKey(config, providerKey) {
-  // 📖 Env var override — takes precedence over everything
-  const envVar = ENV_VARS[providerKey]
-  const envCandidates = Array.isArray(envVar) ? envVar : [envVar]
-  for (const candidate of envCandidates) {
-    if (candidate && process.env[candidate]) return process.env[candidate]
-  }
+  // 📖 Priority order (first non-empty wins):
+  // 📖   1. Config file value — explicit user setting, always wins
+  // 📖   2. Environment variable — fallback for CI/headless when no config key is set
+  //
+  // 📖 Why config-first: if the user saves a key via the Settings TUI, that must take
+  // 📖 immediate effect. Putting env vars first caused stale shell env vars (set before
+  // 📖 the app launched) to silently override whatever the user typed in Settings.
 
-  // 📖 Config file value
+  // 📖 Config file value — explicit user setting wins
   const key = config?.apiKeys?.[providerKey]
   if (key) {
     // 📖 If key is an array, return first element (multi-key support)
     return Array.isArray(key) ? key[0] : key
+  }
+
+  // 📖 Env var fallback — for CI/headless use when no config key is set
+  const envVar = ENV_VARS[providerKey]
+  const envCandidates = Array.isArray(envVar) ? envVar : [envVar]
+  for (const candidate of envCandidates) {
+    if (candidate && process.env[candidate]) return process.env[candidate]
   }
 
   return null

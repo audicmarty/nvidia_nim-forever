@@ -259,10 +259,10 @@ async function withRouterTestServer(config, fn) {
     tokenPath,
     logger: {
       level: 'error',
-      error() {},
-      warn() {},
-      info() {},
-      debug() {},
+      error() { },
+      warn() { },
+      info() { },
+      debug() { },
     },
   })
   const server = createHttpServer((req, res) => void runtime.handleHttp(req, res))
@@ -276,7 +276,7 @@ async function withRouterTestServer(config, fn) {
       baseUrl: `http://127.0.0.1:${port}`,
     })
   } finally {
-    try { runtime.tokenTracker.flush({ force: true }) } catch {}
+    try { runtime.tokenTracker.flush({ force: true }) } catch { }
     await closeRouterTestServer(server)
     rmSync(tokenPath, { force: true })
   }
@@ -593,11 +593,11 @@ describe('provider key test model discovery', () => {
     assert.deepEqual(
       listProviderTestModels('nvidia', sources.nvidia, ['openai/gpt-oss-120b', 'deepseek-ai/deepseek-v3.2']).slice(0, 5),
       [
-        'meta/llama-3.3-70b-instruct',
-        'meta/llama-3.1-405b-instruct',
-        'deepseek-ai/deepseek-r1-distill-qwen-32b',
+        'mistralai/magistral-small-2506',
+        'meta/llama-4-maverick-17b-128e-instruct',
         'qwen/qwen2.5-coder-32b-instruct',
-        'google/gemma-2-9b-it',
+        'mistralai/mistral-medium-3',
+        'nvidia/nemotron-super-49b-v1',
       ]
     )
   })
@@ -1051,8 +1051,8 @@ describe('sortResults', () => {
   it('sorts by usage ascending (low usagePercent first)', () => {
     const results = [
       mockResult({ label: 'HighUsage', usagePercent: 80 }),
-      mockResult({ label: 'LowUsage',  usagePercent: 20 }),
-      mockResult({ label: 'MedUsage',  usagePercent: 50 }),
+      mockResult({ label: 'LowUsage', usagePercent: 20 }),
+      mockResult({ label: 'MedUsage', usagePercent: 50 }),
     ]
     const sorted = sortResults(results, 'usage', 'asc')
     assert.equal(sorted[0].label, 'LowUsage')
@@ -1062,7 +1062,7 @@ describe('sortResults', () => {
 
   it('sorts by usage descending (high usagePercent first)', () => {
     const results = [
-      mockResult({ label: 'LowUsage',  usagePercent: 20 }),
+      mockResult({ label: 'LowUsage', usagePercent: 20 }),
       mockResult({ label: 'HighUsage', usagePercent: 80 }),
     ]
     const sorted = sortResults(results, 'usage', 'desc')
@@ -1428,7 +1428,7 @@ describe('renderSettings provider test badges', () => {
       getStabilityScore: () => 0,
       toFavoriteKey: () => '',
       getTopRecommendations: () => [],
-      adjustScrollOffset: () => {},
+      adjustScrollOffset: () => { },
       getPingModel: () => null,
       getConfiguredInstallableProviders: () => [],
       getInstallTargetModes: () => [],
@@ -1561,7 +1561,7 @@ describe('renderToolInstallPrompt', () => {
       getStabilityScore: () => 0,
       toFavoriteKey: () => '',
       getTopRecommendations: () => [],
-      adjustScrollOffset: () => {},
+      adjustScrollOffset: () => { },
       getPingModel: () => null,
       getConfiguredInstallableProviders: () => [],
       getInstallTargetModes: () => [],
@@ -2625,7 +2625,7 @@ describe('router daemon integration hardening', () => {
       })
     })
 
-    const closedServer = createHttpServer(() => {})
+    const closedServer = createHttpServer(() => { })
     const closedPort = await listenOnRandomPort(closedServer)
     await closeRouterTestServer(closedServer)
     await withMockProvider(() => ({ body: { id: 'chatcmpl-after-refused', choices: [] } }), async (nvidiaProvider) => {
@@ -2658,7 +2658,7 @@ describe('router daemon integration hardening', () => {
     await withMockProvider((request, res) => {
       providerReceivedResolve()
       res.on('close', () => providerCloseResolve())
-      return new Promise(() => {})
+      return new Promise(() => { })
     }, async (groqProvider) => {
       await withSourceUrls({ groq: groqProvider.url }, async () => {
         const config = buildRouterTestConfig([
@@ -3942,127 +3942,127 @@ describe('MOUSE_ENABLE / MOUSE_DISABLE sequences', () => {
     })
     disableOrder.forEach((mode, i) => {
       assert.ok(MOUSE_DISABLE.indexOf(`?${mode}l`) >= 0)
-  })
-})
-
-// ─── Shell Env tests ─────────────────────────────────────────────────────────
-describe('Shell Env', () => {
-  let tmpHome
-  before(() => {
-    tmpHome = join(tmpdir(), `fcm-test-home-${Date.now()}`)
-    mkdirSync(tmpHome, { recursive: true })
-    process.env.FCM_TEST_HOME = tmpHome
+    })
   })
 
-  after(() => {
-    delete process.env.FCM_TEST_HOME
-    try { rmSync(tmpHome, { recursive: true, force: true }) } catch { /* best effort */ }
+  // ─── Shell Env tests ─────────────────────────────────────────────────────────
+  describe('Shell Env', () => {
+    let tmpHome
+    before(() => {
+      tmpHome = join(tmpdir(), `fcm-test-home-${Date.now()}`)
+      mkdirSync(tmpHome, { recursive: true })
+      process.env.FCM_TEST_HOME = tmpHome
+    })
+
+    after(() => {
+      delete process.env.FCM_TEST_HOME
+      try { rmSync(tmpHome, { recursive: true, force: true }) } catch { /* best effort */ }
+    })
+
+    it('buildEnvContent generates export lines for bash/zsh', () => {
+      const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+      const content = buildEnvContent(config, 'bash')
+      assert.ok(content.includes("export NVIDIA_API_KEY='nvapi-test'"))
+      assert.ok(content.includes("export GROQ_API_KEY='gsk-abc123'"))
+      assert.ok(content.includes(ENV_FILE_MARKER))
+      assert.ok(content.startsWith('#!/bin/env sh'))
+    })
+
+    it('buildEnvContent generates set -gx lines for fish', () => {
+      const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+      const content = buildEnvContent(config, 'fish')
+      assert.ok(content.includes("set -gx NVIDIA_API_KEY 'nvapi-test'"))
+      assert.ok(content.includes("set -gx GROQ_API_KEY 'gsk-abc123'"))
+      assert.ok(!content.includes('export'))
+    })
+
+    it('buildEnvContent skips providers with no key', () => {
+      const config = { apiKeys: { nvidia: 'nvapi-test' } }
+      const content = buildEnvContent(config, 'bash')
+      assert.ok(content.includes('NVIDIA_API_KEY'))
+      assert.ok(!content.includes('GROQ_API_KEY'))
+      assert.ok(!content.includes('CEREBRAS_API_KEY'))
+    })
+
+    it('buildEnvContent uses first key from multi-key arrays', () => {
+      const config = { apiKeys: { groq: ['gsk-first', 'gsk-second'] } }
+      const content = buildEnvContent(config, 'bash')
+      assert.ok(content.includes("export GROQ_API_KEY='gsk-first'"))
+      assert.ok(!content.includes('gsk-second'))
+    })
+
+    it('buildEnvContent handles keys with single quotes', () => {
+      const config = { apiKeys: { nvidia: "nvapi-it's" } }
+      const content = buildEnvContent(config, 'bash')
+      assert.ok(content.includes("nvapi-it'\\''s"))
+    })
+
+    it('buildEnvContent returns minimal file for empty config', () => {
+      const config = { apiKeys: {} }
+      const content = buildEnvContent(config, 'bash')
+      assert.ok(content.includes(ENV_FILE_MARKER))
+      assert.ok(!content.includes('export'))
+    })
+
+    it('buildRcSourceLine generates bash/zsh source line with marker', () => {
+      const envPath = join(tmpdir(), '.free-coding-models.env')
+      const line = buildRcSourceLine(envPath, 'bash')
+      assert.ok(line.includes('.free-coding-models.env'))
+      assert.ok(line.includes(ENV_FILE_MARKER))
+      assert.ok(line.includes('[ -f '))
+      assert.ok(line.includes('. '))
+    })
+
+    it('buildRcSourceLine generates fish source line with marker', () => {
+      const envPath = join(tmpdir(), '.free-coding-models.env')
+      const line = buildRcSourceLine(envPath, 'fish')
+      assert.ok(line.includes('test -f'))
+      assert.ok(line.includes('source'))
+      assert.ok(line.includes(ENV_FILE_MARKER))
+    })
+
+    it('buildRcSourceLine uses ~/ relative path for home dir', () => {
+      const envPath = join(tmpHome, '.free-coding-models.env')
+      const line = buildRcSourceLine(envPath, 'zsh')
+      assert.ok(line.includes('~/.free-coding-models.env'))
+      assert.ok(!line.includes(tmpHome))
+    })
+
+    it('getEnvFilePath returns absolute path in home directory', () => {
+      const path = getEnvFilePath()
+      assert.ok(path.endsWith('.free-coding-models.env'))
+      assert.ok(path.includes('/'))
+    })
+
+    it('detectShellInfo returns a valid shell and rcPath', () => {
+      const info = detectShellInfo()
+      assert.ok(['zsh', 'bash', 'fish'].includes(info.shell))
+      assert.ok(info.rcPath.length > 0)
+      assert.ok(info.rcPath.includes('/'))
+    })
+
+    it('syncShellEnv writes env file and removes it when no keys', () => {
+      const config = { apiKeys: { nvidia: 'nvapi-test' }, settings: { shellEnvEnabled: true } }
+      const result = syncShellEnv(config)
+      assert.ok(result.success)
+
+      // 📖 Clean up: remove env file if created
+      const envPath = getEnvFilePath()
+      if (existsSync(envPath)) {
+        try { rmSync(envPath) } catch { /* best effort */ }
+      }
+
+      // 📖 Test with empty config — should clean up
+      const emptyResult = syncShellEnv({ apiKeys: {} })
+      assert.ok(emptyResult.success)
+    })
+
+    it('ENV_FILE_MARKER is a stable identifier string', () => {
+      assert.ok(typeof ENV_FILE_MARKER === 'string')
+      assert.ok(ENV_FILE_MARKER.startsWith('#'))
+      assert.ok(ENV_FILE_MARKER.includes('free-coding-models'))
+    })
   })
-
-  it('buildEnvContent generates export lines for bash/zsh', () => {
-    const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
-    const content = buildEnvContent(config, 'bash')
-    assert.ok(content.includes("export NVIDIA_API_KEY='nvapi-test'"))
-    assert.ok(content.includes("export GROQ_API_KEY='gsk-abc123'"))
-    assert.ok(content.includes(ENV_FILE_MARKER))
-    assert.ok(content.startsWith('#!/bin/env sh'))
-  })
-
-  it('buildEnvContent generates set -gx lines for fish', () => {
-    const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
-    const content = buildEnvContent(config, 'fish')
-    assert.ok(content.includes("set -gx NVIDIA_API_KEY 'nvapi-test'"))
-    assert.ok(content.includes("set -gx GROQ_API_KEY 'gsk-abc123'"))
-    assert.ok(!content.includes('export'))
-  })
-
-  it('buildEnvContent skips providers with no key', () => {
-    const config = { apiKeys: { nvidia: 'nvapi-test' } }
-    const content = buildEnvContent(config, 'bash')
-    assert.ok(content.includes('NVIDIA_API_KEY'))
-    assert.ok(!content.includes('GROQ_API_KEY'))
-    assert.ok(!content.includes('CEREBRAS_API_KEY'))
-  })
-
-  it('buildEnvContent uses first key from multi-key arrays', () => {
-    const config = { apiKeys: { groq: ['gsk-first', 'gsk-second'] } }
-    const content = buildEnvContent(config, 'bash')
-    assert.ok(content.includes("export GROQ_API_KEY='gsk-first'"))
-    assert.ok(!content.includes('gsk-second'))
-  })
-
-  it('buildEnvContent handles keys with single quotes', () => {
-    const config = { apiKeys: { nvidia: "nvapi-it's" } }
-    const content = buildEnvContent(config, 'bash')
-    assert.ok(content.includes("nvapi-it'\\''s"))
-  })
-
-  it('buildEnvContent returns minimal file for empty config', () => {
-    const config = { apiKeys: {} }
-    const content = buildEnvContent(config, 'bash')
-    assert.ok(content.includes(ENV_FILE_MARKER))
-    assert.ok(!content.includes('export'))
-  })
-
-  it('buildRcSourceLine generates bash/zsh source line with marker', () => {
-    const envPath = join(tmpdir(), '.free-coding-models.env')
-    const line = buildRcSourceLine(envPath, 'bash')
-    assert.ok(line.includes('.free-coding-models.env'))
-    assert.ok(line.includes(ENV_FILE_MARKER))
-    assert.ok(line.includes('[ -f '))
-    assert.ok(line.includes('. '))
-  })
-
-  it('buildRcSourceLine generates fish source line with marker', () => {
-    const envPath = join(tmpdir(), '.free-coding-models.env')
-    const line = buildRcSourceLine(envPath, 'fish')
-    assert.ok(line.includes('test -f'))
-    assert.ok(line.includes('source'))
-    assert.ok(line.includes(ENV_FILE_MARKER))
-  })
-
-  it('buildRcSourceLine uses ~/ relative path for home dir', () => {
-    const envPath = join(tmpHome, '.free-coding-models.env')
-    const line = buildRcSourceLine(envPath, 'zsh')
-    assert.ok(line.includes('~/.free-coding-models.env'))
-    assert.ok(!line.includes(tmpHome))
-  })
-
-  it('getEnvFilePath returns absolute path in home directory', () => {
-    const path = getEnvFilePath()
-    assert.ok(path.endsWith('.free-coding-models.env'))
-    assert.ok(path.includes('/'))
-  })
-
-  it('detectShellInfo returns a valid shell and rcPath', () => {
-    const info = detectShellInfo()
-    assert.ok(['zsh', 'bash', 'fish'].includes(info.shell))
-    assert.ok(info.rcPath.length > 0)
-    assert.ok(info.rcPath.includes('/'))
-  })
-
-  it('syncShellEnv writes env file and removes it when no keys', () => {
-    const config = { apiKeys: { nvidia: 'nvapi-test' }, settings: { shellEnvEnabled: true } }
-    const result = syncShellEnv(config)
-    assert.ok(result.success)
-
-    // 📖 Clean up: remove env file if created
-    const envPath = getEnvFilePath()
-    if (existsSync(envPath)) {
-      try { rmSync(envPath) } catch { /* best effort */ }
-    }
-
-    // 📖 Test with empty config — should clean up
-    const emptyResult = syncShellEnv({ apiKeys: {} })
-    assert.ok(emptyResult.success)
-  })
-
-  it('ENV_FILE_MARKER is a stable identifier string', () => {
-    assert.ok(typeof ENV_FILE_MARKER === 'string')
-    assert.ok(ENV_FILE_MARKER.startsWith('#'))
-    assert.ok(ENV_FILE_MARKER.includes('free-coding-models'))
-  })
-})
 })
 
 describe('COLUMN_SORT_MAP', () => {

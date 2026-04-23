@@ -354,7 +354,7 @@ class RouterLogger {
       const stat = statSync(this.logPath)
       if (stat.size < 5 * 1024 * 1024) return
       const rotatedPath = `${this.logPath}.1`
-      try { unlinkSync(rotatedPath) } catch {}
+      try { unlinkSync(rotatedPath) } catch { }
       renameSync(this.logPath, rotatedPath)
     } catch {
       // 📖 Logging should never be capable of taking the daemon down.
@@ -369,7 +369,7 @@ class RouterLogger {
       this.rotateIfNeeded()
       appendFileSync(this.logPath, line, { mode: 0o600 })
     } catch {
-      try { process.stderr.write(line) } catch {}
+      try { process.stderr.write(line) } catch { }
     }
   }
 
@@ -923,21 +923,21 @@ class RouterRuntime {
       const modelsUrl = eco ? buildProviderModelsUrl(candidate.provider) : null
       const response = modelsUrl
         ? await fetch(modelsUrl, {
-            method: 'GET',
-            headers: cloneHeadersForUpstream({}, apiKey, candidate.provider),
-            signal: controller.signal,
-          })
+          method: 'GET',
+          headers: cloneHeadersForUpstream({}, apiKey, candidate.provider),
+          signal: controller.signal,
+        })
         : await fetch(resolveProviderUrl(candidate.provider), {
-            method: 'POST',
-            headers: cloneHeadersForUpstream({}, apiKey, candidate.provider),
-            body: JSON.stringify({
-              model: getApiModelId(candidate.provider, candidate.model),
-              messages: [{ role: 'user', content: 'hi' }],
-              max_tokens: 1,
-              stream: false,
-            }),
-            signal: controller.signal,
-          })
+          method: 'POST',
+          headers: cloneHeadersForUpstream({}, apiKey, candidate.provider),
+          body: JSON.stringify({
+            model: getApiModelId(candidate.provider, candidate.model),
+            messages: [{ role: 'user', content: 'hi' }],
+            max_tokens: 1,
+            stream: false,
+          }),
+          signal: controller.signal,
+        })
       const latencyMs = Math.round(performance.now() - started)
       if (response.ok) {
         this.markSuccess(key)
@@ -1302,7 +1302,7 @@ class RouterRuntime {
       this.recordRouterError('upstream_stream_error', requestId, { model: key, reason, partial: sentToClient })
       if (sentToClient) {
         this.logger.warn(`Streaming failure after partial response from ${key}`, { request_id: requestId, reason })
-        try { res.end() } catch {}
+        try { res.end() } catch { }
         return { done: true }
       }
       return { done: false, failoverToNext: true, reason }
@@ -1575,9 +1575,9 @@ class RouterRuntime {
       await sleep(100)
     }
     this.tokenTracker.flush({ force: true })
-    try { this.server?.close() } catch {}
-    try { unlinkSync(ROUTER_PID_PATH) } catch {}
-    try { unlinkSync(ROUTER_PORT_PATH) } catch {}
+    try { this.server?.close() } catch { }
+    try { unlinkSync(ROUTER_PID_PATH) } catch { }
+    try { unlinkSync(ROUTER_PORT_PATH) } catch { }
     void sendUsageTelemetry(this.config, {}, {
       event: 'app_daemon_stop',
       mode: 'daemon',
@@ -1634,10 +1634,10 @@ export function buildDefaultRouterSet(config = {}, maxModels = 5) {
 export function createRouterRuntimeForTest({ config, port = 0, logger = null, tokenPath = ROUTER_TOKENS_PATH } = {}) {
   const testLogger = logger || {
     level: 'error',
-    error() {},
-    warn() {},
-    info() {},
-    debug() {},
+    error() { },
+    warn() { },
+    info() { },
+    debug() { },
   }
   // 📖 Tests use this factory to exercise the real HTTP router against local
   // 📖 fake providers without spawning a daemon or touching user token files.
@@ -1786,7 +1786,7 @@ export async function stopRouterDaemon() {
   const pid = readNumberFile(ROUTER_PID_PATH)
   if (!pid) return { ok: false, stopped: false, error: 'No daemon PID file found' }
   if (!isProcessAlive(pid)) {
-    try { unlinkSync(ROUTER_PID_PATH) } catch {}
+    try { unlinkSync(ROUTER_PID_PATH) } catch { }
     return { ok: true, stopped: false, stalePid: pid }
   }
   process.kill(pid, 'SIGTERM')

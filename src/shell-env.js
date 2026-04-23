@@ -144,8 +144,8 @@ export function buildEnvContent(config, shell) {
 /**
  * 📖 Build the rc source line that loads the env file.
  *
- * For bash/zsh: `[ -f ~/.free-coding-models.env ] && . ~/.free-coding-models.env  # free-coding-models-env`
- * For fish:     `test -f ~/.free-coding-models.env; and source ~/.free-coding-models.env  # free-coding-models-env`
+ * For bash/zsh: `[ -f ~/.nvidia-nim-forever.env ] && . ~/.nvidia-nim-forever.env  # nvidia-nim-forever-env`
+ * For fish:     `test -f ~/.nvidia-nim-forever.env; and source ~/.nvidia-nim-forever.env  # nvidia-nim-forever-env`
  *
  * @param {string} envFilePath — absolute path to the .env file
  * @param {'zsh'|'bash'|'fish'} shell

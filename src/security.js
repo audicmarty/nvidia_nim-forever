@@ -2,7 +2,7 @@
  * @file security.js
  * @description Security checks and auto-fix for config file permissions.
  *
- * 📖 Problem: API keys stored in ~/.free-coding-models.json must be protected.
+ * 📖 Problem: API keys stored in ~/.nvidia-nim-forever.json must be protected.
  *    If the file has incorrect permissions (e.g., 644 = world-readable), keys can leak.
  *
  * 📖 This module:
@@ -38,7 +38,7 @@ import readline from 'node:readline'
 
 // 📖 Config file path — matches the path used in config.js
 function getConfigPath() {
-  return path.join(os.homedir(), '.free-coding-models.json')
+  return path.join(os.homedir(), '.nvidia-nim-forever.json')
 }
 
 // 📖 Secure file permissions: user read/write only (0o600 = 384 in decimal)

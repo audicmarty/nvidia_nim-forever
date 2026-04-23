@@ -1,7 +1,7 @@
 /**
  * @file favorites.js
- * @description Favorites management for model rows — persisted per user in ~/.free-coding-models.json.
- *              Extracted from bin/free-coding-models.js to allow unit testing in isolation.
+ * @description Favorites management for model rows — persisted per user in ~/.nvidia-nim-forever.json.
+ *              Extracted from bin/nvidia-nim-forever.js to allow unit testing in isolation.
  *
  * @details
  *   Favorites are stored as an ordered array of strings in the format "providerKey/modelId"
@@ -26,7 +26,7 @@
  *   ensureFavoritesConfig, toFavoriteKey, syncFavoriteFlags, toggleFavoriteModel
  *
  * @see src/config.js  — load/save helpers keep favorite persistence atomic and merge-safe
- * @see bin/free-coding-models.js — calls syncFavoriteFlags on startup and toggleFavoriteModel on F key
+ * @see bin/nvidia-nim-forever.js — calls syncFavoriteFlags on startup and toggleFavoriteModel on F key
  */
 
 import { loadConfig, saveConfig, replaceConfigContents } from './config.js'

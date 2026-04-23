@@ -11,7 +11,7 @@
  *   📖 The implementation is intentionally conservative:
  *   - it writes managed provider entries under an `fcm-*` namespace to avoid clobbering user-defined providers
  *   - it merges into existing config files instead of replacing them
- *   - it records successful installs in `~/.free-coding-models.json` so catalogs can be refreshed automatically later
+ *   - it records successful installs in `~/.nvidia-nim-forever.json` so catalogs can be refreshed automatically later
  *
  *   📖 Tool-specific notes:
  *   - OpenCode CLI and OpenCode Desktop share the same `opencode.json`
@@ -323,7 +323,7 @@ function installIntoGoose(providerKey, models, apiKey, paths) {
     name: providerId,
     engine: 'openai',
     display_name: getManagedProviderLabel(providerKey),
-    description: `Managed by free-coding-models for ${getProviderLabel(providerKey)}`,
+    description: `Managed by nvidia-nim-forever for ${getProviderLabel(providerKey)}`,
     api_key_env: secretEnvName,
     base_url: resolveGooseBaseUrl(providerKey),
     models: models.map((model) => ({
@@ -438,7 +438,7 @@ function installIntoAider(providerKey, models, apiKey, paths) {
   // 📖 Aider YAML config — one model at a time, uses first selected model
   const primaryModel = models[0]
   const lines = [
-    '# 📖 Managed by free-coding-models',
+    '# 📖 Managed by nvidia-nim-forever',
     `openai-api-base: ${baseUrl}`,
     `openai-api-key: ${apiKey}`,
     `model: openai/${primaryModel.modelId}`,
@@ -497,7 +497,7 @@ function installIntoEnvBasedTool(providerKey, models, apiKey, toolMode) {
   const effectiveModelId = primaryModel.modelId
 
   const envLines = [
-    '# 📖 Managed by free-coding-models — source this file before launching the tool',
+    '# 📖 Managed by nvidia-nim-forever — source this file before launching the tool',
     `# 📖 Provider: ${getProviderLabel(providerKey)} (${models.length} models)`,
     '# 📖 Connection: Direct provider',
     `export OPENAI_API_KEY="${effectiveApiKey}"`,

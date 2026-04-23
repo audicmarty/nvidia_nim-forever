@@ -76,7 +76,7 @@ async function main() {
     ].filter(Boolean)
     
     if (apiKeys.length === 0) {
-      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: free-coding-models'))
+      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: nvidia-nim-forever'))
       process.exit(1)
     }
     

@@ -383,7 +383,7 @@ export async function findAvailablePort(startPort, maxAttempts = 20) {
 function openBrowser(url) {
   const cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'start'
-    : 'xdg-open'
+      : 'xdg-open'
   exec(`${cmd} "${url}"`, (err) => {
     if (err) console.log(`  💡 Open manually: ${url}`)
   })

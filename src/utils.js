@@ -6,7 +6,7 @@
  *    Every function here is a pure function — no side effects, no process.exit, no console output.
  *    This makes them trivial to unit test with `node:test` without mocking anything.
  *
- * 📖 The main CLI (bin/free-coding-models.js) imports everything from here.
+ * 📖 The main CLI (bin/nvidia-nim-forever.js) imports everything from here.
  *    If you need to add new logic (calculations, data transforms, parsing),
  *    add it here so tests can cover it.
  *
@@ -42,7 +42,7 @@
  * @exports scoreModelForTask, getTopRecommendations
  * @exports TIER_ORDER, VERDICT_ORDER, TIER_LETTER_MAP, TASK_TYPES, PRIORITY_TYPES, CONTEXT_BUDGETS
  *
- * @see bin/free-coding-models.js — main CLI that imports these utils
+ * @see bin/nvidia-nim-forever.js — main CLI that imports these utils
  * @see sources.js — model definitions consumed by these functions
  * @see test/test.js — unit tests that validate all these functions
  */

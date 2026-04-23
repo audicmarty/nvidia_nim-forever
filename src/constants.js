@@ -1,6 +1,6 @@
 /**
  * @file constants.js
- * @description Pure terminal/TUI constants extracted from bin/free-coding-models.js.
+ * @description Pure terminal/TUI constants extracted from bin/nvidia-nim-forever.js.
  *
  * @details
  *   This module centralises every "magic number" and escape-sequence constant that
@@ -35,7 +35,7 @@
  *   TABLE_HEADER_LINES, TABLE_FOOTER_LINES, TABLE_FIXED_LINES,
  *   msCell, spinCell
  *
- * @see bin/free-coding-models.js  — main entry point that imports these constants
+ * @see bin/nvidia-nim-forever.js  — main entry point that imports these constants
  * @see src/tier-colors.js         — TIER_COLOR map (chalk-dependent, separate module)
  */
 

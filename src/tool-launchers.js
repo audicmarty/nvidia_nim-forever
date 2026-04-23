@@ -230,7 +230,7 @@ function writeAiderConfig(model, apiKey, baseUrl, paths = getDefaultToolPaths())
   const filePath = paths.aiderConfigPath
   const backupPath = backupIfExists(filePath)
   const content = [
-    '# 📖 Managed by free-coding-models',
+    '# 📖 Managed by nvidia-nim-forever',
     `openai-api-base: ${baseUrl}`,
     `openai-api-key: ${apiKey}`,
     `model: openai/${model.modelId}`,
@@ -333,7 +333,7 @@ function writeGooseConfig(model, apiKey, baseUrl, providerKey, paths = getDefaul
     name: providerId,
     engine: 'openai',
     display_name: `FCM ${providerLabel}`,
-    description: `Managed by free-coding-models for ${providerLabel}`,
+    description: `Managed by nvidia-nim-forever for ${providerLabel}`,
     api_key_env: secretEnvName,
     base_url: baseUrl?.endsWith('/chat/completions') ? baseUrl : (baseUrl || ''),
     models: [{ name: model.modelId, context_limit: 128000 }],
@@ -398,7 +398,7 @@ function writeOpenHandsEnv(model, apiKey, baseUrl, paths = getDefaultToolPaths()
   const filePath = paths.openHandsEnvPath
   const backupPath = backupIfExists(filePath)
   const lines = [
-    '# 📖 Managed by free-coding-models',
+    '# 📖 Managed by nvidia-nim-forever',
     `export OPENAI_API_KEY="${apiKey}"`,
     `export OPENAI_BASE_URL="${baseUrl}"`,
     `export OPENAI_MODEL="${model.modelId}"`,
@@ -441,7 +441,7 @@ function writeContinueConfig(model, apiKey, baseUrl, paths = getDefaultToolPaths
   const backupPath = backupIfExists(filePath)
   // 📖 Write a minimal config.yaml that Continue CLI can parse directly
   const content = [
-    '# 📖 Managed by free-coding-models',
+    '# 📖 Managed by nvidia-nim-forever',
     'name: FCM Config',
     'version: 0.0.1',
     'schema: v1',
