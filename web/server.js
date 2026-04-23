@@ -1,6 +1,6 @@
 /**
  * @file web/server.js
- * @description HTTP server for the nvidia-nim-forever Web Dashboard V2.
+ * @description HTTP server for the free-coding-models Web Dashboard V2.
  *
  * Reuses the existing ping engine, model sources, and utility functions
  * from the CLI tool. Serves the dashboard HTML/CSS/JS and provides

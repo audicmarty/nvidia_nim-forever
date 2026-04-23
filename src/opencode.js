@@ -721,7 +721,7 @@ export async function startOpenCode(model, fcmConfig) {
         name: 'FCM GLM (with thinking)',
         options: {
           baseURL: `http://127.0.0.1:${glmProxyPort}/v1`,
-          apiKey: '{env:NVIDIA_API_KEY}'
+          headers: { Authorization: 'Bearer {env:NVIDIA_API_KEY}' }
         },
         models: {}
       }
@@ -761,7 +761,7 @@ export async function startOpenCode(model, fcmConfig) {
         name: 'NVIDIA NIM',
         options: {
           baseURL: 'https://integrate.api.nvidia.com/v1',
-          apiKey: '{env:NVIDIA_API_KEY}'
+          headers: { Authorization: 'Bearer {env:NVIDIA_API_KEY}' }
         },
         models: {}
       }
@@ -837,7 +837,7 @@ export async function startOpenCode(model, fcmConfig) {
         name: 'ZAI',
         options: {
           baseURL: `http://127.0.0.1:${zaiProxyPort}/v1`,
-          apiKey: '{env:ZAI_API_KEY}'
+          headers: { Authorization: 'Bearer {env:ZAI_API_KEY}' }
         },
         models: {}
       }
@@ -966,89 +966,89 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
   if (!config.provider) config.provider = {}
   if (!config.provider[providerKey]) {
     if (providerKey === 'groq') {
-      config.provider.groq = { options: { apiKey: '{env:GROQ_API_KEY}' }, models: {} }
+      config.provider.groq = { options: { headers: { Authorization: 'Bearer {env:GROQ_API_KEY}' } }, models: {} }
     } else if (providerKey === 'cerebras') {
       config.provider.cerebras = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Cerebras',
-        options: { baseURL: 'https://api.cerebras.ai/v1', apiKey: '{env:CEREBRAS_API_KEY}' },
+        options: { baseURL: 'https://api.cerebras.ai/v1', headers: { Authorization: 'Bearer {env:CEREBRAS_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'sambanova') {
       config.provider.sambanova = {
         npm: '@ai-sdk/openai-compatible',
         name: 'SambaNova',
-        options: { baseURL: 'https://api.sambanova.ai/v1', apiKey: '{env:SAMBANOVA_API_KEY}' },
+        options: { baseURL: 'https://api.sambanova.ai/v1', headers: { Authorization: 'Bearer {env:SAMBANOVA_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'openrouter') {
       config.provider.openrouter = {
         npm: '@ai-sdk/openai-compatible',
         name: 'OpenRouter',
-        options: { baseURL: 'https://openrouter.ai/api/v1', apiKey: '{env:OPENROUTER_API_KEY}' },
+        options: { baseURL: 'https://openrouter.ai/api/v1', headers: { Authorization: 'Bearer {env:OPENROUTER_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'huggingface') {
       config.provider.huggingface = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Hugging Face Inference',
-        options: { baseURL: 'https://router.huggingface.co/v1', apiKey: '{env:HUGGINGFACE_API_KEY}' },
+        options: { baseURL: 'https://router.huggingface.co/v1', headers: { Authorization: 'Bearer {env:HUGGINGFACE_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'deepinfra') {
       config.provider.deepinfra = {
         npm: '@ai-sdk/openai-compatible',
         name: 'DeepInfra',
-        options: { baseURL: 'https://api.deepinfra.com/v1/openai', apiKey: '{env:DEEPINFRA_API_KEY}' },
+        options: { baseURL: 'https://api.deepinfra.com/v1/openai', headers: { Authorization: 'Bearer {env:DEEPINFRA_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'fireworks') {
       config.provider.fireworks = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Fireworks AI',
-        options: { baseURL: 'https://api.fireworks.ai/inference/v1', apiKey: '{env:FIREWORKS_API_KEY}' },
+        options: { baseURL: 'https://api.fireworks.ai/inference/v1', headers: { Authorization: 'Bearer {env:FIREWORKS_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'codestral') {
       config.provider.codestral = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Codestral',
-        options: { baseURL: 'https://api.codestral.com/v1', apiKey: '{env:CODESTRAL_API_KEY}' },
+        options: { baseURL: 'https://api.codestral.com/v1', headers: { Authorization: 'Bearer {env:CODESTRAL_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'hyperbolic') {
       config.provider.hyperbolic = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Hyperbolic',
-        options: { baseURL: 'https://api.hyperbolic.xyz/v1', apiKey: '{env:HYPERBOLIC_API_KEY}' },
+        options: { baseURL: 'https://api.hyperbolic.xyz/v1', headers: { Authorization: 'Bearer {env:HYPERBOLIC_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'scaleway') {
       config.provider.scaleway = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Scaleway',
-        options: { baseURL: 'https://api.scaleway.ai/v1', apiKey: '{env:SCALEWAY_API_KEY}' },
+        options: { baseURL: 'https://api.scaleway.ai/v1', headers: { Authorization: 'Bearer {env:SCALEWAY_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'googleai') {
       config.provider.googleai = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Google AI Studio',
-        options: { baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', apiKey: '{env:GOOGLE_API_KEY}' },
+        options: { baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', headers: { Authorization: 'Bearer {env:GOOGLE_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'siliconflow') {
       config.provider.siliconflow = {
         npm: '@ai-sdk/openai-compatible',
         name: 'SiliconFlow',
-        options: { baseURL: 'https://api.siliconflow.com/v1', apiKey: '{env:SILICONFLOW_API_KEY}' },
+        options: { baseURL: 'https://api.siliconflow.com/v1', headers: { Authorization: 'Bearer {env:SILICONFLOW_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'together') {
       config.provider.together = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Together AI',
-        options: { baseURL: 'https://api.together.xyz/v1', apiKey: '{env:TOGETHER_API_KEY}' },
+        options: { baseURL: 'https://api.together.xyz/v1', headers: { Authorization: 'Bearer {env:TOGETHER_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'cloudflare') {
@@ -1062,35 +1062,35 @@ export async function startOpenCodeDesktop(model, fcmConfig) {
       config.provider.cloudflare = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Cloudflare Workers AI',
-        options: { baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`, apiKey: '{env:CLOUDFLARE_API_TOKEN}' },
+        options: { baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`, headers: { Authorization: 'Bearer {env:CLOUDFLARE_API_TOKEN}' } },
         models: {}
       }
     } else if (providerKey === 'perplexity') {
       config.provider.perplexity = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Perplexity API',
-        options: { baseURL: 'https://api.perplexity.ai', apiKey: '{env:PERPLEXITY_API_KEY}' },
+        options: { baseURL: 'https://api.perplexity.ai', headers: { Authorization: 'Bearer {env:PERPLEXITY_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'iflow') {
       config.provider.iflow = {
         npm: '@ai-sdk/openai-compatible',
         name: 'iFlow',
-        options: { baseURL: 'https://apis.iflow.cn/v1', apiKey: '{env:IFLOW_API_KEY}' },
+        options: { baseURL: 'https://apis.iflow.cn/v1', headers: { Authorization: 'Bearer {env:IFLOW_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'chutes') {
       config.provider.chutes = {
         npm: '@ai-sdk/openai-compatible',
         name: 'Chutes AI',
-        options: { baseURL: 'https://chutes.ai/v1', apiKey: '{env:CHUTES_API_KEY}' },
+        options: { baseURL: 'https://chutes.ai/v1', headers: { Authorization: 'Bearer {env:CHUTES_API_KEY}' } },
         models: {}
       }
     } else if (providerKey === 'ovhcloud') {
       config.provider.ovhcloud = {
         npm: '@ai-sdk/openai-compatible',
         name: 'OVHcloud AI',
-        options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', apiKey: '{env:OVH_AI_ENDPOINTS_ACCESS_TOKEN}' },
+        options: { baseURL: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1', headers: { Authorization: 'Bearer {env:OVH_AI_ENDPOINTS_ACCESS_TOKEN}' } },
         models: {}
       }
     }

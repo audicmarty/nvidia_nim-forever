@@ -177,8 +177,8 @@ export async function fetchOpenRouterFreeModels() {
     const res = await fetch('https://openrouter.ai/api/v1/models', {
       signal: controller.signal,
       headers: {
-        'HTTP-Referer': 'https://github.com/vava-nessa/nvidia-nim-forever',
-        'X-Title': 'nvidia-nim-forever',
+        'HTTP-Referer': 'https://github.com/vava-nessa/free-coding-models',
+        'X-Title': 'free-coding-models',
       },
     })
     clearTimeout(timeout)

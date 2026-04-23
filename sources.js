@@ -1,6 +1,6 @@
 /**
  * @file sources.js
- * @description NVIDIA NIM models for nvidia-nim-forever.
+ * @description NVIDIA NIM models for free-coding-models.
  * 
  * @details
  * This file contains ONLY NVIDIA NIM model definitions.

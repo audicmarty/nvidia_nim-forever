@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** 
-* @file nvidia-nim-forever.js
+* @file free-coding-models.js
 * @description Live terminal availability checker for NVIDIA NIM models with OpenCode integration.
 */
 
@@ -22,7 +22,7 @@ process.on('uncaughtException', (err) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled exception occurred.'));
   console.error(err);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
 
@@ -34,7 +34,7 @@ process.on('unhandledRejection', (reason, promise) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error] An unhandled promise rejection occurred.'));
   console.error(reason);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
 
@@ -43,7 +43,7 @@ async function main() {
 
   if (cliArgs.helpMode) {
     console.log();
-    console.log(buildCliHelpText({ chalk, title: 'nvidia-nim-forever' }));
+    console.log(buildCliHelpText({ chalk, title: 'free-coding-models' }));
     console.log();
     process.exit(0);
   }
@@ -76,7 +76,7 @@ async function main() {
     ].filter(Boolean)
     
     if (apiKeys.length === 0) {
-      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: nvidia-nim-forever'))
+      console.error(chalk.red('No NVIDIA API keys configured. Add keys with: free-coding-models'))
       process.exit(1)
     }
     
@@ -93,6 +93,9 @@ main().catch((err) => {
   process.stdout.write(ALT_LEAVE);
   console.error(chalk.red('\n[Fatal Error]'));
   console.error(err);
-  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+  console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
   process.exit(1);
 });
+
+// Contributors: @whit3rabbit @PhucTruong-ctrl
+

@@ -128,7 +128,7 @@ export function createOverlayRenderers(state, deps) {
     const cursorLineByRow = {}
 
     // 📖 Branding header
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('⚙  Settings')}`)
 
     if (state.settingsErrorMsg) {
@@ -373,7 +373,7 @@ export function createOverlayRenderers(state, deps) {
 
     lines.push('')
     // 📖 Branding header
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('🔌 Install Endpoints')}`)
     lines.push('')
     lines.push(themeColors.dim('  — install provider catalogs into supported coding tools'))
@@ -501,7 +501,7 @@ export function createOverlayRenderers(state, deps) {
     const cursorLineByRow = {}
 
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('🗂️  Installed Models Manager')}`)
     lines.push('')
     lines.push(themeColors.dim('  — models configured in your tools'))
@@ -622,7 +622,7 @@ export function createOverlayRenderers(state, deps) {
       },
     ]
 
-    lines.push(`  ${chalk.cyanBright('🚀')} ${chalk.bold.cyanBright('nvidia-nim-forever')}`)
+    lines.push(`  ${chalk.cyanBright('🚀')} ${chalk.bold.cyanBright('free-coding-models')}`)
     lines.push(`  ${chalk.bold('📦 Missing Tool')}`)
     lines.push('')
 
@@ -867,7 +867,7 @@ export function createOverlayRenderers(state, deps) {
     const heading = themeColors.textBold
 
     // 📖 Branding header
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${heading('❓ Help & Keyboard Shortcuts')}`)
     lines.push('')
     lines.push(`  ${hint('— ↑↓ / PgUp / PgDn / Home / End scroll • K or Esc close')}`)
@@ -972,7 +972,7 @@ export function createOverlayRenderers(state, deps) {
 
     // 📖 Branding header
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('🎯 Smart Recommend')}`)
     lines.push('')
     lines.push(themeColors.dim('  — find the best model for your task'))
@@ -1205,7 +1205,7 @@ export function createOverlayRenderers(state, deps) {
 
     // 📖 Branding header
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.successBold('📝 Feedback, bugs & requests')}`)
     lines.push('')
     lines.push(themeColors.dim("  — don't hesitate to send us feedback, bug reports, or just your feeling about the app"))
@@ -1275,7 +1275,7 @@ export function createOverlayRenderers(state, deps) {
     })
 
     // 📖 Branding header
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
 
     if (state.changelogPhase === 'index') {
       // ═══════════════════════════════════════════════════════════════════════
@@ -1419,7 +1419,7 @@ export function createOverlayRenderers(state, deps) {
     const totalItems = tools.length + similarModels.length
     const activeMeta = getToolMeta(state.mode)
 
-    lines.push(`  ${chalk.cyanBright('🚀')} ${chalk.bold.cyanBright('nvidia-nim-forever')}`)
+    lines.push(`  ${chalk.cyanBright('🚀')} ${chalk.bold.cyanBright('free-coding-models')}`)
     lines.push(`  ${chalk.bold('⚠️  Incompatible Model')}`)
     lines.push('')
 
@@ -1510,7 +1510,7 @@ export function createOverlayRenderers(state, deps) {
     const cursorLineByRow = {}
 
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('📋 Router Set Manager')}  ${themeColors.dim('Shift+S from main table')}`)
     lines.push('')
 
@@ -1685,7 +1685,7 @@ export function createOverlayRenderers(state, deps) {
     const cursorLineByRow = {}
 
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('📊 Token Usage')}  ${themeColors.dim('Shift+T from main table')}`)
     lines.push('')
 
@@ -1799,10 +1799,10 @@ export function createOverlayRenderers(state, deps) {
     const cursorLineByRow = {}
 
     lines.push('')
-    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
+    lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(`v${LOCAL_VERSION}`)}`)
     lines.push(`  ${themeColors.textBold('🔀 Smart Router Available!')}`)
     lines.push('')
-    lines.push(themeColors.dim('  nvidia-nim-forever can run a background daemon that automatically'))
+    lines.push(themeColors.dim('  free-coding-models can run a background daemon that automatically'))
     lines.push(themeColors.dim('  routes your requests to the fastest healthy model —'))
     lines.push(themeColors.dim('  with zero manual intervention after initial setup.'))
     lines.push('')

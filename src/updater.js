@@ -1,6 +1,6 @@
 /**
  * @file updater.js
- * @description Update detection and installation helpers, extracted from bin/nvidia-nim-forever.js.
+ * @description Update detection and installation helpers, extracted from bin/free-coding-models.js.
  *
  * @details
  *   This module handles all npm version-check and auto-update logic:
@@ -45,7 +45,7 @@
  *   detectPackageManager, getInstallArgs, getManualInstallCmd,
  *   checkForUpdateDetailed, checkForUpdate, runUpdate, promptUpdateNotification
  *
- * @see bin/nvidia-nim-forever.js — calls checkForUpdate() at startup and runUpdate() on confirm
+ * @see bin/free-coding-models.js — calls checkForUpdate() at startup and runUpdate() on confirm
  */
 
 import chalk from 'chalk'
@@ -81,7 +81,7 @@ export function detectPackageManager() {
  * @returns {{ bin: string, args: string[] }}
  */
 export function getInstallArgs(pm, version) {
-  const pkg = `nvidia-nim-forever@${version}`
+  const pkg = `free-coding-models@${version}`
   switch (pm) {
     case 'bun':   return { bin: 'bun',   args: ['add', '-g', pkg] }
     case 'pnpm':  return { bin: 'pnpm',  args: ['add', '-g', pkg] }
@@ -108,7 +108,7 @@ export function getManualInstallCmd(pm, version) {
  */
 export async function checkForUpdateDetailed() {
   try {
-    const res = await fetch('https://registry.npmjs.org/nvidia-nim-forever/latest', { signal: AbortSignal.timeout(5000) })
+    const res = await fetch('https://registry.npmjs.org/free-coding-models/latest', { signal: AbortSignal.timeout(5000) })
     if (!res.ok) return { latestVersion: null, error: `HTTP ${res.status}` }
     const data = await res.json()
     if (data.version && data.version !== LOCAL_VERSION) return { latestVersion: data.version, error: null }
@@ -135,7 +135,7 @@ export async function checkForUpdate() {
  */
 export async function fetchLastReleaseDate() {
   try {
-    const res = await fetch('https://registry.npmjs.org/nvidia-nim-forever', { signal: AbortSignal.timeout(5000) })
+    const res = await fetch('https://registry.npmjs.org/free-coding-models', { signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const data = await res.json()
     const timeMap = data?.time
@@ -232,7 +232,7 @@ function isPermissionError(err) {
 }
 
 /**
- * 📖 relaunchCurrentProcess: restart nvidia-nim-forever with the same user arguments.
+ * 📖 relaunchCurrentProcess: restart free-coding-models with the same user arguments.
  * 📖 Uses spawn with inherited stdio so the new process is interactive and does not require shell escaping.
  */
 function relaunchCurrentProcess() {
@@ -278,7 +278,7 @@ function installUpdateCommand(latestVersion, useSudo) {
  */
 export function runUpdate(latestVersion) {
   console.log()
-  console.log(chalk.bold.cyan('  ⬆ Updating nvidia-nim-forever to v' + latestVersion + '...'))
+  console.log(chalk.bold.cyan('  ⬆ Updating free-coding-models to v' + latestVersion + '...'))
   console.log()
 
   const pm = detectPackageManager()
@@ -345,7 +345,7 @@ export async function promptUpdateNotification(latestVersion) {
       {
         label: 'Update now',
         icon: '⬆',
-        description: `Update nvidia-nim-forever to v${latestVersion}`,
+        description: `Update free-coding-models to v${latestVersion}`,
       },
       {
         label: 'Read Changelogs',

@@ -36,15 +36,19 @@ const ANALYSIS_FLAGS = [
 
 const CONFIG_FLAGS = [
   { flag: '--web', description: 'Launch the web dashboard in your browser' },
+  { flag: '--daemon', description: 'Start the router daemon in the foreground' },
+  { flag: '--daemon-bg', description: 'Start/restart the router daemon in the background' },
+  { flag: '--daemon-status', description: 'Check the status of the background daemon' },
+  { flag: '--daemon-stop', description: 'Stop the background daemon' },
   { flag: '--no-telemetry', description: 'Disable anonymous telemetry for this run' },
   { flag: '--help, -h', description: 'Print this help and exit' },
 ]
 
 const EXAMPLES = [
-  'nnf --help',
-  'nnf --web',
-  'nnf --opencode --tier S',
-  "nnf --json | jq '.[0]'",
+  'fcm --help',
+  'fcm --web',
+  'fcm --opencode --tier S',
+  "fcm --json | jq '.[0]'",
 ]
 
 function paint(chalk, formatter, text) {
@@ -66,8 +70,8 @@ export function buildCliHelpLines({ chalk = null, indent = '', title = 'CLI Help
     .map((meta) => ({ flag: meta.flag, description: `${meta.label} mode` }))
 
   lines.push(`${indent}${paint(chalk, chalk?.bold, title)}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: nnf [apiKey] [options]')}`)
-  lines.push(`${indent}${paint(chalk, chalk?.dim, '       nvidia-nim-forever [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, 'Usage: fcm [apiKey] [options]')}`)
+  lines.push(`${indent}${paint(chalk, chalk?.dim, '       free-coding-models [apiKey] [options]')}`)
   lines.push('')
   lines.push(`${indent}${paint(chalk, chalk?.bold, 'Tool Flags')}`)
   for (const entry of launchFlags) {

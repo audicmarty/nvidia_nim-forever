@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** 
-* @file nvidia-nim-forever.js
+* @file free-coding-models.js
 * @description Live terminal availability checker for NVIDIA NIM models with OpenCode integration.
  *
  * @details
@@ -18,7 +18,7 @@
  *   - Instant OpenCode / OpenClaw / external-tool action on Enter key press
  *   - Direct mode flags plus an in-app Z-cycle for the public launcher set
  *   - Automatic config detection and model setup for both tools
- * - JSON config stored in ~/.nvidia-nim-forever.json (auto-migrates from old plain-text)
+ * - JSON config stored in ~/.free-coding-models.json (auto-migrates from old plain-text)
  * - NVIDIA NIM models with OpenCode integration
  *   - Settings screen (P key) to manage API keys, provider toggles, manual updates, and provider-key diagnostics
  * - Install Endpoints flow (Settings / Command Palette) to push provider catalogs into OpenCode
@@ -57,8 +57,8 @@
  *   - sources.js: Model definitions from all providers
  *
  *   ⚙️ Configuration:
- * - API keys stored in ~/.nvidia-nim-forever.json (0600 perms)
- * - Old ~/.nvidia-nim-forever plain-text auto-migrated as nvidia key on first run
+ * - API keys stored in ~/.free-coding-models.json (0600 perms)
+ * - Old ~/.free-coding-models plain-text auto-migrated as nvidia key on first run
  * - Env vars override config: NVIDIA_API_KEY
  *   - ZAI (z.ai) uses a non-standard base path; cloudflare needs CLOUDFLARE_ACCOUNT_ID in env.
  *   - Cloudflare Workers AI requires both CLOUDFLARE_API_TOKEN (or CLOUDFLARE_API_KEY) and CLOUDFLARE_ACCOUNT_ID
@@ -214,7 +214,7 @@ export async function runApp(cliArgs, config) {
     if (!result) {
       console.log()
       console.log(chalk.red('  ✖ No API key provided.'))
-      console.log(chalk.dim('  Run `nvidia-nim-forever` again or set NVIDIA_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY.'))
+      console.log(chalk.dim('  Run `free-coding-models` again or set NVIDIA_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY.'))
       console.log()
       process.exit(1)
     }
@@ -303,7 +303,7 @@ export async function runApp(cliArgs, config) {
       return // 📖 runUpdate relaunches the process — this line is a safety guard
     } else if (choice === 'changelogs') {
       const { execSync: _exec } = await import('child_process')
-      const url = 'https://github.com/vava-nessa/nvidia-nim-forever/releases'
+      const url = 'https://github.com/vava-nessa/free-coding-models/releases'
       try {
         if (process.platform === 'darwin') _exec(`open ${url}`)
         else if (process.platform === 'linux') _exec(`xdg-open ${url}`)
@@ -1037,7 +1037,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Error] An error occurred while handling a keypress.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   })
@@ -1199,7 +1199,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Render Error] An error occurred during UI rendering.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   }, Math.round(1000 / FPS))
@@ -1271,7 +1271,7 @@ export async function runApp(cliArgs, config) {
       process.stdout.write(ALT_LEAVE);
       console.error(chalk.red('\n[TUI Error] An error occurred in the ping loop.'));
       console.error(err);
-      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/nvidia-nim-forever/issues or use the feedback form (I key) to report this to the author.'));
+      console.error(chalk.yellow('\nPlease file an issue at https://github.com/vava-nessa/free-coding-models/issues or use the feedback form (I key) to report this to the author.'));
       process.exit(1);
     }
   }
@@ -1307,8 +1307,8 @@ export async function runApp(cliArgs, config) {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), ROUTER_FOOTER_FETCH_TIMEOUT_MS)
-      const pidPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.pid`
-      const portPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.port`
+      const pidPath = `${process.env.HOME}/.free-coding-models-daemon.pid`
+      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
       let port = 19280
       try {
         const { readFileSync: rfs } = await import('node:fs')

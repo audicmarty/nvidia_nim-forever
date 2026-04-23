@@ -67,7 +67,6 @@ import {
 // 📖 Some providers need an explicit probe model because the first catalog entry
 // 📖 is not guaranteed to be accepted by their chat endpoint.
 const PROVIDER_TEST_MODEL_OVERRIDES = {
-  sambanova: ['DeepSeek-V3-0324'],
   // 📖 NVIDIA probe list: keep to models confirmed to return HTTP 200 quickly.
   // 📖 Many older catalog entries return 403/404/410 or timeout — if probe models drift,
   // 📖 valid keys appear broken. Verify these stay reachable before updating.
@@ -134,8 +133,8 @@ async function testProviderKeyDirect(apiKey, providerKey) {
   const { url, method } = authConfig
   const headers = { Authorization: `Bearer ${apiKey}` }
   if (providerKey === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/nvidia-nim-forever'
-    headers['X-Title'] = 'nvidia-nim-forever'
+    headers['HTTP-Referer'] = 'https://github.com/vava-nessa/free-coding-models'
+    headers['X-Title'] = 'free-coding-models'
   }
 
   const parallel = 3
@@ -641,8 +640,8 @@ export function createKeyHandler(ctx) {
       try {
         const headers = { Authorization: `Bearer ${testKey}` }
         if (providerKey === 'openrouter') {
-          headers['HTTP-Referer'] = 'https://github.com/vava-nessa/nvidia-nim-forever'
-          headers['X-Title'] = 'nvidia-nim-forever'
+          headers['HTTP-Referer'] = 'https://github.com/vava-nessa/free-coding-models'
+          headers['X-Title'] = 'free-coding-models'
         }
         const modelsResp = await fetch(modelsUrl, { headers })
         if (modelsResp.ok) {
@@ -1018,7 +1017,7 @@ export function createKeyHandler(ctx) {
     let port = 19280
     try {
       const { readFileSync: rfs } = await import('node:fs')
-      const portPath = `${process.env.HOME}/.nvidia-nim-forever-daemon.port`
+      const portPath = `${process.env.HOME}/.free-coding-models-daemon.port`
       const savedPort = rfs(portPath, 'utf8').trim()
       if (/^\d+$/.test(savedPort)) port = Number(savedPort)
     } catch {}
@@ -2303,7 +2302,7 @@ export function createKeyHandler(ctx) {
         state.routerOnboardingError = null
         void (async () => {
           try {
-            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'nvidia-nim-forever.js')
+            const binPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'free-coding-models.js')
             const child = spawn('node', [binPath, '--daemon-bg'], {
               detached: true,
               stdio: 'ignore',
@@ -2387,7 +2386,7 @@ export function createKeyHandler(ctx) {
         // 📖 Calculate total content lines for proper scroll boundary clamping
         const calcChangelogLines = () => {
           const lines = []
-          lines.push(`  🚀 nvidia-nim-forever`)
+          lines.push(`  🚀 free-coding-models`)
           lines.push(`  📋 v${state.changelogSelectedVersion}`)
           lines.push(`  — ↑↓ / PgUp / PgDn scroll • B back • Esc close`)
           lines.push('')

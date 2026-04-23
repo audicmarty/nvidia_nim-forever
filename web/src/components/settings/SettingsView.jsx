@@ -163,7 +163,7 @@ export default function SettingsView({ onToast }) {
         <h1 className={styles.pageTitle}>⚙️ Provider Settings</h1>
       <p className={styles.pageSubtitle}>
         Manage your API keys and provider configurations. Keys are stored locally in{' '}
-        <code>~/.nvidia-nim-forever.json</code>
+        <code>~/.free-coding-models.json</code>
       </p>
       </div>
 

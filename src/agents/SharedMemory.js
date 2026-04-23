@@ -16,7 +16,7 @@ import { join, dirname, relative } from 'path'
 import { homedir } from 'os'
 
 // 📖 Shared memory location
-const MEMORY_DIR = join(homedir(), '.nvidia-nim-forever', 'agents')
+const MEMORY_DIR = join(homedir(), '.free-coding-models', 'agents')
 
 export class SharedMemory {
   constructor(projectName) {

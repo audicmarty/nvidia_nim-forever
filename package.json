@@ -1,6 +1,6 @@
 {
-  "name": "nvidia-nim-forever",
-  "version": "1.0.2",
+  "name": "free-coding-models",
+  "version": "1.1.0",
   "description": "NVIDIA NIM models launcher with multi-key GLM proxy — optimized for NVIDIA's free tier with thinking support.",
   "keywords": [
     "nvidia",
@@ -36,8 +36,8 @@
   "type": "module",
   "main": "bin/free-coding-models.js",
   "bin": {
-    "nvidia-nim-forever": "./bin/free-coding-models.js",
-    "nnf": "./bin/free-coding-models.js"
+    "free-coding-models": "./bin/free-coding-models.js",
+    "fcm": "./bin/free-coding-models.js"
   },
   "files": [
     "bin/",

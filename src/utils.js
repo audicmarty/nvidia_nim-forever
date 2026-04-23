@@ -6,7 +6,7 @@
  *    Every function here is a pure function — no side effects, no process.exit, no console output.
  *    This makes them trivial to unit test with `node:test` without mocking anything.
  *
- * 📖 The main CLI (bin/nvidia-nim-forever.js) imports everything from here.
+ * 📖 The main CLI (bin/free-coding-models.js) imports everything from here.
  *    If you need to add new logic (calculations, data transforms, parsing),
  *    add it here so tests can cover it.
  *
@@ -42,7 +42,7 @@
  * @exports scoreModelForTask, getTopRecommendations
  * @exports TIER_ORDER, VERDICT_ORDER, TIER_LETTER_MAP, TASK_TYPES, PRIORITY_TYPES, CONTEXT_BUDGETS
  *
- * @see bin/nvidia-nim-forever.js — main CLI that imports these utils
+ * @see bin/free-coding-models.js — main CLI that imports these utils
  * @see sources.js — model definitions consumed by these functions
  * @see test/test.js — unit tests that validate all these functions
  */
@@ -443,12 +443,32 @@ export function parseArgs(argv) {
   const bestMode = flags.includes('--best')
   const fiableMode = flags.includes('--fiable')
   const openCodeMode = flags.includes('--opencode')
+  const openClawMode = flags.includes('--openclaw')
   const openCodeDesktopMode = flags.includes('--opencode-desktop')
   const openCodeWebMode = flags.includes('--opencode-web')
   const noTelemetry = flags.includes('--no-telemetry')
   const jsonMode = flags.includes('--json')
   const helpMode = flags.includes('--help') || flags.includes('-h')
   const premiumMode = flags.includes('--premium')
+
+  // 📖 External tool modes
+  const aiderMode = flags.includes('--aider')
+  const crushMode = flags.includes('--crush')
+  const gooseMode = flags.includes('--goose')
+  const qwenMode = flags.includes('--qwen')
+  const kiloMode = flags.includes('--kilo')
+  const openHandsMode = flags.includes('--openhands')
+  const ampMode = flags.includes('--amp')
+  const hermesMode = flags.includes('--hermes')
+  const continueMode = flags.includes('--continue')
+  const clineMode = flags.includes('--cline')
+  const piMode = flags.includes('--pi')
+
+  // 📖 Router daemon lifecycle flags
+  const daemonMode = flags.includes('--daemon')
+  const daemonBackgroundMode = flags.includes('--daemon-bg')
+  const daemonStopMode = flags.includes('--daemon-stop')
+  const daemonStatusMode = flags.includes('--daemon-status')
 
   // 📖 --web / --gui / web subcommand — launch the web dashboard instead of the TUI
   const webMode = flags.includes('--web') || flags.includes('--gui') || args[0] === 'web'
@@ -475,6 +495,7 @@ export function parseArgs(argv) {
     bestMode,
     fiableMode,
     openCodeMode,
+    openClawMode,
     openCodeDesktopMode,
     openCodeWebMode,
     noTelemetry,
@@ -489,6 +510,21 @@ export function parseArgs(argv) {
     showUnconfigured,
     premiumMode,
     webMode,
+    aiderMode,
+    crushMode,
+    gooseMode,
+    qwenMode,
+    kiloMode,
+    openHandsMode,
+    ampMode,
+    hermesMode,
+    continueMode,
+    clineMode,
+    piMode,
+    daemonMode,
+    daemonBackgroundMode,
+    daemonStopMode,
+    daemonStatusMode,
     // 📖 Profile system removed - API keys now persist permanently across all sessions
     recommendMode,
   }

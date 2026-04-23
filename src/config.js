@@ -1,11 +1,11 @@
 /**
  * @file lib/config.js
- * @description JSON config management for nvidia-nim-forever.
+ * @description JSON config management for free-coding-models.
  *
- * 📖 This module manages ~/.nvidia-nim-forever.json, the config file that
+ * 📖 This module manages ~/.free-coding-models.json, the config file that
  * stores NVIDIA API keys and provider settings.
  *
- * 📖 Config file location: ~/.nvidia-nim-forever.json
+ * 📖 Config file location: ~/.free-coding-models.json
  * 📖 File permissions: 0o600 (user read/write only — contains API keys)
  *
  * 📖 Config JSON structure:
@@ -49,13 +49,13 @@
  *
 
  *
- * 📖 Migration: On first run, if the old plain-text ~/.nvidia-nim-forever exists
+ * 📖 Migration: On first run, if the old plain-text ~/.free-coding-models exists
  *    and the new JSON file does not, the old key is auto-migrated as the nvidia key.
  *    The old file is left in place (not deleted) for safety.
  *
  * @functions
- *   → loadConfig() — Read ~/.nvidia-nim-forever.json; auto-migrate old plain-text config if needed
- *   → saveConfig(config, options?) — Write config to ~/.nvidia-nim-forever.json with atomic replace + merge safeguards
+ *   → loadConfig() — Read ~/.free-coding-models.json; auto-migrate old plain-text config if needed
+ *   → saveConfig(config, options?) — Write config to ~/.free-coding-models.json with atomic replace + merge safeguards
  *   → getApiKey(config, providerKey) — Get effective API key (env var override > config > null)
  *   → addApiKey(config, providerKey, key) — Append a key (string→array); ignores empty/duplicate
  *   → removeApiKey(config, providerKey, index?) — Remove key at index (or last); collapses array-of-1 to string; deletes when empty
@@ -73,7 +73,7 @@
  * @exports buildPersistedConfig, replaceConfigContents, persistApiKeysForProvider
  * @exports CONFIG_PATH — path to the JSON config file
  *
- * @see bin/nvidia-nim-forever.js — main CLI that uses these functions
+ * @see bin/free-coding-models.js — main CLI that uses these functions
  * @see sources.js — provider keys come from Object.keys(sources)
  */
 
@@ -83,13 +83,15 @@ import { join } from 'node:path'
 import { syncShellEnv } from './shell-env.js'
 
 // 📖 New JSON config path — stores NVIDIA API keys + enabled state
-export const CONFIG_PATH = join(homedir(), '.nvidia-nim-forever.json')
+export const CONFIG_PATH = join(homedir(), '.free-coding-models.json')
 
 // 📖 Runtime data directory — backups and local snapshots live here.
-export const DAEMON_DATA_DIR = join(homedir(), '.nvidia-nim-forever')
+export const DAEMON_DATA_DIR = join(homedir(), '.free-coding-models')
 
-// 📖 Old plain-text config path — used only for migration
-const LEGACY_CONFIG_PATH = join(homedir(), '.nvidia-nim-forever')
+// 📖 Legacy paths for auto-migration
+const OLD_CONFIG_PATH = join(homedir(), '.nvidia-nim-forever.json')
+const OLD_DATA_DIR = join(homedir(), '.nvidia-nim-forever')
+const LEGACY_PLAIN_TEXT_PATH = join(homedir(), '.nvidia-nim-forever')
 
 // 📖 Environment variable names per provider
 // 📖 These allow users to override config via env vars (useful for CI/headless setups)
@@ -505,8 +507,8 @@ export function persistApiKeysForProvider(config, providerKey) {
  * 📖 loadConfig: Read the JSON config from disk.
  *
  * 📖 Fallback chain:
- *   1. Try to read ~/.nvidia-nim-forever.json (new format)
- *   2. If missing, check if ~/.nvidia-nim-forever (old plain-text) exists → migrate
+ *   1. Try to read ~/.free-coding-models.json (new format)
+ *   2. If missing, check if ~/.free-coding-models (old plain-text) exists → migrate
  *   3. If neither, return an empty default config
  *
  * 📖 Now includes automatic validation and repair from backups if config is corrupted.
@@ -514,6 +516,24 @@ export function persistApiKeysForProvider(config, providerKey) {
  * @returns {{ apiKeys: Record<string,string>, providers: Record<string,{enabled:boolean}>, favorites: string[], telemetry: { enabled: boolean | null, consentVersion: number, anonymousId: string | null } }}
  */
 export function loadConfig() {
+  // 📖 Migration Step 1: Move ~/.nvidia-nim-forever.json to ~/.free-coding-models.json
+  if (!existsSync(CONFIG_PATH) && existsSync(OLD_CONFIG_PATH)) {
+    try {
+      renameSync(OLD_CONFIG_PATH, CONFIG_PATH)
+    } catch (err) {
+      // 📖 Silent fail; fallback to manual load if rename failed
+    }
+  }
+
+  // 📖 Migration Step 2: Move ~/.nvidia-nim-forever/ to ~/.free-coding-models/
+  if (!existsSync(DAEMON_DATA_DIR) && existsSync(OLD_DATA_DIR)) {
+    try {
+      renameSync(OLD_DATA_DIR, DAEMON_DATA_DIR)
+    } catch (err) {
+      // 📖 Silent fail
+    }
+  }
+
   // 📖 Try new JSON config first
   if (existsSync(CONFIG_PATH)) {
     // 📖 Validate the config file first, try auto-repair if corrupted
@@ -522,7 +542,7 @@ export function loadConfig() {
     if (!validation.valid && !validation.repaired) {
       // 📖 Config is corrupted and repair failed - warn user but continue with empty config
       console.error(`⚠️  Warning: Config file is corrupted and could not be repaired: ${validation.error}`)
-      console.error('⚠️  Starting with fresh config. Your backups are in ~/.nvidia-nim-forever.backups/')
+      console.error('⚠️  Starting with fresh config. Your backups are in ~/.free-coding-models.backups/')
     }
 
     if (validation.repaired) {
@@ -539,9 +559,9 @@ export function loadConfig() {
   }
 
   // 📖 Migration path: old plain-text file exists, new JSON doesn't
-  if (existsSync(LEGACY_CONFIG_PATH)) {
+  if (existsSync(LEGACY_PLAIN_TEXT_PATH)) {
     try {
-      const oldKey = readFileSync(LEGACY_CONFIG_PATH, 'utf8').trim()
+      const oldKey = readFileSync(LEGACY_PLAIN_TEXT_PATH, 'utf8').trim()
       if (oldKey) {
         const config = _emptyConfig()
         config.apiKeys.nvidia = oldKey
@@ -561,7 +581,7 @@ export function loadConfig() {
 }
 
 /**
- * 📖 saveConfig: Write the config object to ~/.nvidia-nim-forever.json.
+ * 📖 saveConfig: Write the config object to ~/.free-coding-models.json.
  *
  * 📖 Uses mode 0o600 so the file is only readable by the owning user (API keys!).
  * 📖 Pretty-prints JSON for human readability.
@@ -654,7 +674,7 @@ export function saveConfig(config, options = {}) {
 /**
  * 📖 createBackup: Creates a timestamped backup of the current config file.
  * 📖 Keeps only the 5 most recent backups to avoid disk space issues.
- * 📖 Backup files are stored in ~/.nvidia-nim-forever.backups/
+ * 📖 Backup files are stored in ~/.free-coding-models.backups/
  * 
  * @returns {boolean} true if backup was created, false otherwise
  */
@@ -665,7 +685,7 @@ function createBackup() {
     }
 
     // 📖 Create backup directory if it doesn't exist
-    const backupDir = join(homedir(), '.nvidia-nim-forever.backups')
+    const backupDir = join(homedir(), '.free-coding-models.backups')
     if (!existsSync(backupDir)) {
       mkdirSync(backupDir, { mode: 0o700, recursive: true })
     }
@@ -712,7 +732,7 @@ function createBackup() {
  * @throws {Error} if no backup exists or restoration fails
  */
 function restoreFromBackup() {
-  const backupDir = join(homedir(), '.nvidia-nim-forever.backups')
+  const backupDir = join(homedir(), '.free-coding-models.backups')
   
   if (!existsSync(backupDir)) {
     throw new Error('No backup directory found')
@@ -802,7 +822,7 @@ export function validateConfigFile(options = {}) {
  *
  * 📖 Priority order (first non-empty wins):
  *   1. Environment variable (e.g. NVIDIA_API_KEY) — for CI/headless
- *   2. Config file value — from ~/.nvidia-nim-forever.json
+ *   2. Config file value — from ~/.free-coding-models.json
  *   3. null — no key configured
  *
  * @param {{ apiKeys: Record<string,string> }} config

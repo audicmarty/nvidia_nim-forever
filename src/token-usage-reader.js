@@ -26,7 +26,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
-const DEFAULT_DATA_DIR = join(homedir(), '.nvidia-nim-forever')
+const DEFAULT_DATA_DIR = join(homedir(), '.free-coding-models')
 const STATS_FILE = join(DEFAULT_DATA_DIR, 'token-stats.json')
 
 // 📖 buildProviderModelTokenKey keeps provider-scoped totals isolated even when

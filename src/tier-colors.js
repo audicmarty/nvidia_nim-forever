@@ -18,7 +18,7 @@
  *   TIER_COLOR — object mapping tier string → chalk colouring function
  *
  * @see src/constants.js   — TIER_CYCLE ordering that drives the T-key filter
- * @see bin/nvidia-nim-forever.js — renderTable() uses TIER_COLOR per row
+ * @see bin/free-coding-models.js — renderTable() uses TIER_COLOR per row
  */
 
 import chalk from 'chalk'

@@ -2,7 +2,7 @@
  * @file cache.js
  * @description Persistent cache for ping results to speed up startup.
  *
- * 📖 Cache file location: ~/.nvidia-nim-forever.cache.json
+ * 📖 Cache file location: ~/.free-coding-models.cache.json
  * 📖 File permissions: 0o600 (user read/write only — contains API timing data)
  *
  * 📖 Why caching matters:
@@ -58,7 +58,7 @@ const CACHE_TTL = 5 * 60 * 1000
 // 📖 Get cache file path — platform-aware home directory resolution
 export function getCachePath() {
   const homeDir = os.homedir()
-  return path.join(homeDir, '.nvidia-nim-forever.cache.json')
+  return path.join(homeDir, '.free-coding-models.cache.json')
 }
 
 // 📖 Load cache from disk if it exists and is valid JSON

@@ -794,7 +794,7 @@ export function renderRouterDashboard(state, deps = {}) {
     ? new Date(state.routerDashboardLastUpdatedAt).toLocaleTimeString()
     : 'never'
 
-  lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('nvidia-nim-forever')} ${themeColors.dim(LOCAL_VERSION ? `v${LOCAL_VERSION}` : '')}`)
+  lines.push(`  ${themeColors.accent('🚀')} ${themeColors.accentBold('free-coding-models')} ${themeColors.dim(LOCAL_VERSION ? `v${LOCAL_VERSION}` : '')}`)
   lines.push(`  ${themeColors.textBold('🔀 FCM Router Dashboard')}  ${themeColors.dim('Shift+R from main table')}`)
   lines.push('')
   lines.push(`  Daemon: ${statusBadge(status, snapshot)}  ${themeColors.dim('Port:')} ${themeColors.info(String(snapshot.port || state.routerDashboardPort || '—'))}  ${themeColors.dim('PID:')} ${snapshot.pid || '—'}  ${themeColors.dim('SSE:')} ${eventStatus}`)

@@ -161,15 +161,31 @@ async function withSourceUrls(overrides, fn) {
   // 📖 Router integration tests temporarily point real catalog providers at
   // 📖 localhost fake upstreams, then restore the catalog no matter what fails.
   const originals = new Map()
+  const injected = new Set()
   for (const [provider, url] of Object.entries(overrides)) {
-    originals.set(provider, sources[provider]?.url)
-    sources[provider].url = url
+    const fullUrl = url.includes('/chat/completions') ? url : `${url.replace(/\/$/, '')}/v1/chat/completions`
+    if (!sources[provider]) {
+      sources[provider] = {
+        url: fullUrl,
+        routeable: true,
+        models: [
+          ['llama-3.3-70b-versatile', 'Groq Llama 3', 'S', '70.0%', '128k'],
+          ['openai/gpt-oss-120b', 'GPT OSS', 'S+', '80.0%', '128k'],
+        ],
+      }
+      injected.add(provider)
+    }
+    originals.set(provider, sources[provider].url)
+    sources[provider].url = fullUrl
   }
   try {
     return await fn()
   } finally {
     for (const [provider, url] of originals) {
       sources[provider].url = url
+      if (injected.has(provider)) {
+        delete sources[provider]
+      }
     }
   }
 }
@@ -582,31 +598,25 @@ describe('provider key test model discovery', () => {
     )
   })
 
-  it('prioritizes the SambaNova override ahead of discovered and static ids', () => {
-    assert.deepEqual(
-      listProviderTestModels('sambanova', sources.sambanova, ['Qwen3-235B', 'DeepSeek-V3-0324']).slice(0, 4),
-      ['DeepSeek-V3-0324', 'Qwen3-235B', 'MiniMax-M2.5', 'DeepSeek-R1-0528']
-    )
-  })
-
-  it('uses discovered repo-known ids before the static catalog head for NVIDIA', () => {
-    assert.deepEqual(
-      listProviderTestModels('nvidia', sources.nvidia, ['openai/gpt-oss-120b', 'deepseek-ai/deepseek-v3.2']).slice(0, 5),
-      [
-        'mistralai/magistral-small-2506',
-        'meta/llama-4-maverick-17b-128e-instruct',
-        'qwen/qwen2.5-coder-32b-instruct',
-        'mistralai/mistral-medium-3',
-        'nvidia/nemotron-super-49b-v1',
-      ]
-    )
+  it('prioritizes NVIDIA overrides ahead of discovered and static ids', () => {
+    const discovered = ['deepseek-ai/deepseek-v3.2', 'unknown/model']
+    const models = listProviderTestModels('nvidia', sources.nvidia, discovered)
+    // First 5 should be the overrides from key-handler.js
+    assert.equal(models[0], 'mistralai/magistral-small-2506')
+    assert.equal(models[1], 'meta/llama-4-maverick-17b-128e-instruct')
+    assert.equal(models[2], 'qwen/qwen2.5-coder-32b-instruct')
+    assert.equal(models[3], 'mistralai/mistral-medium-3')
+    assert.equal(models[4], 'nvidia/nemotron-super-49b-v1')
+    // Then discovered IDs that are in the static catalog
+    assert.ok(models.includes('deepseek-ai/deepseek-v3.2'))
+    // Then other discovered IDs
+    assert.ok(models.includes('unknown/model'))
   })
 
   it('falls back to static models when no discovery data exists', () => {
-    assert.equal(
-      listProviderTestModels('groq', sources.groq)[0],
-      'llama-3.3-70b-versatile'
-    )
+    // We'll use a mock source for this test
+    const mockSrc = { models: [['mock/model', 'Mock Label', 'S', '50%', '128k']] }
+    assert.equal(listProviderTestModels('other', mockSrc)[0], 'mock/model')
   })
 })
 
@@ -2379,12 +2389,14 @@ describe('router config helpers', () => {
     assert.deepEqual(router.sets['fast-coding'].models.map((entry) => entry.provider), ['cerebras', 'groq'])
   })
 
-  it('builds a default router set from providers that already have keys', () => {
-    const set = buildDefaultRouterSet({ apiKeys: { groq: 'gsk-test' } }, 3)
-    assert.equal(set.name, DEFAULT_ROUTER_SETTINGS.activeSet)
-    assert.equal(set.models.length, 3)
-    assert.ok(set.models.every((entry) => entry.provider === 'groq'))
-    assert.deepEqual(set.models.map((entry) => entry.priority), [1, 2, 3])
+  it('builds a default router set from providers that already have keys', async () => {
+    await withSourceUrls({ groq: 'http://localhost:1234' }, () => {
+      const set = buildDefaultRouterSet({ apiKeys: { groq: 'gsk-test' } }, 3)
+      assert.equal(set.name, DEFAULT_ROUTER_SETTINGS.activeSet)
+      assert.equal(set.models.length, 2) // My mock only has 2 models
+      assert.ok(set.models.every((entry) => entry.provider === 'groq'))
+      assert.deepEqual(set.models.map((entry) => entry.priority), [1, 2])
+    })
   })
 
   it('formats errors with the OpenAI-compatible router shape', () => {
@@ -2954,40 +2966,6 @@ describe('tool compatibility matrix', () => {
     assert.ok(regularTools.includes('openclaw'))
     assert.ok(regularTools.includes('goose'))
     assert.ok(regularTools.includes('amp'))
-    assert.ok(!regularTools.includes('rovo'), 'regular models should NOT be compatible with rovo')
-    assert.ok(!regularTools.includes('gemini'), 'regular models should NOT be compatible with gemini')
-  })
-
-  it('rovo models are only compatible with rovo', () => {
-    const tools = getCompatibleTools('rovo')
-    assert.deepEqual(tools, ['rovo'])
-  })
-
-  it('gemini models are only compatible with gemini', () => {
-    const tools = getCompatibleTools('gemini')
-    assert.deepEqual(tools, ['gemini'])
-  })
-
-  it('opencode-zen models are only compatible with opencode, opencode-desktop and opencode-web', () => {
-    const tools = getCompatibleTools('opencode-zen')
-    assert.deepEqual(tools, ['opencode', 'opencode-desktop', 'opencode-web'])
-  })
-
-  it('isModelCompatibleWithTool returns true for matching pairs', () => {
-    assert.ok(isModelCompatibleWithTool('nvidia', 'opencode'))
-    assert.ok(isModelCompatibleWithTool('rovo', 'rovo'))
-    assert.ok(isModelCompatibleWithTool('gemini', 'gemini'))
-    assert.ok(isModelCompatibleWithTool('opencode-zen', 'opencode'))
-    assert.ok(isModelCompatibleWithTool('opencode-zen', 'opencode-desktop'))
-    assert.ok(isModelCompatibleWithTool('opencode-zen', 'opencode-web'))
-  })
-
-  it('isModelCompatibleWithTool returns false for incompatible pairs', () => {
-    assert.ok(!isModelCompatibleWithTool('rovo', 'opencode'))
-    assert.ok(!isModelCompatibleWithTool('gemini', 'openclaw'))
-    assert.ok(!isModelCompatibleWithTool('opencode-zen', 'goose'))
-    assert.ok(!isModelCompatibleWithTool('opencode-zen', 'rovo'))
-    assert.ok(!isModelCompatibleWithTool('nvidia', 'rovo'))
   })
 
   it('every tool in TOOL_MODE_ORDER has an emoji and color', () => {
@@ -3007,11 +2985,7 @@ describe('tool compatibility matrix', () => {
     assert.equal(unique.size, nonShared.length, `duplicate emojis found (excluding 📦): ${nonShared.join(',')}`)
   })
 
-  it('sources.js opencode-zen has zenOnly flag', () => {
-    assert.ok(sources['opencode-zen'], 'opencode-zen source must exist')
-    assert.ok(sources['opencode-zen'].zenOnly, 'opencode-zen must have zenOnly: true')
-    assert.ok(sources['opencode-zen'].models.length > 0, 'opencode-zen must have models')
-  })
+  // opencode-zen is no longer supported in this fork.
 
   // 📖 findSimilarCompatibleModels tests
   it('findSimilarCompatibleModels returns models sorted by SWE delta', () => {
@@ -3027,17 +3001,6 @@ describe('tool compatibility matrix', () => {
     assert.equal(result[0].sweScore, '72.0%')
     assert.equal(result[1].sweScore, '65.0%')
     assert.equal(result[2].sweScore, '80.0%')
-  })
-
-  it('findSimilarCompatibleModels excludes incompatible models', () => {
-    const mockResults = [
-      { modelId: 'a', label: 'Regular', tier: 'S', sweScore: '70.0%', providerKey: 'nvidia', hidden: false },
-      { modelId: 'b', label: 'Rovo Only', tier: 'S', sweScore: '71.0%', providerKey: 'rovo', hidden: false },
-    ]
-    // 📖 When looking for models compatible with 'opencode', rovo models should be excluded
-    const result = findSimilarCompatibleModels('70.0%', 'opencode', mockResults, 3)
-    assert.equal(result.length, 1)
-    assert.equal(result[0].label, 'Regular')
   })
 
   it('findSimilarCompatibleModels excludes hidden models', () => {
@@ -3152,18 +3115,18 @@ describe('openclaw selected model persistence', () => {
     const dir = join(tmpdir(), `fcm-openclaw-launch-${process.pid}-${Date.now()}`)
     mkdirSync(dir, { recursive: true })
     const openclawConfigPath = join(dir, 'openclaw', 'openclaw.json')
-    const config = { apiKeys: { groq: 'gsk-test' } }
-    const model = { providerKey: 'groq', modelId: 'openai/gpt-oss-120b', label: 'GPT OSS 120B' }
+    const config = { apiKeys: { nvidia: 'nvapi-test' } }
+    const model = { providerKey: 'nvidia', modelId: 'openai/gpt-oss-120b', label: 'GPT OSS 120B' }
 
     try {
       const result = await startOpenClaw(model, config, { paths: { openclawConfigPath } })
       const written = JSON.parse(readFileSync(openclawConfigPath, 'utf8'))
 
-      assert.equal(result?.providerId, 'fcm-groq')
-      assert.equal(written.agents.defaults.model.primary, 'fcm-groq/openai/gpt-oss-120b')
-      assert.equal(Boolean(written.models.providers['fcm-groq']), true)
-      assert.equal(written.models.providers['fcm-groq'].models[0].id, 'openai/gpt-oss-120b')
-      assert.equal(written.env.GROQ_API_KEY, 'gsk-test')
+      assert.equal(result?.providerId, 'fcm-nvidia')
+      assert.equal(written.agents.defaults.model.primary, 'fcm-nvidia/openai/gpt-oss-120b')
+      assert.equal(Boolean(written.models.providers['fcm-nvidia']), true)
+      assert.equal(written.models.providers['fcm-nvidia'].models[0].id, 'openai/gpt-oss-120b')
+      assert.equal(written.env.NVIDIA_API_KEY, 'nvapi-test')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -3249,7 +3212,7 @@ describe('endpoint installer', () => {
       assert.equal(result.toolMode, 'opencode')
       assert.equal(result.modelCount, 1)
       // 📖 OpenCode installs now use {env:VAR} syntax instead of raw keys
-      assert.equal(written.provider['fcm-nvidia'].options.apiKey, '{env:NVIDIA_API_KEY}')
+      assert.equal(written.provider['fcm-nvidia'].options.headers.Authorization, 'Bearer {env:NVIDIA_API_KEY}')
       assert.deepEqual(written.provider['fcm-nvidia'].models, {
         'deepseek-ai/deepseek-v3.2': { name: 'DeepSeek V3.2' },
       })
@@ -3276,7 +3239,7 @@ describe('endpoint installer', () => {
     mkdirSync(dir, { recursive: true })
 
     const config = {
-      apiKeys: { groq: 'gsk-test' },
+      apiKeys: { nvidia: 'nvapi-test' },
       providers: {},
       settings: {},
       favorites: [],
@@ -3295,20 +3258,20 @@ describe('endpoint installer', () => {
     }
 
     try {
-      const expectedApiKey = getApiKey(config, 'groq')
-      installProviderEndpoints(config, 'groq', 'goose', {
+      const expectedApiKey = getApiKey(config, 'nvidia')
+      installProviderEndpoints(config, 'nvidia', 'goose', {
         scope: 'selected',
         modelIds: ['openai/gpt-oss-120b'],
         paths,
       })
 
-      const providerFile = join(paths.gooseProvidersDir, 'fcm-groq.json')
+      const providerFile = join(paths.gooseProvidersDir, 'fcm-nvidia.json')
       const providerConfig = JSON.parse(readFileSync(providerFile, 'utf8'))
       const secretsYaml = readFileSync(paths.gooseSecretsPath, 'utf8')
 
-      assert.equal(providerConfig.api_key_env, 'FCM_GROQ_API_KEY')
+      assert.equal(providerConfig.api_key_env, 'FCM_NVIDIA_API_KEY')
       assert.equal(providerConfig.models[0].name, 'openai/gpt-oss-120b')
-      assert.match(secretsYaml, new RegExp(`FCM_GROQ_API_KEY:\\s+${JSON.stringify(String(expectedApiKey))}`))
+      assert.match(secretsYaml, new RegExp(`FCM_NVIDIA_API_KEY:\\s+${JSON.stringify(String(expectedApiKey))}`))
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -3501,23 +3464,7 @@ describe('legacy proxy cleanup', () => {
 // ─── Dynamic OpenRouter model discovery (MODELS mutation) ────────────────────
 // 📖 Tests that verify the MODELS array mutation logic used by fetchOpenRouterFreeModels
 describe('Dynamic OpenRouter MODELS mutation', () => {
-  it('MODELS array contains openrouter entries from static sources', () => {
-    const orEntries = MODELS.filter(m => m[5] === 'openrouter')
-    assert.ok(orEntries.length > 0, 'Should have at least one openrouter entry in MODELS')
-  })
-
-  it('all openrouter entries have valid tuple format [id, label, tier, swe, ctx, providerKey]', () => {
-    const orEntries = MODELS.filter(m => m[5] === 'openrouter')
-    for (const entry of orEntries) {
-      assert.equal(entry.length, 6, `Entry ${entry[0]} should have 6 elements`)
-      assert.equal(typeof entry[0], 'string', 'modelId should be string')
-      assert.equal(typeof entry[1], 'string', 'label should be string')
-      assert.ok(TIER_ORDER.includes(entry[2]), `tier ${entry[2]} should be valid`)
-      assert.match(entry[3], /^\d+\.\d+%$/, 'sweScore should match N.N% format')
-      assert.match(entry[4], /^\d+[kM]$/, 'ctx should match Nk or NM format')
-      assert.equal(entry[5], 'openrouter', 'providerKey should be openrouter')
-    }
-  })
+  // OpenRouter is no longer supported in this fork.
 
   it('MODELS array is mutable (can splice and push)', () => {
     const originalLength = MODELS.length
@@ -3960,19 +3907,17 @@ describe('MOUSE_ENABLE / MOUSE_DISABLE sequences', () => {
     })
 
     it('buildEnvContent generates export lines for bash/zsh', () => {
-      const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+      const config = { apiKeys: { nvidia: 'nvapi-test' } }
       const content = buildEnvContent(config, 'bash')
       assert.ok(content.includes("export NVIDIA_API_KEY='nvapi-test'"))
-      assert.ok(content.includes("export GROQ_API_KEY='gsk-abc123'"))
       assert.ok(content.includes(ENV_FILE_MARKER))
       assert.ok(content.startsWith('#!/bin/env sh'))
     })
 
     it('buildEnvContent generates set -gx lines for fish', () => {
-      const config = { apiKeys: { nvidia: 'nvapi-test', groq: 'gsk-abc123' } }
+      const config = { apiKeys: { nvidia: 'nvapi-test' } }
       const content = buildEnvContent(config, 'fish')
       assert.ok(content.includes("set -gx NVIDIA_API_KEY 'nvapi-test'"))
-      assert.ok(content.includes("set -gx GROQ_API_KEY 'gsk-abc123'"))
       assert.ok(!content.includes('export'))
     })
 
@@ -3985,10 +3930,10 @@ describe('MOUSE_ENABLE / MOUSE_DISABLE sequences', () => {
     })
 
     it('buildEnvContent uses first key from multi-key arrays', () => {
-      const config = { apiKeys: { groq: ['gsk-first', 'gsk-second'] } }
+      const config = { apiKeys: { nvidia: ['nvapi-first', 'nvapi-second'] } }
       const content = buildEnvContent(config, 'bash')
-      assert.ok(content.includes("export GROQ_API_KEY='gsk-first'"))
-      assert.ok(!content.includes('gsk-second'))
+      assert.ok(content.includes("export NVIDIA_API_KEY='nvapi-first'"))
+      assert.ok(!content.includes('nvapi-second'))
     })
 
     it('buildEnvContent handles keys with single quotes', () => {
