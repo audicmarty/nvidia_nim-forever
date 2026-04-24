@@ -369,23 +369,38 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
       resolve()
     })
       
-      proxyRes.on('error', (err) => {
-        logToRealtimeFile(`REQ ${reqId}`, `NIM proxyRes Error: ${err.message}`);
-        cleanup()
-        if (chunksReceived > 0) {
-          // If we already started streaming, we can't cleanly retry without duplicating text.
-          // Gracefully complete the stream so OpenCode processes what it got.
-          try {
-            if (!res.writableEnded) {
-              res.write(SSE_TERMINATION)
-              res.end()
-            }
-          } catch {}
-          resolve()
-        } else {
-          reject(err)
+  proxyRes.on('error', (err) => {
+    logToRealtimeFile(`REQ ${reqId}`, `NIM proxyRes Error: ${err.message} (chunksReceived: ${chunksReceived})`);
+    cleanup()
+    if (chunksReceived > 0) {
+      // 📖 CRITICAL: Send proper SSE termination so OpenCode knows stream is complete
+      // Without this, OpenCode shows "Continue" button instead of completing
+      try {
+        if (!res.writableEnded) {
+          const finishPayload = {
+            id: "finish",
+            object: "chat.completion.chunk",
+            created: Date.now(),
+            model: "glm-5.1",
+            choices: [{
+              delta: {},
+              index: 0,
+              finish_reason: "stop"
+            }]
+          }
+          res.write(`data: ${JSON.stringify(finishPayload)}\n\n`)
+          res.write(SSE_TERMINATION)
+          res.end()
+          logToRealtimeFile(`REQ ${reqId}`, `Sent graceful termination after ${chunksReceived} chunks`);
         }
-    })
+      } catch (e) {
+        logToRealtimeFile(`REQ ${reqId}`, `Error sending termination: ${e.message}`);
+      }
+      resolve()
+    } else {
+      reject(err)
+    }
+  })
   })
 
    // 🚀 SPEED FIX 2: Disable Nagle's algorithm on NVIDIA connection (before request is sent)
