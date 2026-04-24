@@ -238,17 +238,28 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     let chunksReceived = 0
     let thinkingStartTime = Date.now()
 
-    let keepAliveInterval = setInterval(() => {
-      try {
-        if (!res.writableEnded) {
-          res.write(': keepalive\n\n')
-        } else {
-          clearInterval(keepAliveInterval)
+  // 📖 CRITICAL: Aggressive heartbeats to prevent OpenCode timeout
+  // GLM can take 1-3 minutes to think - OpenCode times out after ~30-60s without data
+  // Send heartbeat every 3 seconds to keep connection alive during thinking
+  let keepAliveInterval = setInterval(() => {
+    try {
+      if (!res.writableEnded) {
+        // Send a real data chunk as heartbeat (not just comment) to reset OpenCode's timer
+        const heartbeatPayload = {
+          id: `hb-${Date.now()}`,
+          object: "chat.completion.chunk",
+          created: Date.now(),
+          model: "glm-5.1",
+          choices: [{ delta: {}, index: 0, finish_reason: null }]
         }
-      } catch (e) {
+        res.write(`data: ${JSON.stringify(heartbeatPayload)}\n\n`)
+      } else {
         clearInterval(keepAliveInterval)
       }
-    }, 15000)
+    } catch (e) {
+      clearInterval(keepAliveInterval)
+    }
+  }, 3000) // Every 3 seconds
 
     const cleanup = () => {
       if (activityTimeout) clearTimeout(activityTimeout)
@@ -373,33 +384,12 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
     logToRealtimeFile(`REQ ${reqId}`, `NIM proxyRes Error: ${err.message} (chunksReceived: ${chunksReceived})`);
     cleanup()
     if (chunksReceived > 0) {
-      // 📖 CRITICAL: Send proper SSE termination so OpenCode knows stream is complete
-      // Without this, OpenCode shows "Continue" button instead of completing
-      try {
-        if (!res.writableEnded) {
-          const finishPayload = {
-            id: "finish",
-            object: "chat.completion.chunk",
-            created: Date.now(),
-            model: "glm-5.1",
-            choices: [{
-              delta: {},
-              index: 0,
-              finish_reason: "stop"
-            }]
-          }
-          res.write(`data: ${JSON.stringify(finishPayload)}\n\n`)
-          res.write(SSE_TERMINATION)
-          res.end()
-          logToRealtimeFile(`REQ ${reqId}`, `Sent graceful termination after ${chunksReceived} chunks`);
-        }
-      } catch (e) {
-        logToRealtimeFile(`REQ ${reqId}`, `Error sending termination: ${e.message}`);
-      }
-      resolve()
-    } else {
-      reject(err)
+      // 📖 Stream was cut off mid-response - this is a retryable error
+      // Don't send fake "stop" - let caller retry so GLM can continue
+      // Sending "stop" makes OpenCode think response is complete when it's not
+      logToRealtimeFile(`REQ ${reqId}`, `Stream interrupted after ${chunksReceived} chunks - will retry`);
     }
+    reject(err)
   })
   })
 
