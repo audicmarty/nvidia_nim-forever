@@ -9,7 +9,7 @@ import { createServer as createHttpServer } from 'http'
 import { request as httpsRequest, Agent } from 'https'
 import { homedir, hostname } from 'os'
 import { join } from 'path'
-import { copyFileSync, existsSync, appendFileSync, mkdirSync } from 'fs'
+import { copyFileSync, existsSync, appendFileSync } from 'fs'
 import { PROVIDER_COLOR } from './render-table.js'
 import { loadOpenCodeConfig, saveOpenCodeConfig } from './opencode-config.js'
 import { getApiKey, listApiKeys } from './config.js'
@@ -421,16 +421,11 @@ function tryGlmRequest(req, body, res, apiKey, attempt, startTime, isClientConne
 }
 
 
-const GLM_PROXY_LOG_PATH = join(homedir(), '.nvidia-nim-forever', 'glm-proxy.log');
+// 📖 Log to current working directory (where OpenCode was launched from)
+const GLM_PROXY_LOG_PATH = join(process.cwd(), 'glm-proxy.log');
 
 function logToRealtimeFile(prefix, data) {
   try {
-    // Ensure log directory exists
-    const logDir = dirname(GLM_PROXY_LOG_PATH);
-    if (!existsSync(logDir)) {
-      mkdirSync(logDir, { recursive: true });
-    }
-    
     const ts = new Date().toISOString();
     let msg = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
     
