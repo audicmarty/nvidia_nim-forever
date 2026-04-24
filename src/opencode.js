@@ -621,7 +621,7 @@ function getOpenCodeModelId(providerKey, modelId) {
 // 📖 spawnOpenCode: Resolve API keys + spawn opencode CLI with correct env.
 async function spawnOpenCode(args, providerKey, nnfConfig, existingZaiProxy = null, model = null, existingGlmProxy = null) {
   const envVarName = ENV_VAR_NAMES[providerKey]
-  const resolvedKey = getApiKey(fcmConfig, providerKey)
+  const resolvedKey = getApiKey(nnfConfig, providerKey)
   const childEnv = { ...process.env }
   // 📖 Suppress MaxListenersExceededWarning from @modelcontextprotocol/sdk
   childEnv.NODE_NO_WARNINGS = '1'
@@ -994,9 +994,9 @@ export async function startOpenCodeDesktop(model, nnfConfig) {
   }
   
   if (!config.provider) config.provider = {}
-  
-  // 📖 Always sync provider configuration for Desktop to ensure latest FCM keys are used
-  const resolvedKey = getApiKey(fcmConfig, providerKey)
+
+  // 📖 Always sync provider configuration for Desktop to ensure latest NNF keys are used
+  const resolvedKey = getApiKey(nnfConfig, providerKey)
   const apiKeyRef = resolvedKey // Use raw key for Desktop to ensure it works without global env vars
   
   if (providerKey === 'nvidia') {
